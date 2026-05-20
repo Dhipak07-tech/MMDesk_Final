@@ -8,6 +8,7 @@
     "dev:php": "php -S localhost:8000 php-backend/index.php",
     "dev:frontend": "vite",
     "build": "vite build",
+    "start": "tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
