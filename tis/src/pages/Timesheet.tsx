@@ -1403,7 +1403,7 @@ export function Timesheet() {
           { label: "Entries", value: timeCards.length, color: "text-purple-600" },
           { label: "Status", value: timesheet?.status || "Draft", color: timesheet?.status === "Approved" ? "text-green-600" : timesheet?.status === "Rejected" ? "text-red-600" : "text-gray-700" },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-lg border border-border p-4">
+          <div key={s.label} className="bg-card rounded-lg border border-border p-4">
             <div className="text-xs text-muted-foreground uppercase font-bold tracking-wide">{s.label}</div>
             <div className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</div>
           </div>

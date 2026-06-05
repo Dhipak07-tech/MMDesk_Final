@@ -200,7 +200,7 @@ export function TimesheetWeekly() {
             <p className="text-sm text-muted-foreground">Log your daily minutes</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 bg-white p-2 rounded-lg border border-border">
+        <div className="flex items-center gap-4 bg-card p-2 rounded-lg border border-border">
           <div className="text-right px-4 border-r border-border">
             <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Week Total</div>
             <div className="text-xl font-bold text-sn-green">{weekTotal.toFixed(0)} mins</div>
@@ -277,7 +277,7 @@ export function TimesheetWeekly() {
             const dayTotal = entries.reduce((s, c) => s + (parseFloat(c.hours_worked) || 0), 0);
             const isWeekend = ["Sat", "Sun"].includes(day.dayName);
             return (
-              <div key={day.date} className={`rounded-lg border border-border flex flex-col min-h-[280px] ${isWeekend ? "bg-muted/40" : "bg-white"}`}>
+              <div key={day.date} className={`rounded-lg border border-border flex flex-col min-h-[280px] ${isWeekend ? "bg-muted/40" : "bg-card"}`}>
                 <div className={`p-3 border-b border-border rounded-t-lg ${isWeekend ? "bg-muted/30" : "bg-muted/10"}`}>
                   <div className="text-xs font-bold uppercase text-muted-foreground">{day.dayName}</div>
                   <div className="text-base font-semibold">{day.fullDate}</div>
@@ -335,7 +335,7 @@ export function TimesheetWeekly() {
           { label: "Entries", value: timeCards.length, color: "text-purple-600" },
           { label: "Status", value: timesheet?.status || "Draft", color: timesheet?.status === "Approved" ? "text-green-600" : timesheet?.status === "Rejected" ? "text-red-600" : "text-gray-700" },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-lg border border-border p-4">
+          <div key={s.label} className="bg-card rounded-lg border border-border p-4">
             <div className="text-xs text-muted-foreground uppercase font-bold tracking-wide">{s.label}</div>
             <div className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</div>
           </div>
@@ -345,7 +345,7 @@ export function TimesheetWeekly() {
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+          <div className="bg-card rounded-lg shadow-xl w-full max-w-md">
             <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
               <h3 className="font-semibold">{editEntry ? "Edit Time Entry" : "Add Time Entry"}</h3>
               <button onClick={() => setShowModal(false)} className="p-1 hover:bg-muted rounded">✕</button>

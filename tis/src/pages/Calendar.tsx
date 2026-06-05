@@ -361,7 +361,7 @@ export function Calendar() {
   return (
     <div className="space-y-0 max-w-full">
       {/* ═══ PAGE HEADER ═══ */}
-      <div className="bg-white border-b border-border px-4 py-2">
+      <div className="bg-card border-b border-border px-4 py-2">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold text-sn-dark">Calendar</h1>
@@ -375,13 +375,13 @@ export function Calendar() {
       </div>
 
       {/* ═══ TOOLBAR ═══ */}
-      <div className="bg-white border-b border-border px-4 py-2 flex items-center justify-between flex-wrap gap-2">
+      <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <button className="p-1.5 hover:bg-muted rounded transition-colors"><Plus className="w-4 h-4" /></button>
           <button className="p-1.5 hover:bg-muted rounded transition-colors"><ChevronDown className="w-4 h-4" /></button>
           <button onClick={loadData} className="p-1.5 hover:bg-muted rounded transition-colors"><RefreshCw className="w-4 h-4" /></button>
           <button className="p-1.5 hover:bg-muted rounded transition-colors"><Printer className="w-4 h-4" /></button>
-          <select className="text-xs border border-border rounded px-2 py-1 bg-white outline-none">
+          <select className="text-xs border border-border rounded px-2 py-1 bg-card outline-none">
             <option>Display Type: Time with Schedule Overlay</option>
             <option>Display Type: Calendar Only</option>
           </select>
@@ -393,11 +393,11 @@ export function Calendar() {
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          <select className="text-xs border border-border rounded px-2 py-1 bg-white outline-none">
+          <select className="text-xs border border-border rounded px-2 py-1 bg-card outline-none">
             <option>View: Calendar Only</option>
             <option>View: With Details</option>
           </select>
-          <select className="text-xs border border-border rounded px-2 py-1 bg-white outline-none">
+          <select className="text-xs border border-border rounded px-2 py-1 bg-card outline-none">
             <option>Refresh: None</option>
             <option>Refresh: 30s</option>
             <option>Refresh: 60s</option>
@@ -407,7 +407,7 @@ export function Calendar() {
       </div>
 
       {/* ═══ DATE NAVIGATOR ═══ */}
-      <div className="bg-white border-b border-border px-4 py-2 flex items-center justify-between flex-wrap gap-2">
+      <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <button onClick={() => setWeekOffset(w => w - 1)} className="p-1 hover:bg-muted rounded"><ChevronLeft className="w-4 h-4" /></button>
           <div className="flex items-center gap-1 text-sm font-medium">
@@ -464,7 +464,7 @@ export function Calendar() {
       )}
 
       {/* ═══ CALENDAR GRID ═══ */}
-      <div className="flex overflow-x-auto bg-white">
+      <div className="flex overflow-x-auto bg-card">
         {/* Timezone / Hour Column */}
         <div className="flex-shrink-0 w-16 border-r border-border">
           {/* TZ header */}
@@ -549,7 +549,7 @@ export function Calendar() {
                       onClick={() => openEditPanel(card)}
                     >
                       <div
-                        className="h-full rounded-sm border border-border bg-white shadow-sm overflow-hidden flex hover:shadow-md transition-shadow"
+                        className="h-full rounded-sm border border-border bg-card shadow-sm overflow-hidden flex hover:shadow-md transition-shadow"
                         style={{ borderLeft: `3px solid ${borderColor}` }}
                       >
                         <div className="flex-grow px-1.5 py-1 overflow-hidden">
@@ -572,7 +572,7 @@ export function Calendar() {
                 {todoEntries.map((card, idx) => (
                   <div
                     key={card.id}
-                    className="rounded-sm border border-border bg-white px-1.5 py-0.5 text-[9px] cursor-pointer hover:bg-muted/30 truncate flex items-center gap-1"
+                    className="rounded-sm border border-border bg-card px-1.5 py-0.5 text-[9px] cursor-pointer hover:bg-muted/30 truncate flex items-center gap-1"
                     style={{ borderLeft: `3px solid ${getEventColor(idx)}` }}
                     onClick={() => openEditPanel(card)}
                   >
@@ -590,7 +590,7 @@ export function Calendar() {
       {editPanel && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setEditPanel(null)} />
-          <div className="relative w-full max-w-md bg-white shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right">
+          <div className="relative w-full max-w-md bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right">
             {/* Panel Header */}
             <div className="flex items-center justify-between p-4 border-b border-border bg-muted/10">
               <div className="flex items-center gap-2">
