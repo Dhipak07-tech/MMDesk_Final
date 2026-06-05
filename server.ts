@@ -4373,11 +4373,12 @@ Respond ONLY with JSON: {"summary": "your summary here"}`;
 
   app.get('/api/activity-sessions', async (req: any, res: any) => {
     try {
-      const { user_id, status: s, limit = '20' } = req.query;
+      const { user_id, status: s, ticket_number: tn, limit = '20' } = req.query;
       let sql = 'SELECT * FROM activity_sessions WHERE 1=1';
       const values: any[] = [];
       if (user_id) { sql += ' AND user_id = ?'; values.push(user_id); }
       if (s) { sql += ' AND status = ?'; values.push(s); }
+      if (tn) { sql += ' AND ticket_number = ?'; values.push(tn); }
       sql += ' ORDER BY created_at DESC LIMIT ?';
       values.push(parseInt(limit as string) || 20);
       const rows = await query(sql, values);

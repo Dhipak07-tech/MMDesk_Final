@@ -274,28 +274,28 @@ export function MyDashboard() {
       {/* Analytics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link to="/tickets?filter=assigned_to_me" className="block cursor-pointer">
-          <AnalyticsCard title="Total Tickets Assigned" value={data.cards.totalAssigned} />
+          <AnalyticsCard title="Total Incidents Assigned" value={data.cards.totalAssigned} />
         </Link>
         <Link to="/tickets?filter=created_by_me" className="block cursor-pointer">
-          <AnalyticsCard title="Total Tickets Created" value={data.cards.totalCreated} />
+          <AnalyticsCard title="Total Incidents Created" value={data.cards.totalCreated} />
         </Link>
         <Link to="/tickets?filter=open" className="block cursor-pointer">
-          <AnalyticsCard title="Open Tickets" value={data.cards.open} />
+          <AnalyticsCard title="Open Incidents" value={data.cards.open} />
         </Link>
         <Link to="/tickets?filter=in_progress" className="block cursor-pointer">
-          <AnalyticsCard title="In Progress Tickets" value={data.cards.inProgress} />
+          <AnalyticsCard title="In Progress Incidents" value={data.cards.inProgress} />
         </Link>
         <Link to="/tickets?filter=resolved" className="block cursor-pointer">
-          <AnalyticsCard title="Resolved Tickets" value={data.cards.resolved} />
+          <AnalyticsCard title="Resolved Incidents" value={data.cards.resolved} />
         </Link>
         <Link to="/tickets?filter=closed" className="block cursor-pointer">
-          <AnalyticsCard title="Closed Tickets" value={data.cards.closed} />
+          <AnalyticsCard title="Closed Incidents" value={data.cards.closed} />
         </Link>
         <Link to="/tickets?filter=pending" className="block cursor-pointer">
-          <AnalyticsCard title="Pending Tickets" value={data.cards.pending} />
+          <AnalyticsCard title="Pending Incidents" value={data.cards.pending} />
         </Link>
         <Link to="/tickets?filter=overdue" className="block cursor-pointer">
-          <AnalyticsCard title="Overdue Tickets" value={data.cards.overdue} />
+          <AnalyticsCard title="Overdue Incidents" value={data.cards.overdue} />
         </Link>
         <div className="block cursor-pointer">
           <AnalyticsCard title="Total SLA Breaches" value={validBreaches.length} />

@@ -15,12 +15,15 @@ import { captureScreenshot, analyzeWorkContext, saveWorkSession, type WorkAnalys
 import { ActivityTimeline } from "../components/ActivityTimeline";
 import { SLADelayDialog } from "../components/SLADelayDialog";
 import { createDefaultSlaDelayMeta, getEffectiveSlaDelayState, type SlaDelayLogEntry, type SlaDelayMeta, type SlaDelayResponseType } from "../lib/slaDelayUtils";
+import { useActivityTracker } from "../contexts/ActivityTrackerContext";
 
 export function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { categories, subcategories, serviceProviders, groups } = useServiceCatalog();
+  const { status: trackerStatus, elapsed: trackerElapsed, startWatcher, stopWatcher, setSelectedIncident, entries: trackerEntries, summary: trackerSummary } = useActivityTracker();
+  const isActiveSession = trackerStatus === 'active';
 
   const [ticket, setTicket] = useState<any>(null);
   const [editedTicket, setEditedTicket] = useState<any>(null);
@@ -33,22 +36,25 @@ export function TicketDetail() {
   const [dynamicFields, setDynamicFields] = useState<any[]>([]);
   const [dynamicOptions, setDynamicOptions] = useState<Record<string, any[]>>({});
 
-  // Timer state
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerStartTime, setTimerStartTime] = useState<Date | null>(null);
-  const timerStartTimeRef = useRef<Date | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [showTimerModal, setShowTimerModal] = useState(false);
-  const [workDescription, setWorkDescription] = useState("");
-  const [workSummary, setWorkSummary] = useState("");
+
 
   // AI Work Session state
   const [aiProcessing, setAiProcessing] = useState(false);
   const [aiNotes, setAiNotes] = useState<WorkAnalysis | null>(null);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [aiStatusMessage, setAiStatusMessage] = useState("");
-
   const [timelineRefresh, setTimelineRefresh] = useState(0);
+  const [pastSessions, setPastSessions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (ticket?.number) {
+      fetch(`/api/activity-sessions?ticket_number=${ticket.number}`)
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setPastSessions(data);
+        })
+        .catch(() => {});
+    }
+  }, [ticket?.number, timelineRefresh]);
   const [isPosting, setIsPosting] = useState(false);
   const [postMessage, setPostMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
   const [slaDelaySaving, setSlaDelaySaving] = useState(false);
@@ -123,44 +129,7 @@ export function TicketDetail() {
     ? agents.filter(a => selectedGroupObj.memberIds?.includes(a.id) || selectedGroupObj.memberIds?.includes(a.uid))
     : agents;
 
-  // Load active timer state from Firestore on mount
-  useEffect(() => {
-    if (!user) return;
-
-    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const userData = docSnapshot.data();
-        const activeTimer = userData.activeTimer;
-        if (activeTimer && activeTimer.isRunning) {
-          const startTime = new Date(activeTimer.startTime);
-          const now = new Date();
-          const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
-          setIsTimerRunning(true);
-          setTimerStartTime(startTime);
-          timerStartTimeRef.current = startTime;
-          setElapsedTime(elapsed);
-        } else {
-          setIsTimerRunning(false);
-          // Don't clear timerStartTime or elapsedTime here - preserve it for the modal/saving
-        }
-      }
-    });
-
-    return unsubscribe;
-  }, [user]);
-
-  // Timer effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isTimerRunning && timerStartTime) {
-      interval = setInterval(() => {
-        const now = new Date();
-        const elapsed = now.getTime() - timerStartTime.getTime();
-        setElapsedTime(Math.floor(elapsed / 1000)); // in seconds
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, timerStartTime]);
+  // Note: Local Firestore timer syncing is removed in favor of global AI Activity Tracker.
 
   useEffect(() => {
     if (!id) return;
@@ -223,17 +192,7 @@ export function TicketDetail() {
 
     setIsUpdating(true);
 
-    // Auto-save timer time to timesheet if timer has been running
-    if (elapsedTime > 0 && (timerStartTime || timerStartTimeRef.current)) {
-      try {
-        await saveTimerEntry(
-          `Work on incident ${ticket.number}`,
-          `Ticket ${ticket.number}`
-        );
-      } catch (e) {
-        console.error("[TicketDetail] Auto-save timer failed:", e);
-      }
-    }
+
 
     try {
       const historyEntries: any[] = [];
@@ -431,7 +390,7 @@ export function TicketDetail() {
       }
 
       // Assignment changes and all other field changes are securely generated by the backend API.
-      
+
       if (pointsAwarded > 0) {
         confetti({
           particleCount: 150,
@@ -560,66 +519,31 @@ export function TicketDetail() {
 
   // Timer functions — AI-Enhanced
   const handleStartTimer = async () => {
-    const startTime = new Date();
-    setIsTimerRunning(true);
-    setTimerStartTime(startTime);
-    timerStartTimeRef.current = startTime;
-    setElapsedTime(0);
     setAiProcessing(true);
-    setAiStatusMessage("📸 Capturing work context...");
-
-    // Save active timer state to Firestore for real-time sync
+    setAiStatusMessage("🚀 Starting AI Work Session...");
+    setSelectedIncident(ticket.number);
     try {
-      await setDoc(doc(db, "users", user.uid), {
-        activeTimer: {
-          ticketId: ticket.id,
-          ticketNumber: ticket.number,
-          startTime: startTime.toISOString(),
-          isRunning: true
-        }
-      }, { merge: true });
-    } catch (error) {
-      console.error("Error saving active timer state:", error);
-    }
+      await startWatcher();
 
-    // AI: Capture screenshot context + analyze
-    try {
-      setAiStatusMessage("🔍 Analyzing your current work...");
-      const context = await captureScreenshot();
-
-      setAiStatusMessage("🤖 AI is generating work notes...");
-      const analysis = await analyzeWorkContext(
-        context,
-        ticket.number,
-        ticket.title || '',
-        'start'
-      );
-
-      setAiNotes(analysis);
-
-      // Auto-populate work note
-      const noteText = `▶ [${startTime.toLocaleTimeString()}] ${analysis.summary}`;
-      setWorkNote(prev => prev ? `${prev}\n${noteText}` : noteText);
-
-      // Save work session
-      setAiStatusMessage("💾 Saving work session...");
-      const session = await saveWorkSession({
-        user_id: user.uid,
-        user_name: profile?.name || user.email || '',
-        ticket_id: ticket.id,
-        ticket_number: ticket.number,
-        start_time: startTime.toISOString(),
-        start_context: context,
-        ai_notes_start: analysis.summary,
-        status: 'active'
+      // Post "AI Work Session Started" to timeline
+      await fetch(`/api/tickets/${id}/activities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activity_type: 'system',
+          visibility_type: 'internal',
+          created_by: user.uid,
+          created_by_name: profile?.name || user.email,
+          message: 'AI Work Session Started'
+        })
       });
-      setActiveSessionId(session.id);
-
-      setAiStatusMessage("✅ AI notes generated successfully!");
+      setTimelineRefresh(prev => prev + 1);
+      
+      setAiStatusMessage("✅ Session active!");
       setTimeout(() => setAiStatusMessage(""), 3000);
     } catch (error) {
       console.error("[AI WorkSession] Start analysis failed:", error);
-      setAiStatusMessage("⚠️ AI notes unavailable — timer running");
+      setAiStatusMessage("⚠️ Failed to start session");
       setTimeout(() => setAiStatusMessage(""), 3000);
     } finally {
       setAiProcessing(false);
@@ -627,189 +551,33 @@ export function TicketDetail() {
   };
 
   const handleStopTimer = async () => {
-    const stopTime = new Date();
-    let finalElapsed = elapsedTime;
-
-    if (timerStartTime) {
-      finalElapsed = Math.floor((stopTime.getTime() - timerStartTime.getTime()) / 1000);
-      setElapsedTime(finalElapsed);
-    }
-    setIsTimerRunning(false);
     setAiProcessing(true);
-    setAiStatusMessage("📸 Capturing final work context...");
-
-    // Clear active timer state from Firestore
+    setAiStatusMessage("🛑 Stopping AI session...");
     try {
-      await setDoc(doc(db, "users", user.uid), {
-        activeTimer: null
-      }, { merge: true });
-    } catch (error) {
-      console.error("Error clearing active timer state:", error);
-    }
+      await stopWatcher();
 
-    // AI: Capture stop screenshot context + analyze
-    try {
-      setAiStatusMessage("🔍 Analyzing completed work...");
-      const stopContext = await captureScreenshot();
-
-      setAiStatusMessage("🤖 AI is generating completion notes...");
-      const analysis = await analyzeWorkContext(
-        stopContext,
-        ticket.number,
-        ticket.title || '',
-        'stop',
-        finalElapsed
-      );
-
-      setAiNotes(analysis);
-
-      // Auto-append stop note to work notes
-      const stopNote = `⏹ [${stopTime.toLocaleTimeString()}] ${analysis.summary}`;
-      setWorkNote(prev => prev ? `${prev}\n${stopNote}` : stopNote);
-
-      // Pre-fill the modal
-      setWorkDescription(analysis.summary);
-      setWorkSummary(`${analysis.actionVerb} — ${ticket.number}`);
-
-      // Update work session
-      if (activeSessionId) {
-        setAiStatusMessage("💾 Saving completed session...");
-        try {
-          await fetch(`/api/work-sessions/${activeSessionId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              stop_time: stopTime.toISOString(),
-              duration: finalElapsed,
-              stop_context: stopContext,
-              ai_notes_stop: analysis.summary,
-              status: 'completed'
-            })
-          });
-        } catch (e) {
-          console.error("[AI WorkSession] Failed to update session:", e);
-        }
-      }
-
-      setAiStatusMessage("✅ Work notes generated! Review and save.");
-      setTimeout(() => setAiStatusMessage(""), 4000);
+      // Post "AI Work Session Completed" to timeline
+      await fetch(`/api/tickets/${id}/activities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activity_type: 'system',
+          visibility_type: 'internal',
+          created_by: user.uid,
+          created_by_name: profile?.name || user.email,
+          message: `AI Work Session Completed. Duration: ${Math.floor(trackerElapsed / 60)}m ${trackerElapsed % 60}s`
+        })
+      });
+      setTimelineRefresh(prev => prev + 1);
+      
+      setAiStatusMessage("✅ Session completed!");
+      setTimeout(() => setAiStatusMessage(""), 3000);
     } catch (error) {
       console.error("[AI WorkSession] Stop analysis failed:", error);
-      setAiStatusMessage("⚠️ AI notes unavailable");
+      setAiStatusMessage("⚠️ Failed to stop properly");
       setTimeout(() => setAiStatusMessage(""), 3000);
     } finally {
       setAiProcessing(false);
-    }
-
-    setShowTimerModal(true);
-  };
-
-  const formatElapsedTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleViewTimer = () => {
-    // Navigate to timesheet or show current time entries
-    navigate("/timesheet");
-  };
-
-  const saveTimerEntry = async (desc?: string, summary?: string) => {
-    const startTimeToSave = timerStartTimeRef.current || timerStartTime;
-    if (!user || !ticket || !startTimeToSave || elapsedTime <= 0) return;
-
-    const minutes = Math.floor(elapsedTime / 60);
-    if (minutes <= 0) return;
-
-    const dateStr = new Date().toISOString().split("T")[0];
-
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(now);
-    monday.setDate(diff);
-    const weekStart = monday.toISOString().split("T")[0];
-    const weekEnd = new Date(monday.getTime() + 6 * 86400000).toISOString().split("T")[0];
-
-    const tsRes = await fetch("/api/timesheets/get-or-create", {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: user.uid,
-        week_start: weekStart,
-        week_end: weekEnd
-      })
-    });
-    if (!tsRes.ok) throw new Error("Failed to get/create timesheet");
-    const ts = await tsRes.json();
-
-    const tcRes = await fetch("/api/time-cards", {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        timesheet_id: ts.id,
-        user_id: user.uid,
-        entry_date: dateStr,
-        task: summary || `Ticket ${ticket.ticket_number || ticket.number}`,
-        description: desc || `Work on incident ${ticket.number}`,
-        hours_worked: minutes,
-        start_time: startTimeToSave.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        end_time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        work_type: "Remote",
-        billable: "Billable"
-      })
-    });
-    if (!tcRes.ok) throw new Error("Failed to create time card");
-
-    // Reset timer state
-    setIsTimerRunning(false);
-    setTimerStartTime(null);
-    timerStartTimeRef.current = null;
-    setElapsedTime(0);
-    try {
-      await setDoc(doc(db, "users", user.uid), { activeTimer: null }, { merge: true });
-    } catch (error) {
-      console.error("Error clearing active timer:", error);
-    }
-  };
-
-  const handleSaveTimeEntry = async () => {
-    const startTimeToSave = timerStartTimeRef.current || timerStartTime;
-    if (!user || !ticket || !startTimeToSave) {
-      alert("Timer start time not found. Please try starting the timer again.");
-      return;
-    }
-
-    try {
-      await saveTimerEntry(workDescription, workSummary || workDescription);
-      setShowTimerModal(false);
-      setWorkDescription("");
-      setWorkSummary("");
-      alert("Time entry saved to timesheet!");
-    } catch (error: any) {
-      console.error("Error saving time entry:", error);
-      alert(`Failed to save time entry: ${error.message}`);
-    }
-  };
-
-  const handleCancelTimer = async () => {
-    setIsTimerRunning(false);
-    setTimerStartTime(null);
-    timerStartTimeRef.current = null;
-    setElapsedTime(0);
-    setShowTimerModal(false);
-    setWorkDescription("");
-    setWorkSummary("");
-
-    // Clear active timer state from Firestore
-    try {
-      await setDoc(doc(db, "users", user.uid), {
-        activeTimer: null
-      }, { merge: true });
-    } catch (error) {
-      console.error("Error clearing active timer state:", error);
     }
   };
 
@@ -1061,18 +829,22 @@ export function TicketDetail() {
             )}
 
             {/* Timer Display */}
-            {isTimerRunning && (
+            {isActiveSession && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg shadow-sm">
                 <div className="relative">
                   <Clock className="w-4 h-4 text-red-600" />
                   <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-600 rounded-full animate-ping" />
                 </div>
-                <span className="font-mono text-sm font-bold text-red-700">{formatElapsedTime(elapsedTime)}</span>
+                <span className="font-mono text-sm font-bold text-red-700">
+                  {Math.floor(trackerElapsed / 3600).toString().padStart(2, '0')}:
+                  {Math.floor((trackerElapsed % 3600) / 60).toString().padStart(2, '0')}:
+                  {(trackerElapsed % 60).toString().padStart(2, '0')}
+                </span>
               </div>
             )}
 
             {/* Timer Buttons */}
-            {!isTimerRunning ? (
+            {!isActiveSession ? (
               <Button
                 size="sm"
                 onClick={handleStartTimer}
@@ -1087,7 +859,7 @@ export function TicketDetail() {
                 ) : (
                   <Play className="w-3 h-3 mr-1.5 fill-current" />
                 )}
-                {aiProcessing ? "Capturing..." : "Start"}
+                {aiProcessing ? "Capturing..." : "Start Work Session"}
               </Button>
             ) : (
               <Button
@@ -1104,19 +876,11 @@ export function TicketDetail() {
                 ) : (
                   <Square className="w-3 h-3 mr-1.5 fill-current" />
                 )}
-                {aiProcessing ? "Analyzing..." : "Stop"}
+                {aiProcessing ? "Analyzing..." : "Stop Work Session"}
               </Button>
             )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleViewTimer}
-              className="h-8 px-4 font-bold border-border bg-white text-sn-dark hover:bg-gray-50 transition-colors"
-            >
-              <Eye className="w-3 h-3 mr-1.5" />
-              View
-            </Button>
+
 
             <Button variant="outline" size="sm" onClick={handleUpdate} disabled={isUpdating} className="h-8 px-4 font-bold border-border bg-white text-sn-dark">Update</Button>
             <Button size="sm" onClick={handleUpdate} disabled={isUpdating} className="h-8 px-4 font-bold bg-sn-green text-sn-dark shadow-sm hover:bg-sn-green/90 transition-all hover:shadow-sn-green/20">Submit</Button>
@@ -1358,7 +1122,7 @@ export function TicketDetail() {
               {/* Opened by */}
               <div className="grid grid-cols-3 items-center gap-4">
                 <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Opened by</label>
-                <input readOnly className="col-span-2 p-1.5 bg-muted/30 border border-border rounded text-xs h-8" value={ticket.createdByEmail || ticket.createdBy || '-'} />
+                <input readOnly className="col-span-2 p-1.5 bg-muted/30 border border-border rounded text-xs h-8" value={ticket.createdByName || ticket.createdByEmail || ticket.createdBy || '-'} />
               </div>
 
               {/* State */}
@@ -1512,7 +1276,7 @@ export function TicketDetail() {
       <div className="bg-white border border-border rounded-lg shadow-sm overflow-hidden mt-6">
         {/* Tab Headers */}
         <div className="flex bg-muted/30 border-b border-border">
-          {["Notes", "Related Records", "Resolution Information", "SLA Monitoring"].map((tab) => (
+          {["Notes", "Related Records", "Resolution Information", "SLA Monitoring", "Work Sessions"].map((tab) => (
             <button
               key={tab}
               type="button"
@@ -1532,7 +1296,87 @@ export function TicketDetail() {
 
         {/* Tab Content */}
         <div className="p-6">
-          {activeTab === "Notes" ? (
+          {activeTab === "Work Sessions" ? (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Ticket Work Sessions</h3>
+                {isActiveSession && (
+                  <span className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Active Session
+                  </span>
+                )}
+              </div>
+
+              {isActiveSession && trackerEntries.length > 0 && (
+                <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 mb-6">
+                  <h4 className="text-xs font-bold text-blue-800 mb-3 uppercase tracking-wider">Current Session Activity</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {trackerEntries.map((entry, idx) => (
+                      <div key={idx} className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xl">{entry.appIcon}</span>
+                          <span className="text-xs font-bold text-slate-700 truncate">{entry.appName}</span>
+                          <span className="text-[10px] text-slate-400 ml-auto">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        {entry.screenshotDataUrl && (
+                          <img src={entry.screenshotDataUrl} alt="Screenshot" className="w-full h-24 object-cover rounded mb-2 border border-slate-100" />
+                        )}
+                        <p className="text-[10px] text-slate-600 leading-tight line-clamp-3">{entry.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pastSessions.length === 0 ? (
+                <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                  <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-slate-500">No work sessions recorded for this ticket.</p>
+                  <p className="text-xs text-slate-400 mt-1">Start a work session to track your time and capture AI context.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pastSessions.map((session, idx) => (
+                    <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-slate-100 text-slate-600 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">
+                            #{pastSessions.length - idx}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{new Date(session.start_time).toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">
+                              Logged by {session.user_name || "Agent"} • 
+                              <span className="font-mono ml-1 text-blue-600 font-semibold">
+                                {Math.floor(session.duration / 3600).toString().padStart(2, '0')}:
+                                {Math.floor((session.duration % 3600) / 60).toString().padStart(2, '0')}:
+                                {(session.duration % 60).toString().padStart(2, '0')}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider",
+                          session.status === 'completed' ? "bg-slate-100 text-slate-600" : "bg-green-100 text-green-700"
+                        )}>
+                          {session.status}
+                        </span>
+                      </div>
+                      
+                      {session.status === 'completed' && (
+                        <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mt-2">
+                          <p className="text-xs text-slate-600 font-medium mb-1 uppercase tracking-wider">AI Summary</p>
+                          <p className="text-sm text-slate-800 leading-relaxed italic">
+                            Activity captured successfully. Full AI summary details and screenshots are accessible in the Timesheet module.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : activeTab === "Notes" ? (
             <div className="space-y-6">
               {/* Toast Notification */}
               {postMessage && (
@@ -1946,72 +1790,7 @@ export function TicketDetail() {
         </div>
       </div>
 
-      {/* Timer Modal */}
-      {showTimerModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold">Add Time Entry</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Incident: {ticket?.number} · Time: {formatElapsedTime(elapsedTime)}
-                  </p>
-                </div>
-                <button onClick={handleCancelTimer} className="text-muted-foreground hover:text-foreground">
-                  ✕
-                </button>
-              </div>
-            </div>
 
-            <div className="p-6 space-y-4">
-              {/* Description Input */}
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">
-                  Description <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={workDescription}
-                  onChange={(e) => setWorkDescription(e.target.value)}
-                  className="w-full p-3 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] resize-none"
-                  placeholder="Describe the work you did on this incident..."
-                />
-              </div>
-
-              {/* Summary Input */}
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">
-                  Summary
-                </label>
-                <input
-                  type="text"
-                  value={workSummary}
-                  onChange={(e) => setWorkSummary(e.target.value)}
-                  className="w-full p-3 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Brief summary of the work..."
-                />
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-border flex items-center justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={handleCancelTimer}
-                className="h-10 px-6 font-bold border-border text-sn-dark"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveTimeEntry}
-                disabled={!workDescription.trim()}
-                className="h-10 px-6 font-bold bg-blue-600 text-white shadow-md hover:bg-blue-700"
-              >
-                Save to Timesheet
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <SLADelayDialog
         open={!!activePendingType}

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subDays, differenceInDays, differenceInHours, startOfMonth, endOfMonth, eachMonthOfInterval, eachWeekOfInterval, startOfWeek, endOfWeek, isWithinInterval, subMonths } from "date-fns";
+import { Link } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -67,16 +68,16 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const CARD_CONFIGS = [
-  { key: "created", label: "Total Tickets Created", icon: Ticket, gradient: "from-blue-500/20 to-cyan-500/10", iconColor: "text-blue-500", borderColor: "border-blue-500/20" },
-  { key: "open", label: "Total Tickets Open", icon: Activity, gradient: "from-cyan-500/20 to-teal-500/10", iconColor: "text-cyan-500", borderColor: "border-cyan-500/20" },
-  { key: "pending", label: "Total Tickets Pending", icon: Clock, gradient: "from-amber-500/20 to-orange-500/10", iconColor: "text-amber-500", borderColor: "border-amber-500/20" },
-  { key: "resolved", label: "Total Tickets Resolved", icon: Target, gradient: "from-green-500/20 to-emerald-500/10", iconColor: "text-green-500", borderColor: "border-green-500/20" },
-  { key: "closed", label: "Total Tickets Closed", icon: Briefcase, gradient: "from-emerald-500/20 to-green-500/10", iconColor: "text-emerald-500", borderColor: "border-emerald-500/20" },
-  { key: "breached", label: "Total Tickets Breached", icon: ShieldAlert, gradient: "from-red-500/20 to-rose-500/10", iconColor: "text-red-500", borderColor: "border-red-500/20" },
-  { key: "escalated", label: "Total Tickets Escalated", icon: Zap, gradient: "from-purple-500/20 to-violet-500/10", iconColor: "text-purple-500", borderColor: "border-purple-500/20" },
-  { key: "reopened", label: "Total Reopened Tickets", icon: RefreshCcw, gradient: "from-rose-500/20 to-pink-500/10", iconColor: "text-rose-500", borderColor: "border-rose-500/20" },
-  { key: "unassigned", label: "Total Unassigned Tickets", icon: UserX, gradient: "from-slate-500/20 to-gray-500/10", iconColor: "text-slate-500", borderColor: "border-slate-500/20" },
-  { key: "overdue", label: "Total Overdue Tickets", icon: Timer, gradient: "from-orange-500/20 to-red-500/10", iconColor: "text-orange-500", borderColor: "border-orange-500/20" },
+  { key: "created", label: "Total Incidents Created", gradient: "from-blue-500 to-cyan-500", borderColor: "border-blue-500/20", link: "/tickets?filter=all" },
+  { key: "open", label: "Total Incidents Open", gradient: "from-cyan-500 to-teal-500", borderColor: "border-cyan-500/20", link: "/tickets?filter=open" },
+  { key: "pending", label: "Total Incidents Pending", gradient: "from-amber-500 to-orange-500", borderColor: "border-amber-500/20", link: "/tickets?filter=pending" },
+  { key: "resolved", label: "Total Incidents Resolved", gradient: "from-green-500 to-emerald-500", borderColor: "border-green-500/20", link: "/tickets?filter=resolved" },
+  { key: "closed", label: "Total Incidents Closed", gradient: "from-emerald-500 to-green-500", borderColor: "border-emerald-500/20", link: "/tickets?filter=closed" },
+  { key: "breached", label: "Total Incidents Breached", gradient: "from-red-500 to-rose-500", borderColor: "border-red-500/20", link: "/tickets?filter=sla_breached_rca" },
+  { key: "escalated", label: "Total Incidents Escalated", gradient: "from-purple-500 to-violet-500", borderColor: "border-purple-500/20", link: "/tickets?filter=sla_escalated" },
+  { key: "reopened", label: "Total Reopened Incidents", gradient: "from-rose-500 to-pink-500", borderColor: "border-rose-500/20", link: "/tickets?filter=all" },
+  { key: "unassigned", label: "Total Unassigned Incidents", gradient: "from-slate-500 to-gray-500", borderColor: "border-slate-500/20", link: "/tickets?filter=unassigned" },
+  { key: "overdue", label: "Total Overdue Incidents", gradient: "from-orange-500 to-red-500", borderColor: "border-orange-500/20", link: "/tickets?filter=overdue" },
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -106,48 +107,32 @@ function CustomTooltip({ active, payload, label }: any) {
    ═══════════════════════════════════════════════════════════ */
 
 function SummaryCard({ config, count, previousCount }: { config: typeof CARD_CONFIGS[0]; count: number; previousCount: number; key?: string }) {
-  const Icon = config.icon;
   const change = previousCount > 0 ? ((count - previousCount) / previousCount) * 100 : count > 0 ? 100 : 0;
   const isPositive = change >= 0;
 
   return (
-    <div className={cn(
-      "relative overflow-hidden rounded-2xl border bg-card p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 hover:-translate-y-1 group",
+    <Link to={config.link} className={cn(
+      "relative overflow-hidden rounded-xl border bg-card p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:hover:shadow-[0_8px_30px_rgba(255,255,255,0.04)] group cursor-pointer block",
       config.borderColor
     )}>
-      {/* Gradient background */}
-      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-60 group-hover:opacity-100 transition-opacity", config.gradient)} />
-
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-3">
-          <div className={cn("p-2.5 rounded-xl bg-white/80 dark:bg-gray-800/80 shadow-sm", config.borderColor, "border")}>
-            <Icon className={cn("w-5 h-5", config.iconColor)} />
-          </div>
-          <div className={cn(
-            "flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full",
-            isPositive ? "text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/30" : "text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30"
-          )}>
-            {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-            {Math.abs(change).toFixed(1)}%
-          </div>
-        </div>
-
-        <div className="text-3xl font-black tabular-nums text-foreground mb-1 tracking-tight">
-          {count.toLocaleString()}
-        </div>
-        <div className="text-xs font-medium text-muted-foreground leading-tight">
+      <div className={cn("absolute top-0 left-0 w-full h-1 bg-gradient-to-r", config.gradient)} />
+      <div className="relative z-10 flex flex-col justify-between h-full">
+        <div className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground mb-2">
           {config.label}
         </div>
-
-        {/* Micro sparkline indicator */}
-        <div className="mt-3 h-1 w-full bg-muted/50 rounded-full overflow-hidden">
-          <div
-            className={cn("h-full rounded-full transition-all duration-700", isPositive ? "bg-green-500" : "bg-red-500")}
-            style={{ width: `${Math.min(Math.abs(change), 100)}%` }}
-          />
+        <div className="flex items-end justify-between mt-2">
+          <div className="text-4xl font-black tabular-nums tracking-tight text-foreground font-orbitron">
+            {count.toLocaleString()}
+          </div>
+          <div className={cn(
+            "flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md",
+            isPositive ? "text-emerald-700 bg-emerald-500/10 dark:text-emerald-400" : "text-rose-700 bg-rose-500/10 dark:text-rose-400"
+          )}>
+            {isPositive ? "+" : ""}{change.toFixed(1)}%
+          </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
