@@ -1,0 +1,104 @@
+{
+  "startTime": "2026-06-06T13:32:51.988Z",
+  "endTime": "2026-06-06T13:32:52.125Z",
+  "tables": {
+    "users": {
+      "source": 1,
+      "migrated": 1,
+      "errors": 0,
+      "skipped": false
+    },
+    "tickets": {
+      "source": 1,
+      "migrated": 1,
+      "errors": 0,
+      "skipped": false
+    },
+    "timesheets": {
+      "source": 4,
+      "migrated": 4,
+      "errors": 0,
+      "skipped": false
+    },
+    "time_cards": {
+      "source": 2,
+      "migrated": 2,
+      "errors": 0,
+      "skipped": false
+    },
+    "activity_sessions": {
+      "source": 2,
+      "migrated": 2,
+      "errors": 0,
+      "skipped": false
+    },
+    "activity_entries": {
+      "source": 2,
+      "migrated": 2,
+      "errors": 0,
+      "skipped": false
+    },
+    "sla_breaches": {
+      "source": 49,
+      "migrated": 49,
+      "errors": 0,
+      "skipped": false
+    },
+    "notifications": {
+      "source": 1,
+      "migrated": 1,
+      "errors": 0,
+      "skipped": false
+    },
+    "company_email_configs": {
+      "source": 1,
+      "migrated": 1,
+      "errors": 0,
+      "skipped": false
+    },
+    "message_history": {
+      "source": 5,
+      "migrated": 5,
+      "errors": 0,
+      "skipped": false
+    },
+    "ticket_activities": {
+      "source": 1,
+      "migrated": 1,
+      "errors": 0,
+      "skipped": false
+    },
+    "email_queue": {
+      "source": 1,
+      "migrated": 1,
+      "errors": 0,
+      "skipped": false
+    },
+    "sla_audit_logs": {
+      "source": 0,
+      "migrated": 0,
+      "errors": 0,
+      "skipped": true
+    },
+    "incident_categories": {
+      "source": 0,
+      "migrated": 0,
+      "errors": 0,
+      "skipped": true
+    },
+    "meetings": {
+      "source": 0,
+      "migrated": 0,
+      "errors": 0,
+      "skipped": true
+    },
+    "companies": {
+      "source": 0,
+      "migrated": 0,
+      "errors": 0,
+      "skipped": true
+    }
+  },
+  "errors": [],
+  "success": true
+}

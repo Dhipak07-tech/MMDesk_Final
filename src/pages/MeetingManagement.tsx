@@ -261,55 +261,94 @@ export function MeetingManagement() {
     }
   }, [selectedMeetingId]);
 
-  // ── NEW: Load/Save virtual meeting data from localStorage ─────────────────
-  const getStorageKey = (meetingId: string, suffix: string) => `aetherops_meeting_${meetingId}_${suffix}`;
+  // ── NEW: Load/Save virtual meeting data from Database ─────────────────
+  const parseJsonField = (val: any, defaultVal: any) => {
+    if (!val) return defaultVal;
+    if (typeof val === 'object') return val;
+    try {
+      return JSON.parse(val);
+    } catch {
+      return defaultVal;
+    }
+  };
 
   useEffect(() => {
     if (!selectedMeeting) return;
-    const mid = selectedMeeting.meeting_id;
     try {
-      const vd = localStorage.getItem(getStorageKey(mid, "virtual"));
-      const ad = localStorage.getItem(getStorageKey(mid, "attendance"));
-      const nd = localStorage.getItem(getStorageKey(mid, "notifications"));
-      const rd = localStorage.getItem(getStorageKey(mid, "recording"));
-      const td = localStorage.getItem(getStorageKey(mid, "timeline"));
-      setVirtualData(vd ? JSON.parse(vd) : defaultVirtualData);
-      setAttendanceData(ad ? JSON.parse(ad) : defaultAttendance);
-      setNotifications(nd ? JSON.parse(nd) : defaultNotifications);
-      setRecordingData(rd ? JSON.parse(rd) : defaultRecording);
-      setTimelineMarks(td ? JSON.parse(td) : { created: selectedMeeting.created_at });
+      const vd = parseJsonField(selectedMeeting.virtual_data_json, defaultVirtualData);
+      const ad = parseJsonField(selectedMeeting.attendance_data_json, defaultAttendance);
+      const nd = parseJsonField(selectedMeeting.notifications_json, defaultNotifications);
+      const rd = parseJsonField(selectedMeeting.recording_json, defaultRecording);
+      const td = parseJsonField(selectedMeeting.timeline_json, { created: selectedMeeting.created_at });
+      setVirtualData(vd);
+      setAttendanceData(ad);
+      setNotifications(nd);
+      setRecordingData(rd);
+      setTimelineMarks(td);
     } catch { /* ignore parse errors */ }
-  }, [selectedMeeting?.meeting_id]);
+  }, [
+    selectedMeeting?.id,
+    selectedMeeting?.virtual_data_json,
+    selectedMeeting?.attendance_data_json,
+    selectedMeeting?.notifications_json,
+    selectedMeeting?.recording_json,
+    selectedMeeting?.timeline_json,
+    selectedMeeting?.created_at
+  ]);
+
+  const saveMeetingMetadata = async (updates: any) => {
+    if (!selectedMeeting) return;
+    try {
+      const res = await fetch(`/api/meetings/${selectedMeeting.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ...updates,
+          isAutoSave: true,
+          updatedBy: user?.uid || "System",
+          updatedByName: profile?.name || user?.email || "System"
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSelectedMeeting(prev => prev ? { ...prev, ...updated } : null);
+      }
+    } catch (err) {
+      console.error("Error saving meeting metadata:", err);
+    }
+  };
 
   const saveVirtualData = (data: VirtualMeetingData) => {
     if (!selectedMeeting) return;
     setVirtualData(data);
-    localStorage.setItem(getStorageKey(selectedMeeting.meeting_id, "virtual"), JSON.stringify(data));
+    saveMeetingMetadata({ virtual_data_json: JSON.stringify(data) });
   };
 
   const saveAttendanceData = (data: AttendanceData) => {
     if (!selectedMeeting) return;
     setAttendanceData(data);
-    localStorage.setItem(getStorageKey(selectedMeeting.meeting_id, "attendance"), JSON.stringify(data));
+    saveMeetingMetadata({ attendance_data_json: JSON.stringify(data) });
   };
 
   const saveNotifications = (data: NotificationsState) => {
     if (!selectedMeeting) return;
     setNotifications(data);
-    localStorage.setItem(getStorageKey(selectedMeeting.meeting_id, "notifications"), JSON.stringify(data));
+    saveMeetingMetadata({ notifications_json: JSON.stringify(data) });
   };
 
   const saveRecordingData = (data: RecordingData) => {
     if (!selectedMeeting) return;
     setRecordingData(data);
-    localStorage.setItem(getStorageKey(selectedMeeting.meeting_id, "recording"), JSON.stringify(data));
+    saveMeetingMetadata({ recording_json: JSON.stringify(data) });
   };
 
   const markTimelineMilestone = (key: string) => {
     if (!selectedMeeting) return;
     const updated = { ...timelineMarks, [key]: new Date().toISOString() };
     setTimelineMarks(updated);
-    localStorage.setItem(getStorageKey(selectedMeeting.meeting_id, "timeline"), JSON.stringify(updated));
+    saveMeetingMetadata({ timeline_json: JSON.stringify(updated) });
   };
 
   // ── NEW: Helper Functions ─────────────────────────────────────────────────

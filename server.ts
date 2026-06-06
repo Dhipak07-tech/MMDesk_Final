@@ -13,7 +13,8 @@ import imaps from "imap-simple";
 import { OmniChannelEngine } from "./src/lib/omniChannelEngine";
 import { SLAEngine } from "./src/lib/slaEngine";
 import { uIOhook } from "uiohook-napi";
-import { setUseSQLite } from "./src/lib/db";
+import { WebSocketServer } from 'ws';
+
 import { initializeApp as initFirebaseApp } from "firebase/app";
 import { initializeFirestore as initFirestore, collection as fsCollection, getDocs as fsGetDocs, doc as fsDoc, updateDoc as fsUpdateDoc, addDoc as fsAddDoc, query as fsQuery, where as fsWhere } from "firebase/firestore";
 
@@ -59,496 +60,511 @@ const dbConfig = {
   keepAliveInitialDelay: 0
 };
 
-let pool: mysql.Pool;
-let sqliteDb: any = null;
-let useSQLite = false;
+// Database client functions imported from src/lib/db
+import {
+  query,
+  execute,
+  getSQLiteDb,
+  formatDate,
+  isUsingSQLite,
+  setUseSQLite,
+  testMySQLConnection
+} from "./src/lib/db";
 
-async function getSQLiteDb() {
-  if (!sqliteDb) {
-    const { open } = await import('sqlite');
-    const sqlite3Module = await import('sqlite3');
-    const sqlite3 = sqlite3Module.default || sqlite3Module;
-    sqliteDb = await open({
-      filename: './timesheet.sqlite',
-      driver: sqlite3.Database
-    });
-    // Create tables if not exist
-    await sqliteDb.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        uid TEXT UNIQUE NOT NULL,
-        name TEXT,
-        email TEXT UNIQUE,
-        role TEXT DEFAULT 'user',
-        phone TEXT,
-        password_hash TEXT,
-        is_active INTEGER DEFAULT 1,
-        last_login DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS tickets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_number TEXT UNIQUE,
-        caller TEXT,
-        category TEXT,
-        incident_category TEXT,
-        subcategory TEXT,
-        service TEXT,
-        service_offering TEXT,
-        cmdb_item TEXT,
-        title TEXT,
-        description TEXT,
-        status TEXT DEFAULT 'New',
-        priority TEXT DEFAULT '4 - Low',
-        impact TEXT,
-        urgency TEXT,
-        channel TEXT,
-        assignment_group TEXT,
-        assigned_to TEXT,
-        assigned_to_name TEXT,
-        points INTEGER DEFAULT 0,
-        response_deadline DATETIME,
-        resolution_deadline DATETIME,
-        first_response_at DATETIME,
-        resolved_at DATETIME,
-        response_sla_status TEXT,
-        resolution_sla_status TEXT,
-        response_sla_start_time DATETIME,
-        resolution_sla_start_time DATETIME,
-        created_by TEXT,
-        created_by_name TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS activity_sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        user_name TEXT,
-        start_time DATETIME,
-        stop_time DATETIME,
-        duration INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'active',
-        ticket_number TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS sla_audit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id TEXT NOT NULL,
-        sla_type TEXT NOT NULL,
-        event_type TEXT NOT NULL,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        reason TEXT
-      );
-      CREATE TABLE IF NOT EXISTS activity_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT,
-        user_id TEXT NOT NULL,
-        screenshot_url TEXT,
-        screenshot_filename TEXT,
-        screenshot_format TEXT,
-        screenshot_size_kb INTEGER,
-        activity_label TEXT,
-        description TEXT,
-        confidence REAL,
-        captured_at DATETIME,
-        keystrokes INTEGER DEFAULT 0,
-        clicks INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS timesheets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        week_start TEXT NOT NULL,
-        week_end TEXT NOT NULL,
-        status TEXT DEFAULT 'Draft',
-        total_hours REAL DEFAULT 0.00,
-        screenshot_url TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        submitted_at DATETIME
-      );
-      CREATE INDEX IF NOT EXISTS idx_user_week ON timesheets(user_id, week_start);
-      CREATE TABLE IF NOT EXISTS sla_configurations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        priority TEXT NOT NULL,
-        department TEXT,
-        response_time_hours INTEGER,
-        resolution_time_hours INTEGER,
-        business_hours_only INTEGER DEFAULT 0,
-        exclude_weekends INTEGER DEFAULT 0,
-        exclude_holidays INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS time_cards (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timesheet_id INTEGER NOT NULL,
-        user_id TEXT NOT NULL,
-        entry_date TEXT NOT NULL,
-        task TEXT,
-        hours_worked REAL DEFAULT 0.00,
-        description TEXT,
-        short_description TEXT,
-        start_time TEXT,
-        end_time TEXT,
-        deduct REAL DEFAULT 0.00,
-        work_type TEXT,
-        billable TEXT,
-        notes TEXT,
-        status TEXT DEFAULT 'Draft',
-        elapsed_seconds INTEGER DEFAULT 0,
-        ticket_id TEXT,
-        ticket_number TEXT,
-        is_system_generated INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS ticket_activities (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id TEXT NOT NULL,
-        activity_type TEXT NOT NULL,
-        visibility_type TEXT NOT NULL,
-        created_by TEXT,
-        created_by_name TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        message TEXT NOT NULL,
-        metadata_json TEXT
-      );
-      CREATE TABLE IF NOT EXISTS incident_categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
-        description TEXT,
-        status TEXT DEFAULT 'Active',
-        created_by TEXT,
-        created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_updated_by TEXT,
-        last_updated_date DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS incident_category_options (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category_id INTEGER NOT NULL,
-        value_text TEXT NOT NULL,
-        status TEXT DEFAULT 'Active',
-        created_by TEXT,
-        created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_updated_by TEXT,
-        last_updated_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (category_id) REFERENCES incident_categories(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS ticket_custom_fields (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id TEXT NOT NULL,
-        category_id INTEGER NOT NULL,
-        category_name TEXT NOT NULL,
-        value_text TEXT NOT NULL,
-        FOREIGN KEY (category_id) REFERENCES incident_categories(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS ticket_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        user TEXT,
-        user_id TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        details TEXT,
-        FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history(ticket_id);
-
-      CREATE TABLE IF NOT EXISTS comments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id INTEGER NOT NULL,
-        user_id TEXT,
-        user_name TEXT,
-        user_role TEXT,
-        message TEXT NOT NULL,
-        is_internal INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_comments_ticket ON comments(ticket_id);
-      CREATE TABLE IF NOT EXISTS sla_breaches (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        record_id TEXT NOT NULL,
-        record_type TEXT NOT NULL,
-        assigned_user TEXT NOT NULL,
-        assigned_user_name TEXT,
-        sla_name TEXT NOT NULL,
-        sla_target TEXT,
-        actual_time_taken TEXT,
-        breach_duration TEXT,
-        breach_timeslot TEXT,
-        breach_timestamp TEXT,
-        status TEXT DEFAULT 'active',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS meetings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        meeting_id TEXT UNIQUE NOT NULL,
-        creation_method TEXT NOT NULL,
-        title TEXT NOT NULL,
-        meeting_date DATETIME NOT NULL,
-        platform TEXT,
-        conducted_by TEXT,
-        attendees TEXT,
-        absentees TEXT,
-        one_line_summary TEXT,
-        short_description TEXT,
-        detailed_description TEXT,
-        discussion_points TEXT,
-        decisions_taken TEXT,
-        action_items TEXT,
-        responsible_person TEXT,
-        target_date TEXT,
-        next_steps TEXT,
-        remarks TEXT,
-        file_path TEXT,
-        file_name TEXT,
-        file_size INTEGER,
-        status TEXT DEFAULT 'Draft',
-        version INTEGER DEFAULT 1,
-        created_by TEXT,
-        created_by_name TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS meeting_versions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        meeting_db_id INTEGER NOT NULL,
-        meeting_id TEXT NOT NULL,
-        version INTEGER NOT NULL,
-        title TEXT,
-        meeting_date DATETIME,
-        status TEXT,
-        file_path TEXT,
-        file_name TEXT,
-        template_data TEXT,
-        updated_by TEXT,
-        updated_by_name TEXT,
-        change_summary TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (meeting_db_id) REFERENCES meetings(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS meeting_audit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        meeting_id TEXT NOT NULL,
-        action TEXT NOT NULL,
-        performed_by TEXT NOT NULL,
-        performed_by_name TEXT,
-        details TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS email_queue (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id INTEGER,
-        company_id INTEGER,
-        email_integration_id INTEGER,
-        direction TEXT DEFAULT 'outbound',
-        recipient TEXT,
-        subject TEXT,
-        body TEXT,
-        status TEXT DEFAULT 'pending',
-        attempts INTEGER DEFAULT 0,
-        error_message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        processed_at DATETIME
-      );
-      CREATE TABLE IF NOT EXISTS ticket_email_activities (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id INTEGER NOT NULL,
-        direction TEXT,
-        sender TEXT,
-        recipient TEXT,
-        subject TEXT,
-        body TEXT,
-        status TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS company_email_configs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_name TEXT,
-        email_address TEXT,
-        smtp_host TEXT,
-        smtp_port INTEGER,
-        smtp_user TEXT,
-        smtp_pass TEXT,
-        imap_host TEXT,
-        imap_port INTEGER,
-        imap_user TEXT,
-        imap_pass TEXT,
-        encryption TEXT,
-        is_active INTEGER DEFAULT 1,
-        is_default INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS companies (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        contact_name TEXT,
-        phone TEXT,
-        email TEXT,
-        address1 TEXT,
-        address2 TEXT,
-        city TEXT,
-        province TEXT,
-        postal_code TEXT,
-        country TEXT,
-        website TEXT,
-        logo_url TEXT,
-        type TEXT,
-        status TEXT,
-        email_integration_id INTEGER,
-        primary_color TEXT,
-        secondary_color TEXT,
-        support_signature TEXT,
-        industry TEXT,
-        priority_tier TEXT,
-        default_assignment_group TEXT,
-        default_sla_policy TEXT,
-        default_support_mailbox TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS company_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_id INTEGER,
-        action TEXT,
-        field_name TEXT,
-        old_value TEXT,
-        new_value TEXT,
-        user TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    // Migrate: add screenshot_url column if missing (safe to re-run)
-    try { await sqliteDb.exec("ALTER TABLE timesheets ADD COLUMN screenshot_url TEXT;"); } catch (e) { }
-    try { await sqliteDb.exec("ALTER TABLE timesheets ADD COLUMN approved_by TEXT;"); } catch (e) { }
-    try { await sqliteDb.exec("ALTER TABLE timesheets ADD COLUMN approved_at DATETIME;"); } catch (e) { }
-    try { await sqliteDb.exec("ALTER TABLE timesheets ADD COLUMN rejection_reason TEXT;"); } catch (e) { }
-    try { await sqliteDb.exec("ALTER TABLE time_cards ADD COLUMN notes TEXT;"); } catch (e) { }
-    try {
-      await sqliteDb.exec("ALTER TABLE tickets ADD COLUMN response_sla_start_time DATETIME");
-    } catch (e) { }
-    try {
-      await sqliteDb.exec("ALTER TABLE tickets ADD COLUMN resolution_sla_start_time DATETIME");
-    } catch (e) { }
-    try {
-      await sqliteDb.exec("ALTER TABLE users ADD COLUMN last_login DATETIME");
-    } catch (e) { }
-    try {
-      await sqliteDb.exec("ALTER TABLE tickets ADD COLUMN incident_category TEXT");
-    } catch (e) { }
-    try {
-      await sqliteDb.exec("ALTER TABLE activity_sessions ADD COLUMN ticket_number TEXT");
-    } catch (e) { }
-    try {
-      await sqliteDb.exec("ALTER TABLE activity_entries ADD COLUMN ticket_number TEXT");
-    } catch (e) { }
-    // Ensure tables have latest columns
-    try {
-      await sqliteDb.exec("ALTER TABLE activity_entries ADD COLUMN keystrokes INTEGER DEFAULT 0");
-    } catch (e) { }
-    try {
-      await sqliteDb.exec("ALTER TABLE activity_entries ADD COLUMN clicks INTEGER DEFAULT 0");
-    } catch (e) { }
-
-    try {
-      await sqliteDb.exec(`
-        CREATE TABLE IF NOT EXISTS notifications (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id TEXT NOT NULL,
-          message TEXT NOT NULL,
-          ticket_id TEXT,
-          ticket_number TEXT,
-          actor_id TEXT,
-          actor_name TEXT,
-          is_read INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
-      console.log('[SQLite] Notifications table initialized');
-    } catch (e: any) {
-      console.error('[SQLite] Failed to initialize notifications table:', e.message);
-    }
-
-    console.log('[SQLite] Timesheet database initialized');
-  }
-  return sqliteDb;
-}
-
-function getPool(): mysql.Pool {
-  if (!pool) {
-    pool = mysql.createPool(dbConfig);
-    console.log(`[MySQL] Connection pool created: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
-  }
-  return pool;
+async function initSQLiteSchema() {
+  const db = await getSQLiteDb();
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uid TEXT UNIQUE NOT NULL,
+      name TEXT,
+      email TEXT UNIQUE,
+      role TEXT DEFAULT 'user',
+      phone TEXT,
+      password_hash TEXT,
+      is_active INTEGER DEFAULT 1,
+      last_login DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_number TEXT UNIQUE,
+      caller TEXT,
+      category TEXT,
+      incident_category TEXT,
+      subcategory TEXT,
+      service TEXT,
+      service_offering TEXT,
+      cmdb_item TEXT,
+      title TEXT,
+      description TEXT,
+      status TEXT DEFAULT 'New',
+      priority TEXT DEFAULT '4 - Low',
+      impact TEXT,
+      urgency TEXT,
+      channel TEXT,
+      assignment_group TEXT,
+      assigned_to TEXT,
+      assigned_to_name TEXT,
+      points INTEGER DEFAULT 0,
+      response_deadline DATETIME,
+      resolution_deadline DATETIME,
+      first_response_at DATETIME,
+      resolved_at DATETIME,
+      response_sla_status TEXT,
+      resolution_sla_status TEXT,
+      response_sla_start_time DATETIME,
+      resolution_sla_start_time DATETIME,
+      created_by TEXT,
+      created_by_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      company_id TEXT,
+      sla_delay_meta_json TEXT,
+      sla_delay_logs_json TEXT
+    );
+    CREATE TABLE IF NOT EXISTS activity_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      user_name TEXT,
+      start_time DATETIME,
+      stop_time DATETIME,
+      duration INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      ticket_number TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS sla_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id TEXT NOT NULL,
+      sla_type TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reason TEXT
+    );
+    CREATE TABLE IF NOT EXISTS activity_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT,
+      user_id TEXT NOT NULL,
+      screenshot_url TEXT,
+      screenshot_filename TEXT,
+      screenshot_format TEXT,
+      screenshot_size_kb INTEGER,
+      activity_label TEXT,
+      description TEXT,
+      confidence REAL,
+      captured_at DATETIME,
+      keystrokes INTEGER DEFAULT 0,
+      clicks INTEGER DEFAULT 0,
+      ticket_number TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS timesheets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      week_start TEXT NOT NULL,
+      week_end TEXT NOT NULL,
+      status TEXT DEFAULT 'Draft',
+      total_hours REAL DEFAULT 0.00,
+      screenshot_url TEXT,
+      approved_by TEXT,
+      approved_at DATETIME,
+      rejection_reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      submitted_at DATETIME
+    );
+    CREATE TABLE IF NOT EXISTS sla_configurations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      department TEXT,
+      response_time_hours INTEGER,
+      resolution_time_hours INTEGER,
+      business_hours_only INTEGER DEFAULT 0,
+      exclude_weekends INTEGER DEFAULT 0,
+      exclude_holidays INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS time_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timesheet_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      entry_date TEXT NOT NULL,
+      task TEXT,
+      hours_worked REAL DEFAULT 0.00,
+      description TEXT,
+      short_description TEXT,
+      start_time TEXT,
+      end_time TEXT,
+      deduct REAL DEFAULT 0.00,
+      work_type TEXT,
+      billable TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'Draft',
+      elapsed_seconds INTEGER DEFAULT 0,
+      ticket_id TEXT,
+      ticket_number TEXT,
+      is_system_generated INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS ticket_activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id TEXT NOT NULL,
+      activity_type TEXT NOT NULL,
+      visibility_type TEXT NOT NULL,
+      created_by TEXT,
+      created_by_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      message TEXT NOT NULL,
+      metadata_json TEXT
+    );
+    CREATE TABLE IF NOT EXISTS incident_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      status TEXT DEFAULT 'Active',
+      created_by TEXT,
+      created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_updated_by TEXT,
+      last_updated_date DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS incident_category_options (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER NOT NULL,
+      value_text TEXT NOT NULL,
+      status TEXT DEFAULT 'Active',
+      created_by TEXT,
+      created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_updated_by TEXT,
+      last_updated_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES incident_categories(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS ticket_custom_fields (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id TEXT NOT NULL,
+      category_id INTEGER NOT NULL,
+      category_name TEXT NOT NULL,
+      value_text TEXT NOT NULL,
+      FOREIGN KEY (category_id) REFERENCES incident_categories(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS ticket_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      user TEXT,
+      user_id TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      details TEXT,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id INTEGER NOT NULL,
+      user_id TEXT,
+      user_name TEXT,
+      user_role TEXT,
+      message TEXT NOT NULL,
+      is_internal INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS sla_breaches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_id TEXT NOT NULL,
+      record_type TEXT NOT NULL,
+      assigned_user TEXT NOT NULL,
+      assigned_user_name TEXT,
+      sla_name TEXT NOT NULL,
+      sla_target TEXT,
+      actual_time_taken TEXT,
+      breach_duration TEXT,
+      breach_timeslot TEXT,
+      breach_timestamp TEXT,
+      status TEXT DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS meetings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      meeting_id TEXT UNIQUE NOT NULL,
+      creation_method TEXT NOT NULL,
+      title TEXT NOT NULL,
+      meeting_date DATETIME NOT NULL,
+      platform TEXT,
+      conducted_by TEXT,
+      attendees TEXT,
+      absentees TEXT,
+      one_line_summary TEXT,
+      short_description TEXT,
+      detailed_description TEXT,
+      discussion_points TEXT,
+      decisions_taken TEXT,
+      action_items TEXT,
+      responsible_person TEXT,
+      target_date TEXT,
+      next_steps TEXT,
+      remarks TEXT,
+      file_path TEXT,
+      file_name TEXT,
+      file_size INTEGER,
+      status TEXT DEFAULT 'Draft',
+      version INTEGER DEFAULT 1,
+      created_by TEXT,
+      created_by_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS meeting_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      meeting_db_id INTEGER NOT NULL,
+      meeting_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      title TEXT,
+      meeting_date DATETIME,
+      status TEXT,
+      file_path TEXT,
+      file_name TEXT,
+      template_data TEXT,
+      updated_by TEXT,
+      updated_by_name TEXT,
+      change_summary TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (meeting_db_id) REFERENCES meetings(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS meeting_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      meeting_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      performed_by TEXT NOT NULL,
+      performed_by_name TEXT,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS email_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id INTEGER,
+      company_id INTEGER,
+      email_integration_id INTEGER,
+      direction TEXT DEFAULT 'outbound',
+      recipient TEXT,
+      subject TEXT,
+      body TEXT,
+      status TEXT DEFAULT 'pending',
+      attempts INTEGER DEFAULT 0,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      processed_at DATETIME
+    );
+    CREATE TABLE IF NOT EXISTS ticket_email_activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id INTEGER NOT NULL,
+      direction TEXT,
+      sender TEXT,
+      recipient TEXT,
+      subject TEXT,
+      body TEXT,
+      status TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS company_email_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT,
+      email_address TEXT,
+      smtp_host TEXT,
+      smtp_port INTEGER,
+      smtp_user TEXT,
+      smtp_pass TEXT,
+      imap_host TEXT,
+      imap_port INTEGER,
+      imap_user TEXT,
+      imap_pass TEXT,
+      encryption TEXT,
+      is_active INTEGER DEFAULT 1,
+      is_default INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS companies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      contact_name TEXT,
+      phone TEXT,
+      email TEXT,
+      address1 TEXT,
+      address2 TEXT,
+      city TEXT,
+      province TEXT,
+      postal_code TEXT,
+      country TEXT,
+      website TEXT,
+      logo_url TEXT,
+      type TEXT,
+      status TEXT,
+      email_integration_id INTEGER,
+      primary_color TEXT,
+      secondary_color TEXT,
+      support_signature TEXT,
+      industry TEXT,
+      priority_tier TEXT,
+      default_assignment_group TEXT,
+      default_sla_policy TEXT,
+      default_support_mailbox TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS company_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER,
+      action TEXT,
+      field_name TEXT,
+      old_value TEXT,
+      new_value TEXT,
+      user TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS work_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id TEXT,
+      user_id TEXT NOT NULL,
+      user_name TEXT,
+      session_type TEXT DEFAULT 'work',
+      start_time DATETIME,
+      end_time DATETIME,
+      duration INTEGER DEFAULT 0,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS work_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id TEXT NOT NULL,
+      user_id TEXT,
+      user_name TEXT,
+      note TEXT NOT NULL,
+      is_internal INTEGER DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS message_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id TEXT,
+      direction TEXT,
+      channel TEXT,
+      sender TEXT,
+      recipient TEXT,
+      subject TEXT,
+      body TEXT,
+      status TEXT,
+      metadata_json TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS settings_groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      manager_uid TEXT,
+      manager_name TEXT,
+      assignment_email TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS email_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id INTEGER,
+      ticket_number TEXT,
+      direction TEXT NOT NULL DEFAULT 'outbound',
+      recipient TEXT,
+      sender TEXT,
+      subject TEXT,
+      body_preview TEXT,
+      message_id TEXT,
+      in_reply_to TEXT,
+      references_header TEXT,
+      status TEXT DEFAULT 'pending',
+      provider_response TEXT,
+      error_message TEXT,
+      retry_count INTEGER DEFAULT 0,
+      max_retries INTEGER DEFAULT 5,
+      next_retry_at DATETIME,
+      email_type TEXT DEFAULT 'notification',
+      config_id INTEGER,
+      sent_at DATETIME,
+      received_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS system_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      setting_key TEXT UNIQUE NOT NULL,
+      setting_value TEXT,
+      setting_type TEXT DEFAULT 'string',
+      description TEXT,
+      updated_by TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS ts_meetings (
+      tsm_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      meeting_date TEXT,
+      meeting_time TEXT,
+      duration TEXT,
+      organizer TEXT,
+      participants TEXT,
+      meeting_type TEXT,
+      priority TEXT,
+      status TEXT DEFAULT 'Draft',
+      room_id TEXT,
+      password TEXT,
+      notes TEXT,
+      attachments TEXT,
+      comments TEXT,
+      timeline TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS ts_meeting_chat (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tsm_id TEXT NOT NULL,
+      sender_id TEXT,
+      sender_name TEXT,
+      text TEXT,
+      timestamp TEXT,
+      type TEXT DEFAULT 'text',
+      file_url TEXT,
+      file_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS ts_meeting_attendance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tsm_id TEXT NOT NULL,
+      peer_id TEXT,
+      name TEXT,
+      join_time TEXT,
+      leave_time TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 }
 
 async function initDatabase(): Promise<void> {
-  try {
-    // Connect without database to create it if needed
-    const tempConfig = { ...dbConfig };
-    delete (tempConfig as any).database;
-    const tempConnection = await mysql.createConnection(tempConfig);
-    await tempConnection.execute(`CREATE DATABASE IF NOT EXISTS ${dbConfig.database} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-    await tempConnection.end();
-    console.log(`[MySQL] Database '${dbConfig.database}' ensured`);
-  } catch (error: any) {
-    console.error('[MySQL] Database init failed:', error.message);
-    console.log('[SQLite] Will use SQLite fallback for timesheets');
-    useSQLite = true;
+  const isConnected = await testMySQLConnection();
+  if (isConnected) {
+    console.log('[MySQL] Connection test successful. Database schema is verified.');
+  } else {
+    console.warn('[MySQL] Connection test failed. Falling back to SQLite.');
     setUseSQLite(true);
-    await getSQLiteDb();
+    await initSQLiteSchema();
   }
 }
 
 async function testConnection(): Promise<boolean> {
-  if (useSQLite) return true;
-  try {
-    const connection = await getPool().getConnection();
-    await connection.query('SELECT 1');
-    connection.release();
-    console.log('[MySQL] Connection test successful');
-    return true;
-  } catch (error) {
-    console.error('[MySQL] Connection test failed:', error);
-    console.log('[SQLite] Falling back to SQLite for timesheets');
-    useSQLite = true;
-    setUseSQLite(true);
-    await getSQLiteDb();
-    return true;
-  }
+  return true;
 }
 
-export async function query(sql: string, values?: any[]): Promise<any[]> {
-  if (useSQLite) {
-    const db = await getSQLiteDb();
-    return await db.all(sql, values || []);
-  }
-  const [rows] = await getPool().execute(sql, values);
-  return rows as any[];
-}
-
-export async function execute(sql: string, values?: any[]): Promise<any> {
-  if (useSQLite) {
-    const db = await getSQLiteDb();
-    const result = await db.run(sql, values || []);
-    return { insertId: result.lastID, affectedRows: result.changes };
-  }
-  const [result] = await getPool().execute(sql, values);
-  return result as mysql.ResultSetHeader;
-}
-
-function formatDate(date: Date | string | null): string | null {
-  if (!date) return null;
-  const d = typeof date === 'string' ? new Date(date) : date;
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 19).replace('T', ' ');
-}
 
 async function generateTicketNumber(): Promise<string> {
   const prefix = 'INC';
@@ -1027,7 +1043,7 @@ async function startServer() {
   await testConnection();
 
   // Auto-create timesheet tables if they don't exist
-  if (!useSQLite) {
+  if (!isUsingSQLite()) {
     try {
       await execute(`
         CREATE TABLE IF NOT EXISTS timesheets (
@@ -1294,6 +1310,140 @@ async function startServer() {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_record (record_id, sla_name),
           INDEX idx_assigned_user (assigned_user)
+        ) ENGINE=InnoDB;
+      `).catch(() => { });
+
+      await execute(`
+        CREATE TABLE IF NOT EXISTS system_settings (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          setting_key VARCHAR(100) UNIQUE NOT NULL,
+          setting_value TEXT,
+          setting_type ENUM('string', 'number', 'boolean', 'json') DEFAULT 'string',
+          description TEXT,
+          updated_by VARCHAR(128),
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_setting_key (setting_key)
+        ) ENGINE=InnoDB;
+      `).catch(() => { });
+
+      await execute(`
+        CREATE TABLE IF NOT EXISTS meetings (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          meeting_id VARCHAR(128) UNIQUE NOT NULL,
+          creation_method VARCHAR(50) NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          meeting_date DATETIME NOT NULL,
+          platform VARCHAR(100),
+          conducted_by VARCHAR(255),
+          attendees TEXT,
+          absentees TEXT,
+          one_line_summary TEXT,
+          short_description TEXT,
+          detailed_description TEXT,
+          discussion_points TEXT,
+          decisions_taken TEXT,
+          action_items TEXT,
+          responsible_person VARCHAR(255),
+          target_date VARCHAR(100),
+          next_steps TEXT,
+          remarks TEXT,
+          file_path TEXT,
+          file_name VARCHAR(255),
+          file_size INT,
+          status VARCHAR(50) DEFAULT 'Draft',
+          version INT DEFAULT 1,
+          created_by VARCHAR(128),
+          created_by_name VARCHAR(255),
+          virtual_data_json TEXT,
+          attendance_data_json TEXT,
+          notifications_json TEXT,
+          recording_json TEXT,
+          timeline_json TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;
+      `).catch(() => { });
+
+      await execute(`
+        CREATE TABLE IF NOT EXISTS meeting_versions (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          meeting_db_id INT NOT NULL,
+          meeting_id VARCHAR(128) NOT NULL,
+          version INT NOT NULL,
+          title VARCHAR(255),
+          meeting_date DATETIME,
+          status VARCHAR(50),
+          file_path TEXT,
+          file_name VARCHAR(255),
+          template_data TEXT,
+          updated_by VARCHAR(128),
+          updated_by_name VARCHAR(255),
+          change_summary TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (meeting_db_id) REFERENCES meetings(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;
+      `).catch(() => { });
+
+      await execute(`
+        CREATE TABLE IF NOT EXISTS meeting_audit_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          meeting_id VARCHAR(128) NOT NULL,
+          action VARCHAR(100) NOT NULL,
+          performed_by VARCHAR(128) NOT NULL,
+          performed_by_name VARCHAR(255),
+          details TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;
+      `).catch(() => { });
+
+      await execute(`
+        CREATE TABLE IF NOT EXISTS ts_meetings (
+          tsm_id VARCHAR(50) PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          meeting_date VARCHAR(50),
+          meeting_time VARCHAR(50),
+          duration VARCHAR(50),
+          organizer VARCHAR(255),
+          participants TEXT,
+          meeting_type VARCHAR(50),
+          priority VARCHAR(50),
+          status VARCHAR(50) DEFAULT 'Draft',
+          room_id VARCHAR(50),
+          password VARCHAR(50),
+          notes TEXT,
+          attachments TEXT,
+          comments TEXT,
+          timeline TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;
+      `).catch(() => { });
+
+      await execute(`
+        CREATE TABLE IF NOT EXISTS ts_meeting_chat (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          tsm_id VARCHAR(50) NOT NULL,
+          sender_id VARCHAR(128),
+          sender_name VARCHAR(255),
+          text TEXT,
+          timestamp VARCHAR(100),
+          type VARCHAR(20) DEFAULT 'text',
+          file_url TEXT,
+          file_name VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;
+      `).catch(() => { });
+
+      await execute(`
+        CREATE TABLE IF NOT EXISTS ts_meeting_attendance (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          tsm_id VARCHAR(50) NOT NULL,
+          peer_id VARCHAR(128),
+          name VARCHAR(255),
+          join_time VARCHAR(50),
+          leave_time VARCHAR(50),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB;
       `).catch(() => { });
 
@@ -2236,7 +2386,7 @@ async function startServer() {
       // Get valid column names from database
       let dbColNames: string[] = [];
       try {
-        if (useSQLite) {
+        if (isUsingSQLite()) {
           const db = await getSQLiteDb();
           const columns = await db.all("PRAGMA table_info(tickets)");
           dbColNames = columns.map(c => c.name);
@@ -2449,7 +2599,7 @@ async function startServer() {
       // Get valid column names from database
       let dbColNames: string[] = [];
       try {
-        if (useSQLite) {
+        if (isUsingSQLite()) {
           const db = await getSQLiteDb();
           const columns = await db.all("PRAGMA table_info(tickets)");
           dbColNames = columns.map(c => c.name);
@@ -3695,7 +3845,7 @@ async function startServer() {
 
   // â•â•â• WORK SESSIONS TABLE â•â•â•
   try {
-    if (useSQLite) {
+    if (isUsingSQLite()) {
       const db = await getSQLiteDb();
       await db.exec(`
         CREATE TABLE IF NOT EXISTS work_sessions (
@@ -3918,7 +4068,7 @@ Respond ONLY with valid JSON.`;
 
   // â•â•â• WORK NOTES TABLE INIT â•â•â•
   try {
-    if (useSQLite) {
+    if (isUsingSQLite()) {
       const db = await getSQLiteDb();
       await db.exec(`
         CREATE TABLE IF NOT EXISTS work_notes (
@@ -3973,7 +4123,7 @@ Respond ONLY with valid JSON.`;
 
   // â•â•â• MESSAGE HISTORY TABLE INIT â•â•â•
   try {
-    if (useSQLite) {
+    if (isUsingSQLite()) {
       const db = await getSQLiteDb();
       await db.exec(`
         CREATE TABLE IF NOT EXISTS message_history (
@@ -4010,7 +4160,7 @@ Respond ONLY with valid JSON.`;
 
   // â•â•â• ACTIVITY TRACKER TABLES INIT â•â•â•
   try {
-    if (useSQLite) {
+    if (isUsingSQLite()) {
       const db = await getSQLiteDb();
       await db.exec(`
         CREATE TABLE IF NOT EXISTS activity_sessions (
@@ -4094,7 +4244,7 @@ Respond ONLY with valid JSON.`;
 
     // Ensure tables have latest columns
     try {
-      if (useSQLite) {
+      if (isUsingSQLite()) {
         const db = await getSQLiteDb();
         await db.exec("ALTER TABLE activity_entries ADD COLUMN approval_status TEXT DEFAULT 'Pending'");
         await db.exec("ALTER TABLE activity_entries ADD COLUMN approved_by TEXT");
@@ -4800,6 +4950,11 @@ Respond ONLY with JSON: {"summary": "your summary here"}`;
         file_name: updates.fileName !== undefined ? updates.fileName : (updates.file_name !== undefined ? updates.file_name : current.file_name),
         file_size: updates.fileSize !== undefined ? updates.fileSize : (updates.file_size !== undefined ? updates.file_size : current.file_size),
         status: updates.status !== undefined ? updates.status : current.status,
+        virtual_data_json: updates.virtual_data_json !== undefined ? updates.virtual_data_json : (updates.virtualDataJson !== undefined ? updates.virtualDataJson : current.virtual_data_json),
+        attendance_data_json: updates.attendance_data_json !== undefined ? updates.attendance_data_json : (updates.attendanceDataJson !== undefined ? updates.attendanceDataJson : current.attendance_data_json),
+        notifications_json: updates.notifications_json !== undefined ? updates.notifications_json : (updates.notificationsJson !== undefined ? updates.notificationsJson : current.notifications_json),
+        recording_json: updates.recording_json !== undefined ? updates.recording_json : (updates.recordingJson !== undefined ? updates.recordingJson : current.recording_json),
+        timeline_json: updates.timeline_json !== undefined ? updates.timeline_json : (updates.timelineJson !== undefined ? updates.timelineJson : current.timeline_json),
         version: newVersionNum,
         updated_at: new Date().toISOString()
       };
@@ -4844,6 +4999,264 @@ Respond ONLY with JSON: {"summary": "your summary here"}`;
     } catch (error: any) {
       console.error('[Meetings API] Delete failed:', error.message);
       res.status(500).json({ error: 'Failed to delete meeting' });
+    }
+  });
+
+  // ============================================================
+  // BRANDING SETTINGS API
+  // ============================================================
+  app.get('/api/settings/branding', async (req: any, res: any) => {
+    try {
+      const rows = await query("SELECT setting_value FROM system_settings WHERE setting_key = 'branding'");
+      if (rows.length > 0) {
+        try {
+          const parsed = JSON.parse(rows[0].setting_value);
+          return res.json(parsed);
+        } catch (e) {
+          return res.json({ companyName: "Connect", logoBase64: null, logoType: null });
+        }
+      }
+      return res.json({ companyName: "Connect", logoBase64: null, logoType: null });
+    } catch (error: any) {
+      console.error('[Branding API] Fetch failed:', error.message);
+      return res.json({ companyName: "Connect", logoBase64: null, logoType: null });
+    }
+  });
+
+  app.post('/api/settings/branding', async (req: any, res: any) => {
+    try {
+      const { companyName, logoBase64, logoType, updatedBy } = req.body;
+      const brandingData = JSON.stringify({
+        companyName: companyName || "Connect",
+        logoBase64: logoBase64 || null,
+        logoType: logoType || null
+      });
+
+      const existing = await query("SELECT id FROM system_settings WHERE setting_key = 'branding'");
+      if (existing.length > 0) {
+        await execute(
+          "UPDATE system_settings SET setting_value = ?, updated_by = ? WHERE setting_key = 'branding'",
+          [brandingData, updatedBy || 'System']
+        );
+      } else {
+        await execute(
+          "INSERT INTO system_settings (setting_key, setting_value, setting_type, description, updated_by) VALUES (?, ?, ?, ?, ?)",
+          ['branding', brandingData, 'json', 'Company branding configuration', updatedBy || 'System']
+        );
+      }
+
+      res.json({ success: true, companyName, logoBase64, logoType });
+    } catch (error: any) {
+      console.error('[Branding API] Save failed:', error.message);
+      res.status(500).json({ error: 'Failed to save branding settings' });
+    }
+  });
+
+  // ============================================================
+  // TS MEETINGS API & WEBRTC CONFERENCE ROOMS
+  // ============================================================
+  app.post('/api/ts-meetings', async (req: any, res: any) => {
+    try {
+      const {
+        tsm_id, title, description, meeting_date, meeting_time,
+        duration, organizer, participants, meeting_type, priority,
+        status, room_id, password, notes, attachments, comments, timeline
+      } = req.body;
+
+      if (!tsm_id || !title || !room_id) {
+        return res.status(400).json({ error: "Missing required fields: tsm_id, title, room_id" });
+      }
+
+      const partsJson = typeof participants === 'string' ? participants : JSON.stringify(participants || []);
+      const attsJson = typeof attachments === 'string' ? attachments : JSON.stringify(attachments || []);
+      const commsJson = typeof comments === 'string' ? comments : JSON.stringify(comments || []);
+      const timelineJson = typeof timeline === 'string' ? timeline : JSON.stringify(timeline || []);
+
+      const existing = await query("SELECT tsm_id FROM ts_meetings WHERE tsm_id = ?", [tsm_id]);
+      if (existing.length > 0) {
+        await execute(
+          `UPDATE ts_meetings SET 
+            title = ?, description = ?, meeting_date = ?, meeting_time = ?,
+            duration = ?, organizer = ?, participants = ?, meeting_type = ?,
+            priority = ?, status = ?, room_id = ?, password = ?, notes = ?,
+            attachments = ?, comments = ?, timeline = ?
+           WHERE tsm_id = ?`,
+          [
+            title, description || null, meeting_date || null, meeting_time || null,
+            duration || null, organizer || null, partsJson, meeting_type || null,
+            priority || null, status || 'Draft', room_id, password || null, notes || null,
+            attsJson, commsJson, timelineJson, tsm_id
+          ]
+        );
+      } else {
+        await execute(
+          `INSERT INTO ts_meetings (
+            tsm_id, title, description, meeting_date, meeting_time,
+            duration, organizer, participants, meeting_type, priority,
+            status, room_id, password, notes, attachments, comments, timeline
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            tsm_id, title, description || null, meeting_date || null, meeting_time || null,
+            duration || null, organizer || null, partsJson, meeting_type || null,
+            priority || null, status || 'Draft', room_id, password || null, notes || null,
+            attsJson, commsJson, timelineJson
+          ]
+        );
+      }
+      res.json({ success: true, tsm_id });
+    } catch (e: any) {
+      console.error('[TS Meetings API] Create/Update error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/ts-meetings', async (req: any, res: any) => {
+    try {
+      const rows = await query("SELECT * FROM ts_meetings ORDER BY created_at DESC");
+      const mapped = rows.map(r => {
+        try { r.participants = JSON.parse(r.participants || '[]'); } catch(err) { r.participants = []; }
+        try { r.attachments = JSON.parse(r.attachments || '[]'); } catch(err) { r.attachments = []; }
+        try { r.comments = JSON.parse(r.comments || '[]'); } catch(err) { r.comments = []; }
+        try { r.timeline = JSON.parse(r.timeline || '[]'); } catch(err) { r.timeline = []; }
+        return r;
+      });
+      res.json(mapped);
+    } catch (e: any) {
+      console.error('[TS Meetings API] List error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/ts-meetings/:tsmId', async (req: any, res: any) => {
+    try {
+      const { tsmId } = req.params;
+      const rows = await query("SELECT * FROM ts_meetings WHERE tsm_id = ?", [tsmId]);
+      if (rows.length === 0) {
+        return res.status(404).json({ error: "TS Meeting not found" });
+      }
+      const meeting = rows[0];
+      try { meeting.participants = JSON.parse(meeting.participants || '[]'); } catch(err) { meeting.participants = []; }
+      try { meeting.attachments = JSON.parse(meeting.attachments || '[]'); } catch(err) { meeting.attachments = []; }
+      try { meeting.comments = JSON.parse(meeting.comments || '[]'); } catch(err) { meeting.comments = []; }
+      try { meeting.timeline = JSON.parse(meeting.timeline || '[]'); } catch(err) { meeting.timeline = []; }
+      res.json({ success: true, meeting });
+    } catch (e: any) {
+      console.error('[TS Meetings API] Get error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.put('/api/ts-meetings/:tsmId', async (req: any, res: any) => {
+    try {
+      const { tsmId } = req.params;
+      const { status, notes } = req.body;
+
+      if (status !== undefined) {
+        await execute("UPDATE ts_meetings SET status = ? WHERE tsm_id = ?", [status, tsmId]);
+      }
+      if (notes !== undefined) {
+        await execute("UPDATE ts_meetings SET notes = ? WHERE tsm_id = ?", [notes, tsmId]);
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error('[TS Meetings API] Update error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/ts-meetings/:tsmId/join', async (req: any, res: any) => {
+    try {
+      const { tsmId } = req.params;
+      const { peerId, name, joinTime } = req.body;
+
+      await execute(
+        "INSERT INTO ts_meeting_attendance (tsm_id, peer_id, name, join_time) VALUES (?, ?, ?, ?)",
+        [tsmId, peerId, name, joinTime]
+      );
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error('[TS Meetings API] Join error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/ts-meetings/:tsmId/leave', async (req: any, res: any) => {
+    try {
+      const { tsmId } = req.params;
+      const { peerId, leaveTime } = req.body;
+
+      const logs = await query(
+        "SELECT id FROM ts_meeting_attendance WHERE tsm_id = ? AND peer_id = ? AND leave_time IS NULL ORDER BY id DESC LIMIT 1",
+        [tsmId, peerId]
+      );
+      if (logs.length > 0) {
+        await execute(
+          "UPDATE ts_meeting_attendance SET leave_time = ? WHERE id = ?",
+          [leaveTime, logs[0].id]
+        );
+      } else {
+        await execute(
+          "UPDATE ts_meeting_attendance SET leave_time = ? WHERE tsm_id = ? AND peer_id = ? AND leave_time IS NULL",
+          [leaveTime, tsmId, peerId]
+        );
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error('[TS Meetings API] Leave error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/ts-meetings/:tsmId/chat', async (req: any, res: any) => {
+    try {
+      const { tsmId } = req.params;
+      const { senderId, senderName, text, timestamp, type, fileUrl, fileName } = req.body;
+
+      await execute(
+        `INSERT INTO ts_meeting_chat (
+          tsm_id, sender_id, sender_name, text, timestamp, type, file_url, file_name
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [tsmId, senderId, senderName, text, timestamp, type || 'text', fileUrl || null, fileName || null]
+      );
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error('[TS Meetings API] Save chat error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/ts-meetings/:tsmId/chat', async (req: any, res: any) => {
+    try {
+      const { tsmId } = req.params;
+      const rows = await query("SELECT * FROM ts_meeting_chat WHERE tsm_id = ? ORDER BY id ASC", [tsmId]);
+      res.json(rows);
+    } catch (e: any) {
+      console.error('[TS Meetings API] Get chat error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/ts-meetings/:tsmId/attendance', async (req: any, res: any) => {
+    try {
+      const { tsmId } = req.params;
+      const rows = await query("SELECT * FROM ts_meeting_attendance WHERE tsm_id = ? ORDER BY id ASC", [tsmId]);
+      res.json({ success: true, attendance: rows });
+    } catch (e: any) {
+      console.error('[TS Meetings API] Get attendance error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/ts-meetings/:tsmId', async (req: any, res: any) => {
+    try {
+      const { tsmId } = req.params;
+      await execute("DELETE FROM ts_meetings WHERE tsm_id = ?", [tsmId]);
+      await execute("DELETE FROM ts_meeting_chat WHERE tsm_id = ?", [tsmId]);
+      await execute("DELETE FROM ts_meeting_attendance WHERE tsm_id = ?", [tsmId]);
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error('[TS Meetings API] Delete error:', e.message);
+      res.status(500).json({ error: e.message });
     }
   });
 
@@ -5997,10 +6410,142 @@ Respond in a conversational, friendly tone.`,
     return;
   }
 
-  app.listen(PORT, "0.0.0.0", async () => {
+  const server = app.listen(PORT, "0.0.0.0", async () => {
+    // Setup WebRTC TS-Meeting Signaling Server
+    const wss = new WebSocketServer({ noServer: true });
+
+    interface SignalingClient {
+      ws: any;
+      peerId: string;
+      name: string;
+      room: string;
+      isHost: boolean;
+      audioMuted: boolean;
+      videoMuted: boolean;
+      handRaised: boolean;
+    }
+
+    const clientsMap = new Map<any, SignalingClient>();
+
+    wss.on('connection', (ws: any, req: any) => {
+      const url = new URL(req.url || '', `http://${req.headers.host}`);
+      const room = url.searchParams.get('room') || '';
+      const peerId = url.searchParams.get('peerId') || '';
+      const name = url.searchParams.get('name') || 'Participant';
+      const isHost = url.searchParams.get('isHost') === 'true';
+
+      if (!room || !peerId) {
+        ws.close();
+        return;
+      }
+
+      const clientInfo: SignalingClient = {
+        ws,
+        peerId,
+        name,
+        room,
+        isHost,
+        audioMuted: false,
+        videoMuted: false,
+        handRaised: false
+      };
+
+      clientsMap.set(ws, clientInfo);
+
+      const peersInRoom: any[] = [];
+      clientsMap.forEach((info) => {
+        if (info.room === room && info.peerId !== peerId) {
+          peersInRoom.push({
+            peerId: info.peerId,
+            name: info.name,
+            audioMuted: info.audioMuted,
+            videoMuted: info.videoMuted,
+            handRaised: info.handRaised
+          });
+        }
+      });
+
+      ws.send(JSON.stringify({
+        type: 'room-state',
+        payload: { peers: peersInRoom }
+      }));
+
+      clientsMap.forEach((info) => {
+        if (info.room === room && info.peerId !== peerId && info.ws.readyState === 1) {
+          info.ws.send(JSON.stringify({
+            type: 'peer-joined',
+            from: peerId,
+            fromName: name
+          }));
+        }
+      });
+
+      ws.on('message', (data: any) => {
+        try {
+          const msg = JSON.parse(data);
+          const { type, to, payload } = msg;
+
+          if (type === 'mute-state') {
+            clientInfo.audioMuted = !!payload?.muted;
+          } else if (type === 'camera-state') {
+            clientInfo.videoMuted = !!payload?.off;
+          } else if (type === 'raise-hand') {
+            clientInfo.handRaised = !!payload?.raised;
+          }
+
+          if (to) {
+            clientsMap.forEach((info) => {
+              if (info.room === room && info.peerId === to && info.ws.readyState === 1) {
+                info.ws.send(JSON.stringify({
+                  ...msg,
+                  from: peerId,
+                  fromName: name
+                }));
+              }
+            });
+          } else {
+            clientsMap.forEach((info) => {
+              if (info.room === room && info.peerId !== peerId && info.ws.readyState === 1) {
+                info.ws.send(JSON.stringify({
+                  ...msg,
+                  from: peerId,
+                  fromName: name
+                }));
+              }
+            });
+          }
+        } catch (err: any) {
+          console.warn('[TS WS Signaling] Error handling message:', err.message);
+        }
+      });
+
+      ws.on('close', () => {
+        clientsMap.delete(ws);
+        clientsMap.forEach((info) => {
+          if (info.room === room && info.ws.readyState === 1) {
+            info.ws.send(JSON.stringify({
+              type: 'peer-left',
+              from: peerId,
+              fromName: name
+            }));
+          }
+        });
+      });
+    });
+
+    server.on('upgrade', (request, socket, head) => {
+      const parsedUrl = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      if (parsedUrl.pathname === '/ws/ts-meeting') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      } else {
+        socket.destroy();
+      }
+    });
     try {
       // Ensure email columns exist in tickets table
-      if (useSQLite) {
+      if (isUsingSQLite()) {
         const db = await getSQLiteDb();
 
         await db.exec(`CREATE TABLE IF NOT EXISTS company_email_configs (
@@ -6082,6 +6627,23 @@ Respond in a conversational, friendly tone.`,
         )`);
 
         const columns = await db.all("PRAGMA table_info(tickets)");
+        const meetingCols = await db.all("PRAGMA table_info(meetings)");
+        const meetingColNames = meetingCols.map(c => c.name);
+        if (!meetingColNames.includes("virtual_data_json")) {
+          await db.exec("ALTER TABLE meetings ADD COLUMN virtual_data_json TEXT");
+        }
+        if (!meetingColNames.includes("attendance_data_json")) {
+          await db.exec("ALTER TABLE meetings ADD COLUMN attendance_data_json TEXT");
+        }
+        if (!meetingColNames.includes("notifications_json")) {
+          await db.exec("ALTER TABLE meetings ADD COLUMN notifications_json TEXT");
+        }
+        if (!meetingColNames.includes("recording_json")) {
+          await db.exec("ALTER TABLE meetings ADD COLUMN recording_json TEXT");
+        }
+        if (!meetingColNames.includes("timeline_json")) {
+          await db.exec("ALTER TABLE meetings ADD COLUMN timeline_json TEXT");
+        }
         const colNames = columns.map(c => c.name);
         if (!colNames.includes("affected_user_email")) {
           await db.exec("ALTER TABLE tickets ADD COLUMN affected_user_email TEXT");
@@ -6138,52 +6700,63 @@ Respond in a conversational, friendly tone.`,
         if (!compColNames.includes("default_support_mailbox")) {
           await db.exec("ALTER TABLE companies ADD COLUMN default_support_mailbox TEXT");
         }
-      } else {
-        const checkSql = "SHOW COLUMNS FROM tickets LIKE 'affected_user_email'";
-        const cols = await query(checkSql);
-        if (cols.length === 0) {
-          await execute("ALTER TABLE tickets ADD COLUMN affected_user_email VARCHAR(255)");
-          await execute("ALTER TABLE tickets ADD COLUMN reporting_user_email VARCHAR(255)");
-          await execute("ALTER TABLE tickets ADD COLUMN caller_email VARCHAR(255)");
-        }
-        const checkResCode = await query("SHOW COLUMNS FROM tickets LIKE 'resolution_code'");
-        if (checkResCode.length === 0) {
-          await execute("ALTER TABLE tickets ADD COLUMN resolution_code VARCHAR(255)");
-          await execute("ALTER TABLE tickets ADD COLUMN resolution_notes TEXT");
-          await execute("ALTER TABLE tickets ADD COLUMN resolution_method VARCHAR(255)");
-          await execute("ALTER TABLE tickets ADD COLUMN closure_reason VARCHAR(255)");
-          await execute("ALTER TABLE tickets ADD COLUMN resolved_by VARCHAR(255)");
-        }
-        const checkCompanyId = await query("SHOW COLUMNS FROM tickets LIKE 'company_id'");
-        if (checkCompanyId.length === 0) {
-          await execute("ALTER TABLE tickets ADD COLUMN company_id VARCHAR(255)");
-        }
 
-        // Check and add columns for companies in MySQL
-        const checkCompColumns = async (col: string, type: string) => {
+        const tsMeetingColumns = await db.all("PRAGMA table_info(ts_meetings)");
+        const tsmColNames = tsMeetingColumns.map(c => c.name);
+        if (!tsmColNames.includes("attachments")) {
+          await db.exec("ALTER TABLE ts_meetings ADD COLUMN attachments TEXT");
+        }
+        if (!tsmColNames.includes("comments")) {
+          await db.exec("ALTER TABLE ts_meetings ADD COLUMN comments TEXT");
+        }
+        if (!tsmColNames.includes("timeline")) {
+          await db.exec("ALTER TABLE ts_meetings ADD COLUMN timeline TEXT");
+        }
+      } else {
+        const checkAndAddColumn = async (table: string, col: string, type: string) => {
           try {
-            const cols = await query(`SHOW COLUMNS FROM companies LIKE '${col}'`);
+            const cols = await query(`SHOW COLUMNS FROM ${table} LIKE '${col}'`);
             if (cols.length === 0) {
-              await execute(`ALTER TABLE companies ADD COLUMN ${col} ${type}`);
+              await execute(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+              console.log(`[DB Migration] Added column ${col} to ${table}`);
             }
-          } catch (e) {
-            console.error(`Failed to add column ${col} to companies:`, e);
+          } catch (e: any) {
+            console.error(`[DB Migration] Failed to add column ${col} to ${table}:`, e.message);
           }
         };
-        await checkCompColumns("primary_color", "VARCHAR(50)");
-        await checkCompColumns("secondary_color", "VARCHAR(50)");
-        await checkCompColumns("support_signature", "TEXT");
-        await checkCompColumns("industry", "VARCHAR(255)");
-        await checkCompColumns("priority_tier", "VARCHAR(50)");
-        await checkCompColumns("default_assignment_group", "VARCHAR(255)");
-        await checkCompColumns("default_sla_policy", "VARCHAR(255)");
-        await checkCompColumns("default_support_mailbox", "VARCHAR(255)");
+        await checkAndAddColumn("tickets", "affected_user_email", "VARCHAR(255)");
+        await checkAndAddColumn("meetings", "virtual_data_json", "TEXT");
+        await checkAndAddColumn("meetings", "attendance_data_json", "TEXT");
+        await checkAndAddColumn("meetings", "notifications_json", "TEXT");
+        await checkAndAddColumn("meetings", "recording_json", "TEXT");
+        await checkAndAddColumn("meetings", "timeline_json", "TEXT");
+        await checkAndAddColumn("tickets", "reporting_user_email", "VARCHAR(255)");
+        await checkAndAddColumn("tickets", "caller_email", "VARCHAR(255)");
+        await checkAndAddColumn("tickets", "resolution_code", "VARCHAR(255)");
+        await checkAndAddColumn("tickets", "resolution_notes", "TEXT");
+        await checkAndAddColumn("tickets", "resolution_method", "VARCHAR(255)");
+        await checkAndAddColumn("tickets", "closure_reason", "VARCHAR(255)");
+        await checkAndAddColumn("tickets", "resolved_by", "VARCHAR(255)");
+        await checkAndAddColumn("tickets", "company_id", "VARCHAR(255)");
+
+        await checkAndAddColumn("companies", "primary_color", "VARCHAR(50)");
+        await checkAndAddColumn("companies", "secondary_color", "VARCHAR(50)");
+        await checkAndAddColumn("companies", "support_signature", "TEXT");
+        await checkAndAddColumn("companies", "industry", "VARCHAR(255)");
+        await checkAndAddColumn("companies", "priority_tier", "VARCHAR(50)");
+        await checkAndAddColumn("companies", "default_assignment_group", "VARCHAR(255)");
+        await checkAndAddColumn("companies", "default_sla_policy", "VARCHAR(255)");
+        await checkAndAddColumn("companies", "default_support_mailbox", "VARCHAR(255)");
+
+        await checkAndAddColumn("ts_meetings", "attachments", "TEXT");
+        await checkAndAddColumn("ts_meetings", "comments", "TEXT");
+        await checkAndAddColumn("ts_meetings", "timeline", "TEXT");
       }
       console.log("[DB Migration] Email columns verified/added to tickets table.");
 
       // REQUIRED FIX 6 GÇö CLEAN EXISTING BAD ACTIVITIES
       try {
-        if (useSQLite) {
+        if (isUsingSQLite()) {
           const db = await getSQLiteDb();
           await db.exec(`
             DELETE FROM ticket_activities

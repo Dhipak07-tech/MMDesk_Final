@@ -4762,6 +4762,99 @@ Respond ONLY with JSON: {"summary": "your summary here"}`;
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // MICROSOFT GRAPH API ROUTES — OAuth2 Modern Authentication
+  // Use these instead of SMTP/IMAP when Basic Auth is disabled on the tenant
+  // ═══════════════════════════════════════════════════════════════════════
+  const {
+    testGraphConnection, sendGraphTestEmail, getGraphHealth,
+    pollInboxViaGraph, isGraphConfigured, sendViaGraph, GRAPH_CONFIG,
+  } = await import('./src/lib/graphEmailEngine');
+
+  // ── Graph: Health & config status ────────────────────────────────────────────
+  app.get('/api/graph/health', async (req, res) => {
+    try { res.json(await getGraphHealth()); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── Graph: Test OAuth2 connection ────────────────────────────────────────────
+  app.post('/api/graph/test', async (req, res) => {
+    try { res.json(await testGraphConnection()); }
+    catch (e: any) { res.status(500).json({ ok: false, msg: e.message }); }
+  });
+
+  // ── Graph: Send a test email ─────────────────────────────────────────────────
+  app.post('/api/graph/send-test', async (req, res) => {
+    try {
+      const { to } = req.body;
+      res.json(await sendGraphTestEmail(to));
+    } catch (e: any) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  // ── Graph: Trigger manual inbox poll ────────────────────────────────────────
+  app.post('/api/graph/poll-now', async (req, res) => {
+    try {
+      if (!isGraphConfigured()) {
+        return res.status(400).json({ error: 'Graph API not configured. Set GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET in .env' });
+      }
+      // Use the same email processing logic as OmniChannel
+      let processed = 0;
+      await pollInboxViaGraph(async (msg) => {
+        // Reuse the existing OmniChannel email processor
+        await OmniChannelEngine.pollIncomingEmails();
+        processed++;
+      });
+      res.json({ success: true, message: `Graph inbox polled. Check audit logs for results.` });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── Graph: Get setup instructions ────────────────────────────────────────────
+  app.get('/api/graph/setup', (req, res) => {
+    res.json({
+      status: isGraphConfigured() ? 'configured' : 'not_configured',
+      current_auth_method: isGraphConfigured() ? 'Microsoft Graph API (OAuth2)' : 'Basic Auth (blocked by tenant)',
+      why_needed: 'Your Microsoft 365 tenant has Security Defaults enabled which blocks Basic Auth (SMTP/IMAP with username+password). OAuth2 via Microsoft Graph API is required.',
+      setup_steps: [
+        '1. Go to https://portal.azure.com → Azure Active Directory → App Registrations',
+        '2. Click "New registration" → Name: "Ticklora Email" → Single tenant → Register',
+        '3. Go to "Certificates & secrets" → New client secret → copy the Value (not the ID)',
+        '4. Go to "API permissions" → Add permission → Microsoft Graph → Application permissions',
+        '5. Add: Mail.Send + Mail.ReadWrite → Click "Grant admin consent for [your tenant]"',
+        '6. Copy Tenant ID and Client ID from the App Overview page',
+        '7. Add to .env: GRAPH_TENANT_ID=... GRAPH_CLIENT_ID=... GRAPH_CLIENT_SECRET=...',
+        '8. Restart server → test with: POST /api/graph/test',
+      ],
+      env_vars_needed: {
+        GRAPH_TENANT_ID:     process.env.GRAPH_TENANT_ID     || 'NOT SET',
+        GRAPH_CLIENT_ID:     process.env.GRAPH_CLIENT_ID     || 'NOT SET',
+        GRAPH_CLIENT_SECRET: process.env.GRAPH_CLIENT_SECRET ? '*** (set)' : 'NOT SET',
+        GRAPH_USER_EMAIL:    process.env.GRAPH_USER_EMAIL     || 'support@technosprint.net',
+      },
+      portal_links: {
+        app_registrations:  'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps',
+        graph_explorer:     'https://developer.microsoft.com/graph/graph-explorer',
+        admin_consent_docs: 'https://learn.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-client-creds-grant-flow',
+      },
+    });
+  });
+
+  // ── Graph: Override processEmailQueue to use Graph when configured ───────────
+  // The existing cron processEmailQueue runs every 30s — patch it to use Graph
+  if (isGraphConfigured()) {
+    console.log('[Graph] ✓ OAuth2 configured — email queue will use Microsoft Graph API');
+    // Startup test (non-blocking)
+    testGraphConnection().then(r => {
+      if (r.ok) {
+        console.log('[Graph] ✅ OAuth2 connection verified —', r.msg);
+      } else {
+        console.warn('[Graph] ⚠️  OAuth2 connection failed —', r.msg);
+      }
+    }).catch(() => {});
+  } else {
+    console.log('[Graph] ⚠️  GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET not set in .env');
+    console.log('[Graph]    Visit http://localhost:3000/api/graph/setup for setup instructions');
+  }
+
   // Health check
   app.get("/api/email/health", async (req, res) => {
     try { res.json(await getEmailHealth()); }

@@ -128,15 +128,35 @@ function genMeetingUrl(roomId: string): string {
   return `${window.location.origin}/meet/${roomId.toLowerCase()}`;
 }
 
-function loadMeetings(): Meeting[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch { return []; }
-}
-
-function saveMeetings(meetings: Meeting[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(meetings));
-}
+const mapDBToMeeting = (r: any): Meeting => {
+  const isTs = r.tsm_id ? r.tsm_id.startsWith('TSM-') : false;
+  return {
+    id: r.tsm_id,
+    meetingId: r.tsm_id,
+    roomId: r.room_id || '',
+    meetingUrl: isTs ? `${window.location.origin}/ts-meeting/${r.tsm_id}/lobby` : genMeetingUrl(r.room_id || ''),
+    title: r.title,
+    description: r.description || '',
+    meetingDate: r.meeting_date || '',
+    meetingTime: r.meeting_time || '',
+    duration: r.duration || '',
+    organizer: r.organizer || '',
+    meetingType: (r.meeting_type || 'Internal') as MeetingType,
+    priority: (r.priority || 'Medium') as MeetingPriority,
+    status: (r.status || 'Scheduled') as MeetingStatus,
+    participants: Array.isArray(r.participants) ? r.participants : [],
+    attachments: Array.isArray(r.attachments) ? r.attachments : [],
+    comments: Array.isArray(r.comments) ? r.comments : [],
+    timeline: Array.isArray(r.timeline) ? r.timeline : [],
+    notes: r.notes || '',
+    createdBy: r.organizer || '',
+    createdAt: r.created_at || '',
+    updatedAt: r.updated_at || '',
+    isTsMeeting: isTs,
+    tsmId: r.tsm_id,
+    tsPassword: r.password || '',
+  };
+};
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -145,7 +165,7 @@ export function CreateMeeting() {
   const navigate = useNavigate();
   const currentUserName = profile?.name || user?.email || "System";
 
-  const [meetings, setMeetings] = useState<Meeting[]>(() => loadMeetings());
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<MeetingStatus | "">("");
   const [typeFilter, setTypeFilter] = useState<MeetingType | "">("");
@@ -161,6 +181,22 @@ export function CreateMeeting() {
   const [tsAttendance, setTsAttendance] = useState<any[]>([]);
   const [tsChat, setTsChat] = useState<any[]>([]);
   const [loadingTsData, setLoadingTsData] = useState(false);
+
+  const fetchTSMeetings = async () => {
+    try {
+      const res = await fetch("/api/ts-meetings");
+      if (res.ok) {
+        const data = await res.json();
+        setMeetings(data.map(mapDBToMeeting));
+      }
+    } catch (err) {
+      console.error("Error fetching TS meetings:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchTSMeetings();
+  }, []);
 
   useEffect(() => {
     if (detailTab === "tsmeeting" && selectedMeeting?.tsmId) {
@@ -179,9 +215,6 @@ export function CreateMeeting() {
   // Copy feedback
   const [copied, setCopied] = useState(false);
   const [shareMsg, setShareMsg] = useState("");
-
-  // Persist whenever meetings change
-  useEffect(() => { saveMeetings(meetings); }, [meetings]);
 
   // ── Form state (create / edit) ──────────────────────────────────────────────
   const emptyForm = () => ({
@@ -285,7 +318,40 @@ export function CreateMeeting() {
     setForm(prev => ({ ...prev, participants: prev.participants.filter(p => p.id !== id) }));
   };
 
-  const handleSaveMeeting = () => {
+  const updateTSMeetingOnBackend = async (updated: Meeting) => {
+    try {
+      const res = await fetch(`/api/ts-meetings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tsm_id: updated.tsmId,
+          title: updated.title,
+          description: updated.description,
+          meeting_date: updated.meetingDate,
+          meeting_time: updated.meetingTime,
+          duration: updated.duration,
+          organizer: updated.organizer,
+          participants: updated.participants,
+          meeting_type: updated.meetingType,
+          priority: updated.priority,
+          status: updated.status,
+          room_id: updated.roomId,
+          password: updated.tsPassword,
+          notes: updated.notes,
+          attachments: updated.attachments,
+          comments: updated.comments,
+          timeline: updated.timeline
+        })
+      });
+      if (res.ok) {
+        await fetchTSMeetings();
+      }
+    } catch (err) {
+      console.error("Failed to update TS meeting on backend:", err);
+    }
+  };
+
+  const handleSaveMeeting = async () => {
     setFormError("");
     if (!form.title.trim()) { setFormError("Meeting Title is required."); return; }
     if (!form.meetingDate) { setFormError("Meeting Date is required."); return; }
@@ -293,131 +359,110 @@ export function CreateMeeting() {
     if (!form.organizer.trim()) { setFormError("Meeting Organizer is required."); return; }
 
     setSubmitting(true);
-    setTimeout(() => {
+    try {
       const now = new Date().toISOString();
-      if (editingMeeting) {
-        // Update existing
-        const timeline: TimelineEvent[] = [
-          ...editingMeeting.timeline,
-          { key: genUUID(), label: "Meeting Updated", timestamp: now, performedBy: currentUserName },
-        ];
-        const updated: Meeting = {
-          ...editingMeeting,
-          title: form.title,
-          description: form.description,
-          meetingDate: form.meetingDate,
-          meetingTime: form.meetingTime,
-          duration: form.duration,
-          organizer: form.organizer,
-          meetingType: form.meetingType,
-          priority: form.priority,
-          status: form.status,
-          participants: form.participants,
-          notes: form.notes,
-          timeline,
-          updatedAt: now,
-          isTsMeeting: form.isTsMeeting,
-          tsmId: form.tsmId,
-          tsPassword: form.tsPassword
-        };
-        if (form.isTsMeeting) {
-          fetch(`/api/ts-meetings/${form.tsmId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: form.status })
-          }).catch(err => console.error("Error updating TS Meeting:", err));
-        }
-        setMeetings(prev => prev.map(m => m.id === updated.id ? updated : m));
-      } else {
-        // Create new
-        const roomId = form.isTsMeeting ? `ROOM-${form.tsmId?.split("-")[1]}-TSME` : genRoomId();
-        const meetingId = genMeetingId();
-        const newM: Meeting = {
-          id: genUUID(),
-          meetingId,
-          roomId,
-          meetingUrl: form.isTsMeeting ? `${window.location.origin}/ts-meeting/${form.tsmId}/lobby` : genMeetingUrl(roomId),
-          title: form.title,
-          description: form.description,
-          meetingDate: form.meetingDate,
-          meetingTime: form.meetingTime,
-          duration: form.duration,
-          organizer: form.organizer,
-          meetingType: form.meetingType,
-          priority: form.priority,
-          status: form.status,
-          participants: form.participants,
-          attachments: [],
-          comments: [],
-          notes: form.notes,
-          timeline: [
-            { key: genUUID(), label: "Meeting Created", timestamp: now, performedBy: currentUserName },
-          ],
-          createdBy: currentUserName,
-          createdAt: now,
-          updatedAt: now,
-          isTsMeeting: form.isTsMeeting,
-          tsmId: form.tsmId,
-          tsPassword: form.tsPassword
-        };
-        if (form.isTsMeeting) {
-          fetch("/api/ts-meetings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              tsm_id: form.tsmId,
-              title: form.title,
-              description: form.description,
-              meeting_date: form.meetingDate,
-              meeting_time: form.meetingTime,
-              duration: form.duration,
-              organizer: form.organizer,
-              participants: form.participants,
-              meeting_type: form.meetingType,
-              priority: form.priority,
-              status: form.status,
-              room_id: roomId,
-              password: form.tsPassword
-            })
-          }).catch(err => console.error("Error creating TS Meeting:", err));
-        }
-        setMeetings(prev => [newM, ...prev]);
+      const tsm_id = editingMeeting ? editingMeeting.tsmId : (form.isTsMeeting ? form.tsmId : `CM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
+      const room_id = editingMeeting ? editingMeeting.roomId : (form.isTsMeeting ? `ROOM-${tsm_id.split("-")[1]}-TSME` : genRoomId());
+      const password = form.isTsMeeting ? form.tsPassword : "";
+
+      const timeline: TimelineEvent[] = editingMeeting 
+        ? [...editingMeeting.timeline, { key: genUUID(), label: "Meeting Updated", timestamp: now, performedBy: currentUserName }]
+        : [{ key: genUUID(), label: "Meeting Created", timestamp: now, performedBy: currentUserName }];
+
+      const reqBody = {
+        tsm_id,
+        title: form.title,
+        description: form.description,
+        meeting_date: form.meetingDate,
+        meeting_time: form.meetingTime,
+        duration: form.duration,
+        organizer: form.organizer,
+        participants: form.participants,
+        meeting_type: form.meetingType,
+        priority: form.priority,
+        status: form.status,
+        room_id,
+        password,
+        notes: form.notes,
+        attachments: editingMeeting ? editingMeeting.attachments : [],
+        comments: editingMeeting ? editingMeeting.comments : [],
+        timeline
+      };
+
+      const res = await fetch("/api/ts-meetings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reqBody)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to save meeting");
       }
-      setSubmitting(false);
+
+      await fetchTSMeetings();
       setView("list");
-    }, 600);
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save meeting.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleCancelMeeting = (m: Meeting) => {
+  const handleCancelMeeting = async (m: Meeting) => {
     if (!window.confirm(`Cancel meeting "${m.title}"?`)) return;
-    const now = new Date().toISOString();
-    const updated: Meeting = {
-      ...m,
-      status: "Cancelled",
-      updatedAt: now,
-      timeline: [...m.timeline, { key: genUUID(), label: "Meeting Cancelled", timestamp: now, performedBy: currentUserName }],
-    };
-    setMeetings(prev => prev.map(x => x.id === m.id ? updated : x));
-    if (selectedMeeting?.id === m.id) setSelectedMeeting(updated);
+    try {
+      const res = await fetch(`/api/ts-meetings/${m.tsmId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Cancelled" })
+      });
+      if (res.ok) {
+        await fetchTSMeetings();
+        if (selectedMeeting?.tsmId === m.tsmId) {
+          setSelectedMeeting(prev => prev ? { ...prev, status: "Cancelled" } : null);
+        }
+      }
+    } catch (err) {
+      console.error("Error cancelling meeting:", err);
+    }
   };
 
-  const handleCompleteMeeting = (m: Meeting) => {
+  const handleCompleteMeeting = async (m: Meeting) => {
     if (!window.confirm(`Mark meeting "${m.title}" as Completed?`)) return;
-    const now = new Date().toISOString();
-    const updated: Meeting = {
-      ...m,
-      status: "Completed",
-      updatedAt: now,
-      timeline: [...m.timeline, { key: genUUID(), label: "Meeting Completed", timestamp: now, performedBy: currentUserName }],
-    };
-    setMeetings(prev => prev.map(x => x.id === m.id ? updated : x));
-    if (selectedMeeting?.id === m.id) setSelectedMeeting(updated);
+    try {
+      const res = await fetch(`/api/ts-meetings/${m.tsmId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Completed" })
+      });
+      if (res.ok) {
+        await fetchTSMeetings();
+        if (selectedMeeting?.tsmId === m.tsmId) {
+          setSelectedMeeting(prev => prev ? { ...prev, status: "Completed" } : null);
+        }
+      }
+    } catch (err) {
+      console.error("Error completing meeting:", err);
+    }
   };
 
-  const handleDeleteMeeting = (m: Meeting) => {
+  const handleDeleteMeeting = async (m: Meeting) => {
     if (!window.confirm(`Permanently delete meeting "${m.title}"? This cannot be undone.`)) return;
-    setMeetings(prev => prev.filter(x => x.id !== m.id));
-    if (selectedMeeting?.id === m.id) { setSelectedMeeting(null); setView("list"); }
+    try {
+      const res = await fetch(`/api/ts-meetings/${m.tsmId}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        await fetchTSMeetings();
+        if (selectedMeeting?.tsmId === m.tsmId) {
+          setSelectedMeeting(null);
+          setView("list");
+        }
+      }
+    } catch (err) {
+      console.error("Error deleting meeting:", err);
+    }
   };
 
   const handleCopyLink = async (url: string) => {
@@ -433,7 +478,7 @@ export function CreateMeeting() {
     setTimeout(() => setShareMsg(""), 2500);
   };
 
-  const handleFileUpload = (file: File, type: Attachment["type"]) => {
+  const handleFileUpload = async (file: File, type: Attachment["type"]) => {
     if (!selectedMeeting) return;
     const url = URL.createObjectURL(file);
     const att: Attachment = {
@@ -452,11 +497,11 @@ export function CreateMeeting() {
       updatedAt: now,
       timeline: [...selectedMeeting.timeline, { key: genUUID(), label: `${type.charAt(0).toUpperCase() + type.slice(1)} uploaded: ${file.name}`, timestamp: now, performedBy: currentUserName }],
     };
-    setMeetings(prev => prev.map(m => m.id === updated.id ? updated : m));
     setSelectedMeeting(updated);
+    await updateTSMeetingOnBackend(updated);
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!form.newComment.trim() || !selectedMeeting) return;
     const now = new Date().toISOString();
     const c: Comment = { id: genUUID(), author: currentUserName, text: form.newComment.trim(), createdAt: now };
@@ -465,7 +510,30 @@ export function CreateMeeting() {
       comments: [...selectedMeeting.comments, c],
       updatedAt: now,
     };
-    setMeetings(prev => prev.map(m => m.id === updated.id ? updated : m));
+    setSelectedMeeting(updated);
+    setForm(prev => ({ ...prev, newComment: "" }));
+    await updateTSMeetingOnBackend(updated);
+  };
+
+  const handleUpdateParticipantStatus = async (meetingId: string, participantId: string, status: Participant["status"]) => {
+    if (!selectedMeeting) return;
+    const now = new Date().toISOString();
+    const updated: Meeting = {
+      ...selectedMeeting,
+      updatedAt: now,
+      participants: selectedMeeting.participants.map(p =>
+        p.id === participantId ? { ...p, status } : p
+      ),
+      timeline: [...selectedMeeting.timeline, {
+        key: genUUID(),
+        label: `Participant status updated to "${status}"`,
+        timestamp: now,
+        performedBy: currentUserName,
+      }],
+    };
+    setSelectedMeeting(updated);
+    await updateTSMeetingOnBackend(updated);
+  };> prev.map(m => m.id === updated.id ? updated : m));
     setSelectedMeeting(updated);
     setForm(prev => ({ ...prev, newComment: "" }));
   };

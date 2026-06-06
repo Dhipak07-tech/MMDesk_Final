@@ -49,7 +49,7 @@ function m365Transport() {
   });
 }
 
-// ─── Internal email sender — queues to notifications_queue for retry logic ────
+// ─── Internal email sender — tries Graph API first, falls back to queue ───────
 async function queueM365Email(opts: {
   to:           string;
   subject:      string;
@@ -59,6 +59,25 @@ async function queueM365Email(opts: {
   eventType:    string;
 }) {
   if (!opts.to || !opts.to.includes('@')) return;
+
+  // Try Graph API first if configured (bypasses SMTP/IMAP auth issues)
+  try {
+    const { isGraphConfigured, sendViaGraph } = await import('./graphEmailEngine');
+    if (isGraphConfigured()) {
+      const result = await sendViaGraph({
+        to:            opts.to,
+        subject:       opts.subject,
+        html:          opts.html,
+        ticketNumber:  opts.ticketNumber,
+      });
+      if (result.ok) {
+        console.log(`[TNS] Graph sent → ${opts.to} (${opts.eventType})`);
+        return; // Graph sent successfully — no need to queue
+      }
+      // Graph failed — fall through to queue
+      console.warn(`[TNS] Graph send failed, queueing for retry: ${result.error}`);
+    }
+  } catch { /* Graph not available — fall through to queue */ }
 
   try {
     // Insert into existing notifications_queue (same table used by processEmailQueue)

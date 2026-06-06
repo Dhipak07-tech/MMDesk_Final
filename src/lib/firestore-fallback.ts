@@ -372,13 +372,13 @@ export async function getDoc(docRef: any): Promise<any> {
 
     try {
       if (path === "settings" && id === "branding") {
-        const stored = localStorage.getItem("fallback_firestore_settings/branding");
-        if (stored) {
-          try {
-            data = JSON.parse(stored);
-          } catch (e) {
-            console.error("[Firestore Fallback] Error parsing branding from localStorage:", e);
+        try {
+          const res = await fetch("/api/settings/branding");
+          if (res.ok) {
+            data = await res.json();
           }
+        } catch (e) {
+          console.error("[Firestore Fallback] Error fetching branding:", e);
         }
         if (!data) {
           data = {
@@ -609,15 +609,21 @@ export async function setDoc(docRef: any, data: any, options?: any): Promise<voi
         body: JSON.stringify({ id, ...data })
       });
     } else if (path === "settings" && id === "branding") {
-      const stored = localStorage.getItem("fallback_firestore_settings/branding");
-      let currentData = { companyName: "Connect", logoBase64: null, logoType: null };
-      if (stored) {
-        try {
-          currentData = JSON.parse(stored);
-        } catch { }
+      try {
+        let currentData = { companyName: "Connect", logoBase64: null, logoType: null };
+        const getRes = await fetch("/api/settings/branding");
+        if (getRes.ok) {
+          currentData = await getRes.json();
+        }
+        const newData = { ...currentData, ...data };
+        await fetch("/api/settings/branding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newData)
+        });
+      } catch (e) {
+        console.error("[Firestore Fallback] Error saving branding:", e);
       }
-      const newData = { ...currentData, ...data };
-      localStorage.setItem("fallback_firestore_settings/branding", JSON.stringify(newData));
       notifyListeners("settings", "branding");
     }
     return;
