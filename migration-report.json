@@ -1,40 +1,40 @@
 {
-  "startTime": "2026-06-06T13:32:51.988Z",
-  "endTime": "2026-06-06T13:32:52.125Z",
+  "startTime": "2026-06-10T10:23:30.618Z",
+  "endTime": "2026-06-10T10:23:30.959Z",
   "tables": {
     "users": {
-      "source": 1,
-      "migrated": 1,
+      "source": 2,
+      "migrated": 2,
       "errors": 0,
       "skipped": false
     },
     "tickets": {
-      "source": 1,
-      "migrated": 1,
+      "source": 3,
+      "migrated": 3,
       "errors": 0,
       "skipped": false
     },
     "timesheets": {
-      "source": 4,
-      "migrated": 4,
+      "source": 7,
+      "migrated": 7,
       "errors": 0,
       "skipped": false
     },
     "time_cards": {
-      "source": 2,
-      "migrated": 2,
+      "source": 6,
+      "migrated": 6,
       "errors": 0,
       "skipped": false
     },
     "activity_sessions": {
-      "source": 2,
-      "migrated": 2,
+      "source": 8,
+      "migrated": 8,
       "errors": 0,
       "skipped": false
     },
     "activity_entries": {
-      "source": 2,
-      "migrated": 2,
+      "source": 10,
+      "migrated": 10,
       "errors": 0,
       "skipped": false
     },
@@ -45,8 +45,8 @@
       "skipped": false
     },
     "notifications": {
-      "source": 1,
-      "migrated": 1,
+      "source": 32,
+      "migrated": 32,
       "errors": 0,
       "skipped": false
     },
@@ -57,20 +57,20 @@
       "skipped": false
     },
     "message_history": {
-      "source": 5,
-      "migrated": 5,
+      "source": 7,
+      "migrated": 7,
       "errors": 0,
       "skipped": false
     },
     "ticket_activities": {
-      "source": 1,
-      "migrated": 1,
+      "source": 11,
+      "migrated": 11,
       "errors": 0,
       "skipped": false
     },
     "email_queue": {
-      "source": 1,
-      "migrated": 1,
+      "source": 5,
+      "migrated": 5,
       "errors": 0,
       "skipped": false
     },
@@ -81,16 +81,16 @@
       "skipped": true
     },
     "incident_categories": {
-      "source": 0,
-      "migrated": 0,
+      "source": 1,
+      "migrated": 1,
       "errors": 0,
-      "skipped": true
+      "skipped": false
     },
     "meetings": {
-      "source": 0,
-      "migrated": 0,
+      "source": 1,
+      "migrated": 1,
       "errors": 0,
-      "skipped": true
+      "skipped": false
     },
     "companies": {
       "source": 0,
