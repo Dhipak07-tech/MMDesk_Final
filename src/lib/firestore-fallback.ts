@@ -41,16 +41,39 @@ async function prefetchUsers() {
   }
 }
 
-// Intercept window.fetch to clear API response cache on writes
+// Intercept window.fetch to clear API response cache on writes and inject auth headers
 const originalFetch = window.fetch;
 window.fetch = async function (...args: any[]) {
-  const url = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url ? args[0].url : "");
-  const options = args[1] || {};
-  const method = (options.method || "GET").toUpperCase();
+  let url = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url ? args[0].url : "");
+  let init = args[1] || {};
+  const method = (init.method || "GET").toUpperCase();
   
   if (method !== "GET" && (url.includes("/api/tickets") || url.includes("/api/settings") || url.includes("/api/users"))) {
     console.log(`[Firestore Fallback] Write operation detected: ${method} ${url}. Evicting API cache.`);
     apiCache.clear();
+  }
+
+  // Inject x-user-uid and x-user-email headers automatically for any /api/ requests
+  if (typeof url === "string" && url.startsWith("/api/")) {
+    try {
+      const demoUserStr = localStorage.getItem("demo_user");
+      if (demoUserStr) {
+        const demoUser = JSON.parse(demoUserStr);
+        if (demoUser && demoUser.uid) {
+          const headers = init.headers ? { ...init.headers } : {};
+          if (!headers["x-user-uid"]) {
+            headers["x-user-uid"] = demoUser.uid;
+          }
+          if (!headers["x-user-email"] && demoUser.email) {
+            headers["x-user-email"] = demoUser.email;
+          }
+          init.headers = headers;
+          args[1] = init;
+        }
+      }
+    } catch (e) {
+      console.error("[Firestore Fallback] Error injecting auth headers:", e);
+    }
   }
   
   return originalFetch.apply(this, args);

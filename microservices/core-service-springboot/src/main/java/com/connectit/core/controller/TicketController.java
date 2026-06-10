@@ -104,10 +104,7 @@ public class TicketController {
         return ResponseEntity.ok(Map.of("message","All tickets deleted"));
     }
 
-    @PostMapping("/tickets/trigger-escalation")
-    public ResponseEntity<?> triggerEscalation() {
-        return ResponseEntity.ok(Map.of("message","Escalation check triggered"));
-    }
+
 
     // ── Ticket Custom Fields ──────────────────────────────────────────────────
     @GetMapping("/tickets/{id}/custom-fields")
@@ -131,7 +128,7 @@ public class TicketController {
                 String catIdStr = entry.getKey();
                 String valText = entry.getValue();
                 if (valText != null && !valText.isBlank()) {
-                    int catId = Integer.parseInt(catIdStr);
+                    long catId = Long.parseLong(catIdStr);
                     String catName = "Field_" + catId;
                     try {
                         String name = jdbcTemplate.queryForObject(
@@ -183,19 +180,7 @@ public class TicketController {
         return addActivity(id, body);
     }
 
-    // ── Leaderboard ───────────────────────────────────────────────────────────
-    @GetMapping("/leaderboard/daily")
-    public ResponseEntity<?> leaderboard() {
-        LocalDateTime today = LocalDateTime.now().toLocalDate().atStartOfDay();
-        List<Object[]> rows = ticketRepo.findLeaderboard(today);
-        List<Map<String,Object>> result = rows.stream().map(r -> Map.of(
-            "id",            r[0],
-            "name",          r[1] != null ? r[1] : r[0],
-            "points",        r[2] != null ? r[2] : 0,
-            "resolvedCount", r[3] != null ? r[3] : 0
-        )).toList();
-        return ResponseEntity.ok(result);
-    }
+
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     private boolean checkAdminAccess() {

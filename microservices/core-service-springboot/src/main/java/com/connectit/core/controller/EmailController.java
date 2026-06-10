@@ -112,9 +112,9 @@ public class EmailController {
             var props = new java.util.Properties();
             props.put("mail.smtp.auth", "true");
             props.put("mail.smtp.starttls.enable", "true");
-            var session = javax.mail.Session.getInstance(props, new javax.mail.Authenticator() {
-                protected javax.mail.PasswordAuthentication getPasswordAuthentication() {
-                    return new javax.mail.PasswordAuthentication(cfg.getSmtpUser(), cfg.getSmtpPass());
+            var session = jakarta.mail.Session.getInstance(props, new jakarta.mail.Authenticator() {
+                protected jakarta.mail.PasswordAuthentication getPasswordAuthentication() {
+                    return new jakarta.mail.PasswordAuthentication(cfg.getSmtpUser(), cfg.getSmtpPass());
                 }
             });
             var transport = session.getTransport("smtp");
