@@ -6,8 +6,8 @@ RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests -B
 
-# Execution stage using JDK 17 Slim
-FROM openjdk:17-jdk-slim
+# Execution stage using Eclipse Temurin JRE 17
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/target/ticklora-core-1.0.0.jar app.jar
 EXPOSE 3000
