@@ -209,16 +209,42 @@ export function createSpeechController(options: SpeechControllerOptions) {
   return {
     supported: true,
     listening: () => active,
-    toggle: () => {
+    toggle: async () => {
       try {
         if (active) {
           recognition.stop();
         } else {
+          // Verify mediaDevices API support
+          if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            console.warn("Media devices API is not supported in this browser.");
+            options.onError?.("Speech recognition / microphone is not supported in this browser context.");
+            return;
+          }
+
+          // Check for audio input devices
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const hasMicrophone = devices.some((d) => d.kind === "audioinput");
+          if (!hasMicrophone) {
+            console.error("No microphone device was detected.");
+            options.onError?.("No microphone detected. Please connect a microphone or check your audio settings.");
+            return;
+          }
+
+          // Request / verify microphone permission
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach((track) => track.stop());
+          } catch (err: any) {
+            console.error("Microphone permission check failed:", err);
+            options.onError?.("Microphone access denied. Please allow microphone permissions in your browser settings.");
+            return;
+          }
+
           recognition.start();
         }
       } catch (err: any) {
         console.error("Speech recognition toggle error:", err);
-        if (err.name === 'NotAllowedError') {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
            options.onError?.('Microphone access denied. Please allow microphone permissions.');
         } else {
            options.onError?.(`Error: ${err.message}`);

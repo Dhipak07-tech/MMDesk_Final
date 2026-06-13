@@ -12,7 +12,6 @@ import { createSpeechController } from "../lib/speechToEnglish";
 import { getEffectiveSlaDelayState } from "../lib/slaDelayUtils";
 
 import { Link, useSearchParams } from "react-router-dom";
-import { IT_SERVICE_CATALOG } from "../lib/itServiceCatalogDefaults";
 import { CREATE_INCIDENT_FORM_DEFAULTS, DEFAULT_COMPANY_FEATURE_PERMISSION } from "../lib/createIncidentFeatures";
 
 function toMs(val: any): number {
@@ -155,11 +154,12 @@ export function Tickets() {
 
   const [assignedTo, setAssignedTo] = useState("");
   const [slaPolicies, setSlaPolicies] = useState<any[]>([]);
-  // INDEPENDENT DROPDOWNS (Realistic Catalog)
-  const selectedCategoryData = IT_SERVICE_CATALOG.find(c => c.category === newTicket.category);
-  const realisticSubcategories = selectedCategoryData?.subcategories || [];
-  const selectedSubcategoryData = realisticSubcategories.find(s => s.name === newTicket.subcategory);
-  const realisticServices = selectedSubcategoryData?.services || [];
+  // DYNAMIC DROPDOWNS from database (via useServiceCatalog hook)
+  const activeCategories = categories.filter(c => c.status === 'active');
+  const selectedCategoryObj = activeCategories.find(c => c.name === newTicket.category);
+  const filteredSubcategories = subcategories.filter(s => s.status === 'active' && (!selectedCategoryObj || s.categoryId === selectedCategoryObj.id));
+  const selectedSubcategoryObj = filteredSubcategories.find(s => s.name === newTicket.subcategory);
+  const filteredServiceProviders = serviceProviders.filter(sp => sp.status === 'active' && (!selectedSubcategoryObj || sp.subcategoryId === selectedSubcategoryObj.id));
 
   const visibleGroups = groups;
   const displayGroups = visibleGroups;
@@ -1334,8 +1334,8 @@ export function Tickets() {
                           disabled={isFeatureDisabled("field.category")}
                         >
                           <option value="">-- Select Category --</option>
-                          {IT_SERVICE_CATALOG.map((item) => (
-                            <option key={item.category} value={item.category}>{item.category}</option>
+                          {activeCategories.map((item) => (
+                            <option key={item.id} value={item.name}>{item.name}</option>
                           ))}
                         </select>
                       </div>
@@ -1362,8 +1362,8 @@ export function Tickets() {
                           disabled={!newTicket.category || isFeatureDisabled("field.subcategory")}
                         >
                           <option value="">-- Select Subcategory --</option>
-                          {realisticSubcategories.map(s => (
-                            <option key={s.name} value={s.name}>{s.name}</option>
+                          {filteredSubcategories.map(s => (
+                            <option key={s.id} value={s.name}>{s.name}</option>
                           ))}
                         </select>
                       </div>
@@ -1385,8 +1385,8 @@ export function Tickets() {
                           disabled={!newTicket.subcategory || isFeatureDisabled("field.service")}
                         >
                           <option value="">-- Select Service --</option>
-                          {realisticServices.map(s => (
-                            <option key={s} value={s}>{s}</option>
+                          {filteredServiceProviders.map(sp => (
+                            <option key={sp.id} value={sp.name}>{sp.name}</option>
                           ))}
                         </select>
                       </div>

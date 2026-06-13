@@ -182,20 +182,91 @@ public class EmailService {
             .orElse(null);
     }
 
+    @Value("${graph.tenant-id:}")
+    private String graphTenantId;
+
+    @Value("${graph.client-id:}")
+    private String graphClientId;
+
+    @Value("${graph.client-secret:}")
+    private String graphClientSecret;
+
+    private boolean isOffice365Host(String host) {
+        return host != null && (
+            host.contains("office365.com") ||
+            host.contains("outlook.com") ||
+            host.contains("microsoft.com")
+        );
+    }
+
+    private String getOAuth2AccessToken() throws Exception {
+        String tokenUrl = "https://login.microsoftonline.com/" + graphTenantId + "/oauth2/v2.0/token";
+        String body = "client_id=" + java.net.URLEncoder.encode(graphClientId, java.nio.charset.StandardCharsets.UTF_8)
+            + "&client_secret=" + java.net.URLEncoder.encode(graphClientSecret, java.nio.charset.StandardCharsets.UTF_8)
+            + "&scope=" + java.net.URLEncoder.encode("https://outlook.office365.com/.default", java.nio.charset.StandardCharsets.UTF_8)
+            + "&grant_type=client_credentials";
+
+        java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+            .uri(java.net.URI.create(tokenUrl))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
+            .build();
+
+        java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("OAuth2 token failed: " + response.body());
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tokenResp = new com.fasterxml.jackson.databind.ObjectMapper().readValue(response.body(), Map.class);
+        return (String) tokenResp.get("access_token");
+    }
+
     private JavaMailSender getActiveMailSender(CompanyEmailConfig cfg) {
         if (cfg != null) {
             JavaMailSenderImpl impl = new JavaMailSenderImpl();
             impl.setHost(cfg.getSmtpHost());
             impl.setPort(cfg.getSmtpPort() != null ? cfg.getSmtpPort() : 587);
-            impl.setUsername(cfg.getSmtpUser());
-            impl.setPassword(cfg.getSmtpPass());
-            
-            Properties props = impl.getJavaMailProperties();
-            props.put("mail.transport.protocol", "smtp");
-            props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.debug", "false");
-            props.put("mail.smtp.ssl.trust", cfg.getSmtpHost());
+            boolean useOAuth = isOffice365Host(cfg.getSmtpHost());
+            if (useOAuth) {
+                try {
+                    String token = getOAuth2AccessToken();
+                    impl.setUsername(cfg.getSmtpUser());
+                    impl.setPassword(token);
+
+                    Properties props = impl.getJavaMailProperties();
+                    props.put("mail.transport.protocol", "smtp");
+                    props.put("mail.smtp.auth", "true");
+                    props.put("mail.smtp.auth.mechanisms", "XOAUTH2");
+                    props.put("mail.smtp.auth.login.disable", "true");
+                    props.put("mail.smtp.auth.plain.disable", "true");
+                    props.put("mail.smtp.starttls.enable", "true");
+                    props.put("mail.debug", "false");
+                    props.put("mail.smtp.ssl.trust", cfg.getSmtpHost());
+                    log.info("[Email] Using OAuth2 XOAUTH2 for SMTP to {}", cfg.getSmtpHost());
+                } catch (Exception e) {
+                    log.error("[Email] OAuth2 token failed, falling back to basic auth: {}", e.getMessage());
+                    impl.setUsername(cfg.getSmtpUser());
+                    impl.setPassword(cfg.getSmtpPass());
+                    Properties props = impl.getJavaMailProperties();
+                    props.put("mail.transport.protocol", "smtp");
+                    props.put("mail.smtp.auth", "true");
+                    props.put("mail.smtp.starttls.enable", "true");
+                    props.put("mail.debug", "false");
+                    props.put("mail.smtp.ssl.trust", cfg.getSmtpHost());
+                }
+            } else {
+                impl.setUsername(cfg.getSmtpUser());
+                impl.setPassword(cfg.getSmtpPass());
+
+                Properties props = impl.getJavaMailProperties();
+                props.put("mail.transport.protocol", "smtp");
+                props.put("mail.smtp.auth", "true");
+                props.put("mail.smtp.starttls.enable", "true");
+                props.put("mail.debug", "false");
+                props.put("mail.smtp.ssl.trust", cfg.getSmtpHost());
+            }
             
             return impl;
         }

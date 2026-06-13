@@ -120,15 +120,15 @@ public class EmailController {
             props.put("mail.smtp.starttls.enable", "true");
             props.put("mail.smtp.connectiontimeout", "4000");
             props.put("mail.smtp.timeout", "4000");
-            final String finalSmtpUser = cfg.getSmtpUser();
-            final String finalSmtpPass = cfg.getSmtpPass();
+            final String smtpUser = cfg.getSmtpUser();
+            final String smtpPass = cfg.getSmtpPass();
             var session = jakarta.mail.Session.getInstance(props, new jakarta.mail.Authenticator() {
                 protected jakarta.mail.PasswordAuthentication getPasswordAuthentication() {
-                    return new jakarta.mail.PasswordAuthentication(finalSmtpUser, finalSmtpPass);
+                    return new jakarta.mail.PasswordAuthentication(smtpUser, smtpPass);
                 }
             });
             var transport = session.getTransport("smtp");
-            transport.connect(cfg.getSmtpHost(), cfg.getSmtpPort(), finalSmtpUser, finalSmtpPass);
+            transport.connect(cfg.getSmtpHost(), cfg.getSmtpPort(), smtpUser, smtpPass);
             transport.close();
             smtpOk = true;
         } catch (Exception e) {

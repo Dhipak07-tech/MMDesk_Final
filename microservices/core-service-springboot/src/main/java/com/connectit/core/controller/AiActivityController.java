@@ -48,6 +48,11 @@ public class AiActivityController {
         try {
             String escapedPath = outputFile.getAbsolutePath().replace("'", "''");
             String psScript =
+                "try { " +
+                "  $sig = '[DllImport(\"user32.dll\")] public static extern bool SetProcessDPIAware();'; " +
+                "  $type = Add-Type -MemberDefinition $sig -Name 'Win32Dpi' -Namespace 'Win32DpiUtils' -PassThru; " +
+                "  $type::SetProcessDPIAware() | Out-Null; " +
+                "} catch {}; " +
                 "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; " +
                 "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; " +
                 "$b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; " +
@@ -104,7 +109,29 @@ public class AiActivityController {
             java.awt.Dimension screenSize = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
             java.awt.Rectangle screenRect = new java.awt.Rectangle(screenSize);
             java.awt.Robot robot = new java.awt.Robot();
-            java.awt.image.BufferedImage image = robot.createScreenCapture(screenRect);
+            
+            // Capture full-screen screenshot at high-DPI (native resolution)
+            java.awt.image.MultiResolutionImage mrImage = robot.createMultiResolutionScreenCapture(screenRect);
+            java.awt.image.BufferedImage image = null;
+            java.util.List<java.awt.Image> variants = mrImage.getResolutionVariants();
+            if (variants != null && !variants.isEmpty()) {
+                java.awt.Image highestRes = variants.get(variants.size() - 1);
+                if (highestRes instanceof java.awt.image.BufferedImage) {
+                    image = (java.awt.image.BufferedImage) highestRes;
+                } else {
+                    image = new java.awt.image.BufferedImage(
+                        highestRes.getWidth(null),
+                        highestRes.getHeight(null),
+                        java.awt.image.BufferedImage.TYPE_INT_RGB
+                    );
+                    java.awt.Graphics2D g2 = image.createGraphics();
+                    g2.drawImage(highestRes, 0, 0, null);
+                    g2.dispose();
+                }
+            }
+            if (image == null) {
+                image = robot.createScreenCapture(screenRect);
+            }
 
             // Save to disk
             javax.imageio.ImageIO.write(image, "jpeg", outputFile);
@@ -679,6 +706,589 @@ public class AiActivityController {
             row.put("id", String.valueOf(row.get("id")));
         }
         return row;
+    }
+
+    // ── SETTINGS CATEGORIES CRUD ──────────────────────────────────────────────
+    @GetMapping("/settings_categories")
+    public ResponseEntity<?> getSettingsCategories() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_categories ORDER BY name ASC");
+            return ResponseEntity.ok(stringifyIds(rows));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_categories")
+    @Transactional
+    public ResponseEntity<?> createSettingsCategory(@RequestBody Map<String, Object> body) {
+        try {
+            String id = (String) body.get("id");
+            if (id == null) id = "cat_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
+            String name = (String) body.get("name");
+            String description = (String) body.get("description");
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "system");
+            jdbcTemplate.update("INSERT INTO settings_categories (id, name, description, status, created_by) VALUES (?, ?, ?, ?, ?)",
+                id, name, description, status, createdBy);
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_categories WHERE id = ?", id);
+            return ResponseEntity.ok(stringifyId(new HashMap<>(rows.get(0))));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_categories/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsCategory(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : body.entrySet()) {
+                String key = entry.getKey();
+                if ("id".equals(key) || "created_at".equals(key) || "updated_at".equals(key)) continue;
+                String dbCol = "createdBy".equals(key) ? "created_by" : key;
+                fields.add(dbCol + " = ?");
+                values.add(entry.getValue());
+            }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE settings_categories SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_categories WHERE id = ?", id);
+            if (rows.isEmpty()) return ResponseEntity.notFound().build();
+            return ResponseEntity.ok(stringifyId(new HashMap<>(rows.get(0))));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_categories/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsCategory(@PathVariable String id) {
+        try {
+            jdbcTemplate.update("DELETE FROM settings_categories WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── SETTINGS SUBCATEGORIES CRUD ───────────────────────────────────────────
+    @GetMapping("/settings_subcategories")
+    public ResponseEntity<?> getSettingsSubcategories() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_subcategories ORDER BY name ASC");
+            // Map snake_case to camelCase for frontend compatibility
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> mapped = new HashMap<>(row);
+                if (mapped.containsKey("category_id")) mapped.put("categoryId", mapped.get("category_id"));
+                if (mapped.containsKey("category_name")) mapped.put("categoryName", mapped.get("category_name"));
+                if (mapped.containsKey("created_by")) mapped.put("createdBy", mapped.get("created_by"));
+                if (mapped.containsKey("created_at")) mapped.put("createdAt", mapped.get("created_at"));
+                result.add(stringifyId(mapped));
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_subcategories")
+    @Transactional
+    public ResponseEntity<?> createSettingsSubcategory(@RequestBody Map<String, Object> body) {
+        try {
+            String id = (String) body.get("id");
+            if (id == null) id = "sub_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
+            String name = (String) body.get("name");
+            String description = (String) body.get("description");
+            String categoryId = (String) body.getOrDefault("categoryId", body.get("category_id"));
+            String categoryName = (String) body.getOrDefault("categoryName", body.get("category_name"));
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "system");
+            jdbcTemplate.update("INSERT INTO settings_subcategories (id, name, description, category_id, category_name, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                id, name, description, categoryId, categoryName, status, createdBy);
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_subcategories WHERE id = ?", id);
+            return ResponseEntity.ok(stringifyId(new HashMap<>(rows.get(0))));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_subcategories/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsSubcategory(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : body.entrySet()) {
+                String key = entry.getKey();
+                if ("id".equals(key) || "created_at".equals(key) || "updated_at".equals(key)) continue;
+                String dbCol = key;
+                if ("categoryId".equals(key)) dbCol = "category_id";
+                else if ("categoryName".equals(key)) dbCol = "category_name";
+                else if ("createdBy".equals(key)) dbCol = "created_by";
+                fields.add(dbCol + " = ?");
+                values.add(entry.getValue());
+            }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE settings_subcategories SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_subcategories WHERE id = ?", id);
+            if (rows.isEmpty()) return ResponseEntity.notFound().build();
+            return ResponseEntity.ok(stringifyId(new HashMap<>(rows.get(0))));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_subcategories/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsSubcategory(@PathVariable String id) {
+        try {
+            jdbcTemplate.update("DELETE FROM settings_subcategories WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── SETTINGS SERVICE PROVIDERS CRUD ───────────────────────────────────────
+    @GetMapping("/settings_service_providers")
+    public ResponseEntity<?> getSettingsServiceProviders() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_service_providers ORDER BY name ASC");
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> mapped = new HashMap<>(row);
+                if (mapped.containsKey("category_id")) mapped.put("categoryId", mapped.get("category_id"));
+                if (mapped.containsKey("subcategory_id")) mapped.put("subcategoryId", mapped.get("subcategory_id"));
+                if (mapped.containsKey("created_by")) mapped.put("createdBy", mapped.get("created_by"));
+                if (mapped.containsKey("created_at")) mapped.put("createdAt", mapped.get("created_at"));
+                result.add(stringifyId(mapped));
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_service_providers")
+    @Transactional
+    public ResponseEntity<?> createSettingsServiceProvider(@RequestBody Map<String, Object> body) {
+        try {
+            String id = (String) body.get("id");
+            if (id == null) id = "sp_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
+            String name = (String) body.get("name");
+            String description = (String) body.get("description");
+            String categoryId = (String) body.getOrDefault("categoryId", body.get("category_id"));
+            String subcategoryId = (String) body.getOrDefault("subcategoryId", body.get("subcategory_id"));
+            String sla = (String) body.getOrDefault("sla", "4h");
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "system");
+            jdbcTemplate.update("INSERT INTO settings_service_providers (id, name, description, category_id, subcategory_id, sla, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                id, name, description, categoryId, subcategoryId, sla, status, createdBy);
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_service_providers WHERE id = ?", id);
+            return ResponseEntity.ok(stringifyId(new HashMap<>(rows.get(0))));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_service_providers/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsServiceProvider(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : body.entrySet()) {
+                String key = entry.getKey();
+                if ("id".equals(key) || "created_at".equals(key) || "updated_at".equals(key)) continue;
+                String dbCol = key;
+                if ("categoryId".equals(key)) dbCol = "category_id";
+                else if ("subcategoryId".equals(key)) dbCol = "subcategory_id";
+                else if ("createdBy".equals(key)) dbCol = "created_by";
+                fields.add(dbCol + " = ?");
+                values.add(entry.getValue());
+            }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE settings_service_providers SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_service_providers WHERE id = ?", id);
+            if (rows.isEmpty()) return ResponseEntity.notFound().build();
+            return ResponseEntity.ok(stringifyId(new HashMap<>(rows.get(0))));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_service_providers/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsServiceProvider(@PathVariable String id) {
+        try {
+            jdbcTemplate.update("DELETE FROM settings_service_providers WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── SETTINGS GROUP MEMBERS CRUD ───────────────────────────────────────────
+    @GetMapping("/settings_group_members")
+    public ResponseEntity<?> getSettingsGroupMembers() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_group_members ORDER BY user_name ASC");
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> mapped = new HashMap<>(row);
+                if (mapped.containsKey("user_id")) mapped.put("userId", mapped.get("user_id"));
+                if (mapped.containsKey("user_name")) mapped.put("userName", mapped.get("user_name"));
+                if (mapped.containsKey("user_email")) mapped.put("userEmail", mapped.get("user_email"));
+                if (mapped.containsKey("group_id")) mapped.put("groupId", mapped.get("group_id"));
+                if (mapped.containsKey("role_in_group")) mapped.put("roleInGroup", mapped.get("role_in_group"));
+                if (mapped.containsKey("is_primary")) mapped.put("isPrimary", mapped.get("is_primary"));
+                if (mapped.containsKey("availability_status")) mapped.put("availabilityStatus", mapped.get("availability_status"));
+                if (mapped.containsKey("current_workload")) mapped.put("currentWorkload", mapped.get("current_workload"));
+                if (mapped.containsKey("created_by")) mapped.put("createdBy", mapped.get("created_by"));
+                if (mapped.containsKey("created_at")) mapped.put("createdAt", mapped.get("created_at"));
+                result.add(stringifyId(mapped));
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_group_members")
+    @Transactional
+    public ResponseEntity<?> createSettingsGroupMember(@RequestBody Map<String, Object> body) {
+        try {
+            String id = (String) body.get("id");
+            if (id == null) id = "gm_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
+            String userId = (String) body.getOrDefault("userId", body.get("user_id"));
+            String userName = (String) body.getOrDefault("userName", body.get("user_name"));
+            String userEmail = (String) body.getOrDefault("userEmail", body.get("user_email"));
+            String groupId = (String) body.getOrDefault("groupId", body.get("group_id"));
+            String roleInGroup = (String) body.getOrDefault("roleInGroup", body.getOrDefault("role_in_group", "Support Agent"));
+            Boolean isPrimary = parseBoolean(body.getOrDefault("isPrimary", body.getOrDefault("is_primary", false)));
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "system");
+            jdbcTemplate.update("INSERT INTO settings_group_members (id, user_id, user_name, user_email, group_id, role_in_group, is_primary, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                id, userId, userName, userEmail, groupId, roleInGroup, isPrimary ? 1 : 0, status, createdBy);
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_group_members WHERE id = ?", id);
+            return ResponseEntity.ok(stringifyId(new HashMap<>(rows.get(0))));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_group_members/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsGroupMember(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : body.entrySet()) {
+                String key = entry.getKey();
+                if ("id".equals(key) || "created_at".equals(key) || "updated_at".equals(key)) continue;
+                String dbCol = key;
+                if ("userId".equals(key)) dbCol = "user_id";
+                else if ("userName".equals(key)) dbCol = "user_name";
+                else if ("userEmail".equals(key)) dbCol = "user_email";
+                else if ("groupId".equals(key)) dbCol = "group_id";
+                else if ("roleInGroup".equals(key)) dbCol = "role_in_group";
+                else if ("isPrimary".equals(key)) dbCol = "is_primary";
+                else if ("availabilityStatus".equals(key)) dbCol = "availability_status";
+                else if ("currentWorkload".equals(key)) dbCol = "current_workload";
+                else if ("createdBy".equals(key)) dbCol = "created_by";
+                fields.add(dbCol + " = ?");
+                if ("is_primary".equals(dbCol)) {
+                    values.add(parseBoolean(entry.getValue()) ? 1 : 0);
+                } else {
+                    values.add(entry.getValue());
+                }
+            }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE settings_group_members SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_group_members WHERE id = ?", id);
+            if (rows.isEmpty()) return ResponseEntity.notFound().build();
+            return ResponseEntity.ok(stringifyId(new HashMap<>(rows.get(0))));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_group_members/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsGroupMember(@PathVariable String id) {
+        try {
+            jdbcTemplate.update("DELETE FROM settings_group_members WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    private Object parseJsonField(Object value) {
+        if (value == null) return null;
+        if (value instanceof String) {
+            String str = ((String) value).trim();
+            if (str.isEmpty()) return null;
+            if ((str.startsWith("{") && str.endsWith("}")) || (str.startsWith("[") && str.endsWith("]"))) {
+                try {
+                    return objectMapper.readValue(str, Object.class);
+                } catch (Exception e) {
+                    return str;
+                }
+            }
+            return str;
+        }
+        if (value instanceof byte[]) {
+            try {
+                return objectMapper.readValue((byte[]) value, Object.class);
+            } catch (Exception e) {
+                return new String((byte[]) value);
+            }
+        }
+        return value;
+    }
+
+    // ── SETTINGS WORKFLOWS CRUD ───────────────────────────────────────────────
+    @GetMapping("/settings_workflows")
+    public ResponseEntity<?> getSettingsWorkflows() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_workflows ORDER BY created_at DESC");
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> mapped = new HashMap<>(row);
+                if (mapped.containsKey("created_by")) mapped.put("createdBy", mapped.get("created_by"));
+                if (mapped.containsKey("created_at")) mapped.put("createdAt", mapped.get("created_at"));
+                if (mapped.containsKey("updated_at")) mapped.put("updatedAt", mapped.get("updated_at"));
+                if (mapped.containsKey("attachment")) mapped.put("attachment", parseJsonField(mapped.get("attachment")));
+                result.add(stringifyId(mapped));
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_workflows")
+    @Transactional
+    public ResponseEntity<?> createSettingsWorkflow(@RequestBody Map<String, Object> body) {
+        try {
+            String id = (String) body.get("id");
+            if (id == null) id = "wf_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
+            String name = (String) body.get("name");
+            String description = (String) body.get("description");
+            String trigger = (String) body.get("trigger");
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "system");
+            
+            String attachmentJson = null;
+            if (body.containsKey("attachment") && body.get("attachment") != null) {
+                attachmentJson = objectMapper.writeValueAsString(body.get("attachment"));
+            }
+            String image = (String) body.get("image");
+
+            jdbcTemplate.update("INSERT INTO settings_workflows (id, name, description, `trigger`, status, attachment, image, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                id, name, description, trigger, status, attachmentJson, image, createdBy);
+
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_workflows WHERE id = ?", id);
+            Map<String, Object> created = new HashMap<>(rows.get(0));
+            if (created.containsKey("created_by")) created.put("createdBy", created.get("created_by"));
+            if (created.containsKey("created_at")) created.put("createdAt", created.get("created_at"));
+            if (created.containsKey("updated_at")) created.put("updatedAt", created.get("updated_at"));
+            if (created.containsKey("attachment")) created.put("attachment", parseJsonField(created.get("attachment")));
+            return ResponseEntity.ok(stringifyId(created));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_workflows/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsWorkflow(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : body.entrySet()) {
+                String key = entry.getKey();
+                if ("id".equals(key) || "created_at".equals(key) || "updated_at".equals(key) || "createdAt".equals(key) || "updatedAt".equals(key)) continue;
+                
+                String dbCol = key;
+                if ("createdBy".equals(key)) dbCol = "created_by";
+                
+                fields.add("`" + dbCol + "` = ?");
+                if ("attachment".equals(key)) {
+                    if (entry.getValue() == null) {
+                        values.add(null);
+                    } else {
+                        values.add(objectMapper.writeValueAsString(entry.getValue()));
+                    }
+                } else {
+                    values.add(entry.getValue());
+                }
+            }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE settings_workflows SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_workflows WHERE id = ?", id);
+            if (rows.isEmpty()) return ResponseEntity.notFound().build();
+            Map<String, Object> updated = new HashMap<>(rows.get(0));
+            if (updated.containsKey("created_by")) updated.put("createdBy", updated.get("created_by"));
+            if (updated.containsKey("created_at")) updated.put("createdAt", updated.get("created_at"));
+            if (updated.containsKey("updated_at")) updated.put("updatedAt", updated.get("updated_at"));
+            if (updated.containsKey("attachment")) updated.put("attachment", parseJsonField(updated.get("attachment")));
+            return ResponseEntity.ok(stringifyId(updated));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_workflows/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsWorkflow(@PathVariable String id) {
+        try {
+            jdbcTemplate.update("DELETE FROM settings_workflows WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── SETTINGS AUDIT LOGS CRUD ──────────────────────────────────────────────
+    @GetMapping("/settings_audit_logs")
+    public ResponseEntity<?> getSettingsAuditLogs() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_audit_logs ORDER BY timestamp DESC");
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> mapped = new HashMap<>(row);
+                if (mapped.containsKey("module_id")) mapped.put("moduleId", mapped.get("module_id"));
+                if (mapped.containsKey("module_name")) mapped.put("moduleName", mapped.get("module_name"));
+                if (mapped.containsKey("old_value")) mapped.put("oldValue", parseJsonField(mapped.get("old_value")));
+                if (mapped.containsKey("new_value")) mapped.put("newValue", parseJsonField(mapped.get("new_value")));
+                if (mapped.containsKey("performed_by")) mapped.put("performedBy", mapped.get("performed_by"));
+                if (mapped.containsKey("performed_by_role")) mapped.put("performedByRole", mapped.get("performed_by_role"));
+                result.add(stringifyId(mapped));
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_audit_logs")
+    @Transactional
+    public ResponseEntity<?> createSettingsAuditLog(@RequestBody Map<String, Object> body) {
+        try {
+            String id = (String) body.get("id");
+            if (id == null) id = "log_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
+            String moduleId = (String) body.get("moduleId");
+            String moduleName = (String) body.get("moduleName");
+            String action = (String) body.get("action");
+            
+            String oldValueJson = null;
+            if (body.containsKey("oldValue") && body.get("oldValue") != null) {
+                oldValueJson = objectMapper.writeValueAsString(body.get("oldValue"));
+            }
+            String newValueJson = null;
+            if (body.containsKey("newValue") && body.get("newValue") != null) {
+                newValueJson = objectMapper.writeValueAsString(body.get("newValue"));
+            }
+            
+            String performedBy = (String) body.get("performedBy");
+            String performedByRole = (String) body.get("performedByRole");
+            String timestamp = formatDateTimeToSql(body.get("timestamp"));
+
+            if (timestamp != null) {
+                jdbcTemplate.update("INSERT INTO settings_audit_logs (id, module_id, module_name, action, old_value, new_value, performed_by, performed_by_role, `timestamp`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    id, moduleId, moduleName, action, oldValueJson, newValueJson, performedBy, performedByRole, timestamp);
+            } else {
+                jdbcTemplate.update("INSERT INTO settings_audit_logs (id, module_id, module_name, action, old_value, new_value, performed_by, performed_by_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    id, moduleId, moduleName, action, oldValueJson, newValueJson, performedBy, performedByRole);
+            }
+
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_audit_logs WHERE id = ?", id);
+            Map<String, Object> created = new HashMap<>(rows.get(0));
+            if (created.containsKey("module_id")) created.put("moduleId", created.get("module_id"));
+            if (created.containsKey("module_name")) created.put("moduleName", created.get("module_name"));
+            if (created.containsKey("old_value")) created.put("oldValue", parseJsonField(created.get("old_value")));
+            if (created.containsKey("new_value")) created.put("newValue", parseJsonField(created.get("new_value")));
+            if (created.containsKey("performed_by")) created.put("performedBy", created.get("performed_by"));
+            if (created.containsKey("performed_by_role")) created.put("performedByRole", created.get("performed_by_role"));
+            return ResponseEntity.ok(stringifyId(created));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_audit_logs/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsAuditLog(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : body.entrySet()) {
+                String key = entry.getKey();
+                if ("id".equals(key)) continue;
+                
+                String dbCol = key;
+                if ("moduleId".equals(key)) dbCol = "module_id";
+                else if ("moduleName".equals(key)) dbCol = "module_name";
+                else if ("oldValue".equals(key)) dbCol = "old_value";
+                else if ("newValue".equals(key)) dbCol = "new_value";
+                else if ("performedBy".equals(key)) dbCol = "performed_by";
+                else if ("performedByRole".equals(key)) dbCol = "performed_by_role";
+                
+                fields.add("`" + dbCol + "` = ?");
+                if ("old_value".equals(dbCol) || "new_value".equals(dbCol)) {
+                    if (entry.getValue() == null) {
+                        values.add(null);
+                    } else {
+                        values.add(objectMapper.writeValueAsString(entry.getValue()));
+                    }
+                } else if ("timestamp".equals(dbCol)) {
+                    values.add(formatDateTimeToSql(entry.getValue()));
+                } else {
+                    values.add(entry.getValue());
+                }
+            }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE settings_audit_logs SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM settings_audit_logs WHERE id = ?", id);
+            if (rows.isEmpty()) return ResponseEntity.notFound().build();
+            Map<String, Object> updated = new HashMap<>(rows.get(0));
+            if (updated.containsKey("module_id")) updated.put("moduleId", updated.get("module_id"));
+            if (updated.containsKey("module_name")) updated.put("moduleName", updated.get("module_name"));
+            if (updated.containsKey("old_value")) updated.put("oldValue", parseJsonField(updated.get("old_value")));
+            if (updated.containsKey("new_value")) updated.put("newValue", parseJsonField(updated.get("new_value")));
+            if (updated.containsKey("performed_by")) updated.put("performedBy", updated.get("performed_by"));
+            if (updated.containsKey("performed_by_role")) updated.put("performedByRole", updated.get("performed_by_role"));
+            return ResponseEntity.ok(stringifyId(updated));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_audit_logs/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsAuditLog(@PathVariable String id) {
+        try {
+            jdbcTemplate.update("DELETE FROM settings_audit_logs WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
     }
 
     private String formatDateTimeToSql(Object value) {

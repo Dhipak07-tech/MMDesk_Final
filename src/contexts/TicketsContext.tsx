@@ -77,8 +77,8 @@ export function TicketsProvider({ children }: { children: React.ReactNode }) {
     };
 
     fetchOpenTickets();
-    // Poll every 30 seconds for sidebar badge counts
-    const interval = setInterval(fetchOpenTickets, 30_000);
+    // Poll every 60 seconds for sidebar badge counts (reduced from 30s for performance)
+    const interval = setInterval(fetchOpenTickets, 60_000);
     return () => clearInterval(interval);
   }, [user]);
 

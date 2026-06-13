@@ -18,6 +18,7 @@ import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/api")
@@ -74,9 +75,82 @@ public class MasterController {
         return checkAdminAccess(uid, email);
     }
 
+    // ── Cache-Control header helper ────────────────────────────────────────────
+    private void addCacheHeaders(HttpServletResponse response, int maxAgeSeconds) {
+        response.setHeader("Cache-Control", "public, max-age=" + maxAgeSeconds + ", stale-while-revalidate=" + (maxAgeSeconds * 2));
+    }
+
+    // ── Batch init-data endpoint (loads all dropdowns in one request) ──────────
+    @GetMapping("/init-data")
+    public ResponseEntity<?> getInitData(HttpServletResponse response) {
+        try {
+            addCacheHeaders(response, 30);
+            Map<String, Object> result = new LinkedHashMap<>();
+
+            // Companies
+            try {
+                result.put("companies", stringifyIds(
+                    jdbcTemplate.queryForList("SELECT id, name FROM companies ORDER BY name ASC")
+                ));
+            } catch (Exception e) { result.put("companies", List.of()); }
+
+            // Incident categories (active only)
+            try {
+                result.put("incidentCategories", stringifyIds(
+                    jdbcTemplate.queryForList("SELECT * FROM incident_categories WHERE status = 'Active' ORDER BY name ASC")
+                ));
+            } catch (Exception e) { result.put("incidentCategories", List.of()); }
+
+            // Incident category options (active only)
+            try {
+                result.put("incidentCategoryOptions", stringifyIds(
+                    jdbcTemplate.queryForList("SELECT * FROM incident_category_options WHERE status = 'Active' ORDER BY value_text ASC")
+                ));
+            } catch (Exception e) { result.put("incidentCategoryOptions", List.of()); }
+
+            // Users (lightweight — name, email, role only)
+            try {
+                result.put("users", stringifyIds(
+                    jdbcTemplate.queryForList("SELECT id, uid, name, email, role, phone FROM users WHERE is_active = 1 ORDER BY name ASC")
+                ));
+            } catch (Exception e) { result.put("users", List.of()); }
+
+            // Groups
+            try {
+                result.put("groups", stringifyIds(
+                    jdbcTemplate.queryForList("SELECT id, name, description FROM settings_groups ORDER BY name ASC")
+                ));
+            } catch (Exception e) { result.put("groups", List.of()); }
+
+            // Active custom dropdowns
+            try {
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT id, name, label, options_json, enabled_for_all, is_required FROM custom_dropdowns WHERE is_active = 1 ORDER BY created_at ASC"
+                );
+                List<Map<String, Object>> dropdowns = new ArrayList<>();
+                for (Map<String, Object> r : rows) {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", r.get("id"));
+                    m.put("name", r.get("name"));
+                    m.put("label", r.get("label"));
+                    m.put("options", parseJsonArray((String) r.get("options_json")));
+                    m.put("enabledForAll", parseBoolean(r.get("enabled_for_all")));
+                    m.put("isRequired", parseBoolean(r.get("is_required")));
+                    dropdowns.add(m);
+                }
+                result.put("customDropdowns", dropdowns);
+            } catch (Exception e) { result.put("customDropdowns", List.of()); }
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // ── Custom Dropdowns Endpoints ────────────────────────────────────────────
     @GetMapping("/custom-dropdowns")
-    public ResponseEntity<?> getCustomDropdowns() {
+    public ResponseEntity<?> getCustomDropdowns(HttpServletResponse response) {
+        addCacheHeaders(response, 30);
         try {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM custom_dropdowns ORDER BY created_at ASC");
             List<Map<String, Object>> result = new ArrayList<>();
@@ -212,6 +286,22 @@ public class MasterController {
         }
     }
 
+    // ── Companies API ────────────────────────────────────────────────────────
+    @GetMapping("/companies")
+    public ResponseEntity<?> getCompanies(HttpServletResponse response) {
+        addCacheHeaders(response, 60);
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT id, name FROM companies ORDER BY name ASC");
+            return ResponseEntity.ok(stringifyIds(rows));
+        } catch (Exception e) {
+            List<Map<String, Object>> fallback = List.of(
+                Map.of("id", "1", "name", "Technosprint"),
+                Map.of("id", "2", "name", "Acme Corp"),
+                Map.of("id", "3", "name", "Global Tech")
+            );
+            return ResponseEntity.ok(fallback);
+        }
+    }
 
     // ── Feature Permissions API ───────────────────────────────────────────────
     @GetMapping("/feature-permissions")
@@ -285,10 +375,15 @@ public class MasterController {
             @RequestParam(required = false) String uid,
             @RequestParam(required = false) String email,
             @RequestHeader(required = false, name = "x-user-uid") String headerUid,
-            @RequestHeader(required = false, name = "x-user-email") String headerEmail) {
+            @RequestHeader(required = false, name = "x-user-email") String headerEmail,
+            HttpServletResponse response) {
         
         try {
             boolean activeOnly = "true".equalsIgnoreCase(activeOnlyStr);
+            if (activeOnly) {
+                // Public read-only — allow browser cache for 30s
+                addCacheHeaders(response, 30);
+            }
             if (!activeOnly) {
                 if (!isAuthorized(headerUid, headerEmail, uid, email)) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: Unauthorized role"));
@@ -615,11 +710,17 @@ public class MasterController {
             @RequestParam(defaultValue = "ASC") String order,
             @RequestParam(required = false) Integer category_id,
             @RequestParam(required = false) Integer subcategory_id,
-            @RequestParam(required = false) Integer group_id) {
+            @RequestParam(required = false) Integer group_id,
+            HttpServletResponse response) {
         
         try {
             if (!VALID_MASTER_TABLES.contains(table)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Invalid master table"));
+            }
+
+            // Cache simple reads (no search) for 30 seconds
+            if (search == null) {
+                addCacheHeaders(response, 30);
             }
 
             String sql = "SELECT * FROM " + table + " WHERE 1=1";
@@ -781,6 +882,438 @@ public class MasterController {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
+
+    /* Commented out duplicate settings endpoints to avoid collision with AiActivityController.java
+    // ── Settings Categories CRUD (mst_categories) ──────────────────────────
+    @GetMapping("/settings_categories")
+    public ResponseEntity<?> getSettingsCategories() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM mst_categories ORDER BY created_at ASC");
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> r : rows) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", String.valueOf(r.get("id")));
+                m.put("name", r.get("name"));
+                m.put("description", r.get("description"));
+                m.put("status", r.get("status"));
+                m.put("createdAt", r.get("created_at"));
+                m.put("createdBy", r.get("created_by"));
+                result.add(m);
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_categories")
+    @Transactional
+    public ResponseEntity<?> createSettingsCategory(@RequestBody Map<String, Object> body) {
+        try {
+            String name = (String) body.get("name");
+            String description = (String) body.get("description");
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "System");
+
+            KeyHolder keyHolder = new GeneratedKeyHolder();
+            jdbcTemplate.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO mst_categories (name, description, status, created_by) VALUES (?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS);
+                ps.setString(1, name);
+                ps.setString(2, description);
+                ps.setString(3, status);
+                ps.setString(4, createdBy);
+                return ps;
+            }, keyHolder);
+
+            Number key = keyHolder.getKey();
+            long newId = key != null ? key.longValue() : 0;
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM mst_categories WHERE id = ?", newId);
+            if (rows.isEmpty()) return ResponseEntity.ok(Map.of("id", String.valueOf(newId)));
+            Map<String, Object> r = rows.get(0);
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", String.valueOf(r.get("id")));
+            m.put("name", r.get("name"));
+            m.put("description", r.get("description"));
+            m.put("status", r.get("status"));
+            m.put("createdAt", r.get("created_at"));
+            m.put("createdBy", r.get("created_by"));
+            return ResponseEntity.ok(m);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_categories/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsCategory(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            if (body.containsKey("name")) { fields.add("name = ?"); values.add(body.get("name")); }
+            if (body.containsKey("description")) { fields.add("description = ?"); values.add(body.get("description")); }
+            if (body.containsKey("status")) { fields.add("status = ?"); values.add(body.get("status")); }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE mst_categories SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM mst_categories WHERE id = ?", id);
+            if (rows.isEmpty()) return ResponseEntity.notFound().build();
+            Map<String, Object> r = rows.get(0);
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", String.valueOf(r.get("id")));
+            m.put("name", r.get("name"));
+            m.put("description", r.get("description"));
+            m.put("status", r.get("status"));
+            m.put("createdAt", r.get("created_at"));
+            m.put("createdBy", r.get("created_by"));
+            return ResponseEntity.ok(m);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_categories/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsCategory(@PathVariable Long id) {
+        try {
+            jdbcTemplate.update("DELETE FROM mst_categories WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── Settings Subcategories CRUD (mst_subcategories) ─────────────────────
+    @GetMapping("/settings_subcategories")
+    public ResponseEntity<?> getSettingsSubcategories() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT s.*, c.name AS category_name FROM mst_subcategories s LEFT JOIN mst_categories c ON s.category_id = c.id ORDER BY s.created_at ASC");
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> r : rows) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", String.valueOf(r.get("id")));
+                m.put("name", r.get("name"));
+                m.put("description", r.get("description"));
+                m.put("categoryId", String.valueOf(r.get("category_id")));
+                m.put("categoryName", r.get("category_name"));
+                m.put("status", r.get("status"));
+                m.put("createdAt", r.get("created_at"));
+                m.put("createdBy", r.get("created_by"));
+                result.add(m);
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_subcategories")
+    @Transactional
+    public ResponseEntity<?> createSettingsSubcategory(@RequestBody Map<String, Object> body) {
+        try {
+            String name = (String) body.get("name");
+            String description = (String) body.get("description");
+            Object categoryIdObj = body.get("categoryId");
+            int categoryId = categoryIdObj != null ? Integer.parseInt(String.valueOf(categoryIdObj)) : 0;
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "System");
+
+            KeyHolder keyHolder = new GeneratedKeyHolder();
+            jdbcTemplate.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO mst_subcategories (name, category_id, description, status, created_by) VALUES (?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS);
+                ps.setString(1, name);
+                ps.setInt(2, categoryId);
+                ps.setString(3, description);
+                ps.setString(4, status);
+                ps.setString(5, createdBy);
+                return ps;
+            }, keyHolder);
+
+            Number key = keyHolder.getKey();
+            long newId = key != null ? key.longValue() : 0;
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", String.valueOf(newId));
+            m.put("name", name);
+            m.put("categoryId", String.valueOf(categoryId));
+            m.put("status", status);
+            return ResponseEntity.ok(m);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_subcategories/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsSubcategory(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            if (body.containsKey("name")) { fields.add("name = ?"); values.add(body.get("name")); }
+            if (body.containsKey("description")) { fields.add("description = ?"); values.add(body.get("description")); }
+            if (body.containsKey("categoryId")) { fields.add("category_id = ?"); values.add(Integer.parseInt(String.valueOf(body.get("categoryId")))); }
+            if (body.containsKey("status")) { fields.add("status = ?"); values.add(body.get("status")); }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE mst_subcategories SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT s.*, c.name AS category_name FROM mst_subcategories s LEFT JOIN mst_categories c ON s.category_id = c.id WHERE s.id = ?", id);
+            if (rows.isEmpty()) return ResponseEntity.notFound().build();
+            Map<String, Object> r = rows.get(0);
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", String.valueOf(r.get("id")));
+            m.put("name", r.get("name"));
+            m.put("description", r.get("description"));
+            m.put("categoryId", String.valueOf(r.get("category_id")));
+            m.put("categoryName", r.get("category_name"));
+            m.put("status", r.get("status"));
+            m.put("createdAt", r.get("created_at"));
+            m.put("createdBy", r.get("created_by"));
+            return ResponseEntity.ok(m);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_subcategories/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsSubcategory(@PathVariable Long id) {
+        try {
+            jdbcTemplate.update("DELETE FROM mst_subcategories WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── Settings Service Providers CRUD (mst_providences) ───────────────────
+    @GetMapping("/settings_service_providers")
+    public ResponseEntity<?> getSettingsServiceProviders() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM mst_providences ORDER BY created_at ASC");
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> r : rows) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", String.valueOf(r.get("id")));
+                m.put("name", r.get("name"));
+                // Parse SLA from description if encoded as [SLA:value] prefix
+                String desc = r.get("description") != null ? r.get("description").toString() : "";
+                String sla = "";
+                if (desc.startsWith("[SLA:")) {
+                    int end = desc.indexOf("]");
+                    if (end > 5) {
+                        sla = desc.substring(5, end);
+                        desc = desc.substring(end + 1).trim();
+                    }
+                }
+                m.put("description", desc);
+                m.put("sla", sla);
+                m.put("subcategoryId", String.valueOf(r.get("subcategory_id")));
+                // Derive categoryId by looking up the subcategory's parent
+                Object subId = r.get("subcategory_id");
+                String categoryId = "";
+                if (subId != null) {
+                    try {
+                        List<Map<String, Object>> subRows = jdbcTemplate.queryForList("SELECT category_id FROM mst_subcategories WHERE id = ?", subId);
+                        if (!subRows.isEmpty()) categoryId = String.valueOf(subRows.get(0).get("category_id"));
+                    } catch (Exception ignored) {}
+                }
+                m.put("categoryId", categoryId);
+                m.put("status", r.get("status"));
+                m.put("createdAt", r.get("created_at"));
+                m.put("createdBy", r.get("created_by"));
+                result.add(m);
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_service_providers")
+    @Transactional
+    public ResponseEntity<?> createSettingsServiceProvider(@RequestBody Map<String, Object> body) {
+        try {
+            String name = (String) body.get("name");
+            String description = (String) body.getOrDefault("description", "");
+            String sla = (String) body.getOrDefault("sla", "");
+            // Encode SLA into description
+            String storedDesc = (sla != null && !sla.isEmpty()) ? "[SLA:" + sla + "] " + description : description;
+            Object subcategoryIdObj = body.get("subcategoryId");
+            int subcategoryId = subcategoryIdObj != null ? Integer.parseInt(String.valueOf(subcategoryIdObj)) : 0;
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "System");
+
+            KeyHolder keyHolder = new GeneratedKeyHolder();
+            jdbcTemplate.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO mst_providences (name, subcategory_id, description, status, created_by) VALUES (?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS);
+                ps.setString(1, name);
+                ps.setInt(2, subcategoryId);
+                ps.setString(3, storedDesc);
+                ps.setString(4, status);
+                ps.setString(5, createdBy);
+                return ps;
+            }, keyHolder);
+
+            Number key = keyHolder.getKey();
+            long newId = key != null ? key.longValue() : 0;
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", String.valueOf(newId));
+            m.put("name", name);
+            m.put("subcategoryId", String.valueOf(subcategoryId));
+            m.put("sla", sla);
+            m.put("status", status);
+            return ResponseEntity.ok(m);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_service_providers/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsServiceProvider(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            if (body.containsKey("name")) { fields.add("name = ?"); values.add(body.get("name")); }
+            if (body.containsKey("subcategoryId")) { fields.add("subcategory_id = ?"); values.add(Integer.parseInt(String.valueOf(body.get("subcategoryId")))); }
+            if (body.containsKey("status")) { fields.add("status = ?"); values.add(body.get("status")); }
+            if (body.containsKey("description") || body.containsKey("sla")) {
+                String desc = body.containsKey("description") ? String.valueOf(body.getOrDefault("description", "")) : "";
+                String sla = body.containsKey("sla") ? String.valueOf(body.getOrDefault("sla", "")) : "";
+                String storedDesc = (sla != null && !sla.isEmpty()) ? "[SLA:" + sla + "] " + desc : desc;
+                fields.add("description = ?");
+                values.add(storedDesc);
+            }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE mst_providences SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            return ResponseEntity.ok(Map.of("success", true, "id", String.valueOf(id)));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_service_providers/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsServiceProvider(@PathVariable Long id) {
+        try {
+            jdbcTemplate.update("DELETE FROM mst_providences WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── Settings Group Members CRUD (mst_members + users join) ──────────────
+    @GetMapping("/settings_group_members")
+    public ResponseEntity<?> getSettingsGroupMembers() {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT m.*, u.name AS user_name, u.email AS user_email " +
+                "FROM mst_members m LEFT JOIN users u ON m.user_id = u.uid " +
+                "ORDER BY m.created_at ASC");
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> r : rows) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", String.valueOf(r.get("id")));
+                m.put("userId", r.get("user_id") != null ? String.valueOf(r.get("user_id")) : "");
+                m.put("userName", r.get("user_name") != null ? r.get("user_name") : "");
+                m.put("userEmail", r.get("user_email") != null ? r.get("user_email") : "");
+                m.put("groupId", String.valueOf(r.get("group_id")));
+                m.put("roleInGroup", r.get("role") != null ? r.get("role") : "Support Agent");
+                m.put("isPrimary", false);
+                m.put("availabilityStatus", "available");
+                m.put("currentWorkload", 0);
+                m.put("skills", List.of());
+                m.put("status", r.get("status"));
+                m.put("createdAt", r.get("created_at"));
+                m.put("createdBy", r.get("created_by"));
+                result.add(m);
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/settings_group_members")
+    @Transactional
+    public ResponseEntity<?> createSettingsGroupMember(@RequestBody Map<String, Object> body) {
+        try {
+            String userId = (String) body.get("userId");
+            Object groupIdObj = body.get("groupId");
+            int groupId = groupIdObj != null ? Integer.parseInt(String.valueOf(groupIdObj)) : 0;
+            String role = (String) body.getOrDefault("roleInGroup", "Support Agent");
+            String status = (String) body.getOrDefault("status", "active");
+            String createdBy = (String) body.getOrDefault("createdBy", "System");
+
+            KeyHolder keyHolder = new GeneratedKeyHolder();
+            jdbcTemplate.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO mst_members (user_id, group_id, role, status, created_by) VALUES (?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS);
+                ps.setString(1, userId);
+                ps.setInt(2, groupId);
+                ps.setString(3, role);
+                ps.setString(4, status);
+                ps.setString(5, createdBy);
+                return ps;
+            }, keyHolder);
+
+            Number key = keyHolder.getKey();
+            long newId = key != null ? key.longValue() : 0;
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", String.valueOf(newId));
+            m.put("userId", userId);
+            m.put("groupId", String.valueOf(groupId));
+            m.put("roleInGroup", role);
+            m.put("status", status);
+            return ResponseEntity.ok(m);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/settings_group_members/{id}")
+    @Transactional
+    public ResponseEntity<?> updateSettingsGroupMember(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        try {
+            List<String> fields = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            if (body.containsKey("userId")) { fields.add("user_id = ?"); values.add(body.get("userId")); }
+            if (body.containsKey("groupId")) { fields.add("group_id = ?"); values.add(Integer.parseInt(String.valueOf(body.get("groupId")))); }
+            if (body.containsKey("roleInGroup")) { fields.add("role = ?"); values.add(body.get("roleInGroup")); }
+            if (body.containsKey("status")) { fields.add("status = ?"); values.add(body.get("status")); }
+            if (!fields.isEmpty()) {
+                values.add(id);
+                jdbcTemplate.update("UPDATE mst_members SET " + String.join(", ", fields) + " WHERE id = ?", values.toArray());
+            }
+            return ResponseEntity.ok(Map.of("success", true, "id", String.valueOf(id)));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/settings_group_members/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteSettingsGroupMember(@PathVariable Long id) {
+        try {
+            jdbcTemplate.update("DELETE FROM mst_members WHERE id = ?", id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+    */
 
     // ── Parsing Utilities ─────────────────────────────────────────────────────
     private List<?> parseJsonArray(String json) {

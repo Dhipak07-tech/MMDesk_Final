@@ -23,6 +23,16 @@ export default defineConfig(({mode}) => {
     build: {
       outDir: './microservices/core-service-springboot/src/main/resources/static',
       emptyOutDir: true,
+      chunkSizeWarningLimit: 1500,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // Vendor chunks cached independently from app code changes
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-ui': ['lucide-react'],
+          },
+        },
+      },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

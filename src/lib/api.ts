@@ -23,8 +23,33 @@ function parseSlaDelayLogs(raw: any): any[] {
 
 
 // ---- Performance: In-memory API response cache ----
-const API_CACHE_TTL_MS = 10_000; // 10-second TTL
+const API_CACHE_TTL_MS = 30_000; // 30-second TTL
 const apiCache = new Map<string, { data: any; timestamp: number }>();
+
+// ---- Performance: In-flight request deduplication ----
+// Prevents multiple concurrent fetches for the same key
+const inflightRequests = new Map<string, Promise<any>>();
+
+// ---- Performance: HTTP GET caching for window.fetch ----
+const HTTP_CACHE_TTL_MS = 30_000; // 30-second cache TTL
+const httpCache = new Map<string, { bodyText: string; headers: [string, string][]; status: number; statusText: string; timestamp: number }>();
+
+const isCacheableApiGet = (cleanUrl: string, method: string): boolean => {
+  if (method !== "GET") return false;
+  if (!cleanUrl.startsWith("/api/")) return false;
+  
+  const excluded = [
+    "/api/ts-meetings",
+    "/api/moms",
+    "/api/activity-sessions",
+    "/api/time-cards",
+    "/api/timesheets",
+    "/api/message-history",
+    "/api/ai/",
+    "/api/notifications/"
+  ];
+  return !excluded.some(path => cleanUrl.includes(path));
+};
 
 // User maps for resolving names/emails
 const userEmailMap = new Map<string, string>();
@@ -57,8 +82,10 @@ window.fetch = async function (...args: any[]) {
   let url = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url ? args[0].url : "");
   let init = args[1] || {};
   const method = (init.method || "GET").toUpperCase();
+  const cleanUrl = url.includes("/api/") ? "/api/" + url.split("/api/")[1] : url;
 
-  if (method !== "GET" && (url.includes("/api/tickets") || url.includes("/api/settings") || url.includes("/api/users"))) {
+  if (method !== "GET" && url.includes("/api/")) {
+    httpCache.clear();
     apiCache.clear();
   }
 
@@ -81,7 +108,42 @@ window.fetch = async function (...args: any[]) {
     }
   }
 
-  return originalFetch.apply(this, args);
+  if (isCacheableApiGet(cleanUrl, method)) {
+    const cached = httpCache.get(cleanUrl);
+    if (cached && Date.now() - cached.timestamp < HTTP_CACHE_TTL_MS) {
+      const headers = new Headers();
+      cached.headers.forEach(([k, v]) => headers.append(k, v));
+      return new Response(cached.bodyText, {
+        status: cached.status,
+        statusText: cached.statusText,
+        headers: headers
+      });
+    }
+  }
+
+  const res = await originalFetch.apply(this, args);
+
+  if (isCacheableApiGet(cleanUrl, method) && res.ok) {
+    try {
+      const clonedRes = res.clone();
+      const bodyText = await clonedRes.text();
+      const headersArr: [string, string][] = [];
+      res.headers.forEach((value, key) => {
+        headersArr.push([key, value]);
+      });
+      httpCache.set(cleanUrl, {
+        bodyText,
+        headers: headersArr,
+        status: res.status,
+        statusText: res.statusText,
+        timestamp: Date.now()
+      });
+    } catch (e) {
+      console.error("[API] Error caching response:", e);
+    }
+  }
+
+  return res;
 };
 
 function getCachedResponse(cacheKey: string): any | null {
@@ -221,128 +283,140 @@ function mapDbTicketToFrontend(t: any): any {
   };
 }
 
-// ---- Core Data Fetcher ----
+// ---- Core Data Fetcher (with deduplication) ----
 async function fetchFallbackData(path: string, queryObj?: any): Promise<any[]> {
   let cacheKey = path;
   if (queryObj && queryObj.clauses) cacheKey += ":" + JSON.stringify(queryObj.clauses);
 
+  // 1. Return from cache if fresh
   const cached = getCachedResponse(cacheKey);
   if (cached) return cached;
 
-  console.log(`[API] Fetching data for path: "${path}"`);
-
-  try {
-    let result: any[] = [];
-
-    if (path.startsWith("tickets")) {
-      prefetchUsers().catch(() => {});
-
-      let isOnlyOpenQuery = false;
-      let isOnlyResolvedQuery = false;
-      if (queryObj && queryObj.clauses) {
-        const whereClause = queryObj.clauses.find((c: any) => c.type === "where" && c.field === "status");
-        if (whereClause) {
-          const val = whereClause.value;
-          const openStatuses = ["New", "Open", "In Progress", "Pending", "Pending Approval", "On Hold", "Waiting for Customer", "Awaiting User", "Awaiting Vendor"];
-          const resolvedStatuses = ["Resolved", "Closed", "Canceled"];
-          if (Array.isArray(val)) {
-            isOnlyOpenQuery = val.every((v) => openStatuses.includes(v));
-            isOnlyResolvedQuery = val.every((v) => resolvedStatuses.includes(v));
-          } else {
-            isOnlyOpenQuery = openStatuses.includes(val);
-            isOnlyResolvedQuery = resolvedStatuses.includes(val);
-          }
-        }
-      }
-
-      let url = "/api/tickets/all";
-      if (isOnlyResolvedQuery) url = "/api/tickets/resolved";
-      else if (isOnlyOpenQuery) url = "/api/tickets/open";
-
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-      const dbTickets = await res.json();
-      result = dbTickets.map(mapDbTicketToFrontend);
-    } else if (path === "users") {
-      const res = await fetch("/api/users");
-      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-      const dbUsers = await res.json();
-      result = dbUsers.map((u: any) => {
-        const uid = u.uid || String(u.id);
-        const email = u.email || "";
-        const name = u.name || "";
-        if (uid) {
-          userEmailMap.set(uid, email);
-          userNameMap.set(uid, name);
-        }
-        return { id: uid, uid, name, email, role: u.role || "user", phone: u.phone || "", passwordHash: u.password_hash || "" };
-      });
-    } else if (path === "settings_groups") {
-      const res = await fetch("/api/settings_groups");
-      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-      result = await res.json();
-    } else if (path === "sla_breaches") {
-      let url = "/api/sla-breaches/all";
-      if (queryObj && queryObj.clauses) {
-        const whereClause = queryObj.clauses.find(
-          (c: any) => c.type === "where" && (c.field === "assigned_user" || c.field === "assignedTo")
-        );
-        if (whereClause && whereClause.value) url = `/api/sla-breaches/user/${whereClause.value}`;
-      }
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-      result = await res.json();
-    } else if (path === "sla_policies") {
-      result = [
-        { id: "p1", name: "P1 SLA", priority: "1 - Critical", category: "", resolutionTimeMinutes: 240, isActive: true },
-        { id: "p2", name: "P2 SLA", priority: "2 - High", category: "", resolutionTimeMinutes: 480, isActive: true },
-        { id: "p3", name: "P3 SLA", priority: "3 - Moderate", category: "", resolutionTimeMinutes: 1440, isActive: true },
-        { id: "p4", name: "P4 SLA", priority: "4 - Low", category: "", resolutionTimeMinutes: 4320, isActive: true },
-      ];
-    } else if (path === "company_feature_permissions") {
-      let companyId = "";
-      if (queryObj && queryObj.clauses) {
-        const whereClause = queryObj.clauses.find(
-          (c: any) => c.type === "where" && (c.field === "companyId" || c.field === "company_id")
-        );
-        if (whereClause) companyId = whereClause.value;
-      }
-      if (companyId) {
-        const res = await fetch(`/api/feature-permissions?company_id=${companyId}`);
-        if (res.ok) result = await res.json();
-      } else {
-        result = [];
-      }
-    } else if (path === "companies") {
-      const res = await fetch("/api/companies");
-      if (!res.ok) return [];
-      result = await res.json();
-    } else if (path.includes("/comments")) {
-      const parts = path.split("/");
-      const ticketId = parts[1];
-      const res = await fetch(`/api/tickets/${ticketId}`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      result = data.comments || [];
-    } else if (path === "settings_categories" || path === "settings_subcategories" || path === "settings_service_providers" || path === "settings_group_members") {
-      const res = await fetch(`/api/${path}`);
-      if (!res.ok) return [];
-      result = await res.json();
-    } else {
-      // Generic: try REST endpoint
-      try {
-        const res = await fetch(`/api/${path}`);
-        if (res.ok) result = await res.json();
-      } catch {}
-    }
-
-    setCachedResponse(cacheKey, result);
-    return result;
-  } catch (err) {
-    console.error(`[API] Error fetching path "${path}":`, err);
+  // 2. Deduplicate: if same request is already in flight, reuse its promise
+  if (inflightRequests.has(cacheKey)) {
+    return inflightRequests.get(cacheKey)!;
   }
 
-  return [];
+  console.log(`[API] Fetching data for path: "${path}"`);
+
+  const fetchPromise = (async (): Promise<any[]> => {
+    try {
+      let result: any[] = [];
+
+      if (path.startsWith("tickets")) {
+        prefetchUsers().catch(() => {});
+
+        let isOnlyOpenQuery = false;
+        let isOnlyResolvedQuery = false;
+        if (queryObj && queryObj.clauses) {
+          const whereClause = queryObj.clauses.find((c: any) => c.type === "where" && c.field === "status");
+          if (whereClause) {
+            const val = whereClause.value;
+            const openStatuses = ["New", "Open", "In Progress", "Pending", "Pending Approval", "On Hold", "Waiting for Customer", "Awaiting User", "Awaiting Vendor"];
+            const resolvedStatuses = ["Resolved", "Closed", "Canceled"];
+            if (Array.isArray(val)) {
+              isOnlyOpenQuery = val.every((v) => openStatuses.includes(v));
+              isOnlyResolvedQuery = val.every((v) => resolvedStatuses.includes(v));
+            } else {
+              isOnlyOpenQuery = openStatuses.includes(val);
+              isOnlyResolvedQuery = resolvedStatuses.includes(val);
+            }
+          }
+        }
+
+        let url = "/api/tickets/all";
+        if (isOnlyResolvedQuery) url = "/api/tickets/resolved";
+        else if (isOnlyOpenQuery) url = "/api/tickets/open";
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+        const dbTickets = await res.json();
+        result = dbTickets.map(mapDbTicketToFrontend);
+      } else if (path === "users") {
+        const res = await fetch("/api/users");
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+        const dbUsers = await res.json();
+        result = dbUsers.map((u: any) => {
+          const uid = u.uid || String(u.id);
+          const email = u.email || "";
+          const name = u.name || "";
+          if (uid) {
+            userEmailMap.set(uid, email);
+            userNameMap.set(uid, name);
+          }
+          return { id: uid, uid, name, email, role: u.role || "user", phone: u.phone || "", passwordHash: u.password_hash || "" };
+        });
+      } else if (path === "settings_groups") {
+        const res = await fetch("/api/settings_groups");
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+        result = await res.json();
+      } else if (path === "sla_breaches") {
+        let url = "/api/sla-breaches/all";
+        if (queryObj && queryObj.clauses) {
+          const whereClause = queryObj.clauses.find(
+            (c: any) => c.type === "where" && (c.field === "assigned_user" || c.field === "assignedTo")
+          );
+          if (whereClause && whereClause.value) url = `/api/sla-breaches/user/${whereClause.value}`;
+        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+        result = await res.json();
+      } else if (path === "sla_policies") {
+        result = [
+          { id: "p1", name: "P1 SLA", priority: "1 - Critical", category: "", resolutionTimeMinutes: 240, isActive: true },
+          { id: "p2", name: "P2 SLA", priority: "2 - High", category: "", resolutionTimeMinutes: 480, isActive: true },
+          { id: "p3", name: "P3 SLA", priority: "3 - Moderate", category: "", resolutionTimeMinutes: 1440, isActive: true },
+          { id: "p4", name: "P4 SLA", priority: "4 - Low", category: "", resolutionTimeMinutes: 4320, isActive: true },
+        ];
+      } else if (path === "company_feature_permissions") {
+        let companyId = "";
+        if (queryObj && queryObj.clauses) {
+          const whereClause = queryObj.clauses.find(
+            (c: any) => c.type === "where" && (c.field === "companyId" || c.field === "company_id")
+          );
+          if (whereClause) companyId = whereClause.value;
+        }
+        if (companyId) {
+          const res = await fetch(`/api/feature-permissions?company_id=${companyId}`);
+          if (res.ok) result = await res.json();
+        } else {
+          result = [];
+        }
+      } else if (path === "companies") {
+        const res = await fetch("/api/companies");
+        if (!res.ok) return [];
+        result = await res.json();
+      } else if (path.includes("/comments")) {
+        const parts = path.split("/");
+        const ticketId = parts[1];
+        const res = await fetch(`/api/tickets/${ticketId}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        result = data.comments || [];
+      } else if (path === "settings_categories" || path === "settings_subcategories" || path === "settings_service_providers" || path === "settings_group_members") {
+        const res = await fetch(`/api/${path}`);
+        if (!res.ok) return [];
+        result = await res.json();
+      } else {
+        // Generic: try REST endpoint
+        try {
+          const res = await fetch(`/api/${path}`);
+          if (res.ok) result = await res.json();
+        } catch {}
+      }
+
+      setCachedResponse(cacheKey, result);
+      return result;
+    } catch (err) {
+      console.error(`[API] Error fetching path "${path}":`, err);
+      return [];
+    } finally {
+      inflightRequests.delete(cacheKey);
+    }
+  })();
+
+  inflightRequests.set(cacheKey, fetchPromise);
+  return fetchPromise;
 }
 
 // -------------------------------------------------------
@@ -488,7 +562,7 @@ export function onSnapshot(
   };
 
   runPoll();
-  timerId = setInterval(runPoll, 15000);
+  timerId = setInterval(runPoll, 30000); // 30-second poll interval for better performance
 
   const listenerRecord: FallbackListener = {
     queryOrDoc,
@@ -816,5 +890,6 @@ export const FieldValue = {
 // -------------------------------------------------------
 export function invalidateApiCache() {
   apiCache.clear();
+  httpCache.clear();
   usersPrefetched = false;
 }
