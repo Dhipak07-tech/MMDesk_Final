@@ -120,13 +120,8 @@ public class EmailController {
             props.put("mail.smtp.starttls.enable", "true");
             props.put("mail.smtp.connectiontimeout", "4000");
             props.put("mail.smtp.timeout", "4000");
-            String smtpUser = cfg.getSmtpUser();
-            String smtpPass = cfg.getSmtpPass();
-            if ("swedhasris@gmail.com".equalsIgnoreCase(smtpUser) && "macvrrebnnxrndgz".equals(smtpPass)) {
-                smtpUser = "dhipaksankar06@gmail.com";
-            }
-            final String finalSmtpUser = smtpUser;
-            final String finalSmtpPass = smtpPass;
+            final String finalSmtpUser = cfg.getSmtpUser();
+            final String finalSmtpPass = cfg.getSmtpPass();
             var session = jakarta.mail.Session.getInstance(props, new jakarta.mail.Authenticator() {
                 protected jakarta.mail.PasswordAuthentication getPasswordAuthentication() {
                     return new jakarta.mail.PasswordAuthentication(finalSmtpUser, finalSmtpPass);
@@ -159,12 +154,7 @@ public class EmailController {
 
             var session = jakarta.mail.Session.getInstance(props, null);
             var store = session.getStore(protocol);
-            String imapUser = cfg.getImapUser();
-            String imapPass = cfg.getImapPass();
-            if ("swedhasris@gmail.com".equalsIgnoreCase(imapUser) && "macvrrebnnxrndgz".equals(imapPass)) {
-                imapUser = "dhipaksankar06@gmail.com";
-            }
-            store.connect(cfg.getImapHost(), cfg.getImapPort(), imapUser, imapPass);
+            store.connect(cfg.getImapHost(), cfg.getImapPort(), cfg.getImapUser(), cfg.getImapPass());
             store.close();
             imapOk = true;
         } catch (Exception e) {

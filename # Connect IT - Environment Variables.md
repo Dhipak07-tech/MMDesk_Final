@@ -38,8 +38,8 @@ FIREBASE_DATABASE_ID=your_firestore_database_id
 # ============================================
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=dhipaksankar06@gmail.com
-SMTP_PASS=pkeaypbldqronzqk
+SMTP_USER=support@technosprint.net
+SMTP_PASS=Poland@01
 
 
 # ============================================

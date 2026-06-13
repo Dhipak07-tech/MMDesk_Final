@@ -86,12 +86,7 @@ public class InboundEmailService {
 
         try {
             store = session.getStore(protocol);
-            String imapUser = cfg.getImapUser();
-            String imapPass = cfg.getImapPass();
-            if ("swedhasris@gmail.com".equalsIgnoreCase(imapUser) && "macvrrebnnxrndgz".equals(imapPass)) {
-                imapUser = "dhipaksankar06@gmail.com";
-            }
-            store.connect(cfg.getImapHost(), cfg.getImapPort(), imapUser, imapPass);
+            store.connect(cfg.getImapHost(), cfg.getImapPort(), cfg.getImapUser(), cfg.getImapPass());
 
             inbox = store.getFolder("INBOX");
             inbox.open(Folder.READ_WRITE);

@@ -187,13 +187,8 @@ public class EmailService {
             JavaMailSenderImpl impl = new JavaMailSenderImpl();
             impl.setHost(cfg.getSmtpHost());
             impl.setPort(cfg.getSmtpPort() != null ? cfg.getSmtpPort() : 587);
-            String smtpUser = cfg.getSmtpUser();
-            String smtpPass = cfg.getSmtpPass();
-            if ("swedhasris@gmail.com".equalsIgnoreCase(smtpUser) && "macvrrebnnxrndgz".equals(smtpPass)) {
-                smtpUser = "dhipaksankar06@gmail.com";
-            }
-            impl.setUsername(smtpUser);
-            impl.setPassword(smtpPass);
+            impl.setUsername(cfg.getSmtpUser());
+            impl.setPassword(cfg.getSmtpPass());
             
             Properties props = impl.getJavaMailProperties();
             props.put("mail.transport.protocol", "smtp");
