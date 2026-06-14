@@ -187,6 +187,27 @@ function RichTextToolbar({
   );
 }
 
+/* ─── Notes Editor (memoized to prevent re-renders wiping text) ─── */
+interface NotesEditorProps {
+  canEdit: boolean;
+  onBlur: () => void;
+  editorRef: React.RefObject<HTMLDivElement | null>;
+}
+
+const NotesEditor = React.memo(({ canEdit, onBlur, editorRef }: NotesEditorProps) => {
+  return (
+    <div
+      ref={editorRef}
+      contentEditable={canEdit}
+      onBlur={onBlur}
+      className="min-h-[200px] p-3 text-sm outline-none focus:ring-1 focus:ring-inset focus:ring-sn-green bg-card"
+      data-placeholder="Enter notes..."
+      suppressContentEditableWarning
+    />
+  );
+});
+NotesEditor.displayName = "NotesEditor";
+
 /* ════════════════════════════════════════ MAIN ════════════════════════════════════════ */
 export function Timesheet() {
   const { user, profile } = useAuth();
@@ -436,22 +457,27 @@ export function Timesheet() {
 
   const handleEditorInput = useCallback(() => {
     if (editorRef.current) {
-      setNotesContent(editorRef.current.innerText || "");
+      const html = editorRef.current.innerHTML || "";
+      setNotesContent(html);
+      if (waAutoSync) {
+        setWaMessage(html);
+      }
     }
-  }, []);
+  }, [waAutoSync]);
 
   /* ── Save entry ── */
   async function saveEntry() {
     if (!user || !timesheet) return;
     setSaving(true);
     try {
+      const latestNotes = editorRef.current ? editorRef.current.innerHTML : notesContent;
       const data = {
         timesheet_id: timesheet.id,
         user_id: user.uid,
         entry_date: entryDate,
         task: workType,
         hours_worked: parseFloat(actualHrs) || 0, // Using hours_worked for minutes
-        description: notesContent,
+        description: latestNotes,
         short_description: shortDescription,
         start_time: startTime,
         end_time: endTime,
@@ -513,10 +539,11 @@ export function Timesheet() {
   }
 
   function copyCurrentEntry() {
+    const currentNotes = editorRef.current ? editorRef.current.innerHTML : notesContent;
     if (editingCard) {
       setEditingCard(null);
       alert("Time entry copied! Click 'Save & Return' to save as a new entry.");
-    } else if (startTime || notesContent || shortDescription) {
+    } else if (startTime || currentNotes || shortDescription) {
       setEditingCard(null);
       alert("Time entry copied! Click 'Save & Return' to save as a new entry.");
     } else {
@@ -525,6 +552,7 @@ export function Timesheet() {
   }
 
   async function handleDeleteTopAction() {
+    if (!canEdit) return;
     if (editingCard) {
       await deleteEntry(editingCard.id);
       resetTimeFields();
@@ -555,7 +583,7 @@ export function Timesheet() {
     setBillable(card.billable || "Billable");
     setShortDescription(card.short_description || "");
     setNotesContent(card.description || "");
-    if (editorRef.current) editorRef.current.innerText = card.description || "";
+    if (editorRef.current) editorRef.current.innerHTML = card.description || "";
   }
 
   async function deleteEntry(cardId: string) {
@@ -772,7 +800,14 @@ export function Timesheet() {
               ))}
             </select>
           </div>
-          <button onClick={handleDeleteTopAction} className="p-1.5 hover:bg-muted rounded transition-colors" title="Delete"><Trash2 className="w-4 h-4 text-red-500" /></button>
+          <button
+            onClick={handleDeleteTopAction}
+            disabled={!canEdit}
+            className="p-1.5 hover:bg-muted rounded transition-colors disabled:opacity-50"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4 text-red-500" />
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -895,8 +930,9 @@ export function Timesheet() {
                         setStartTime(e.target.value);
                         calculateDuration(e.target.value, endTime);
                       }}
+                      disabled={!canEdit}
                       placeholder="7:00 AM"
-                      className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8 pr-8" />
+                      className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8 pr-8 disabled:opacity-50" />
                     <Clock className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                   </div>
                 </div>
@@ -908,8 +944,9 @@ export function Timesheet() {
                         setEndTime(e.target.value);
                         calculateDuration(startTime, e.target.value);
                       }}
+                      disabled={!canEdit}
                       placeholder="5:00 PM"
-                      className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8 pr-8" />
+                      className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8 pr-8 disabled:opacity-50" />
                     <Clock className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                   </div>
                 </div>
@@ -917,19 +954,22 @@ export function Timesheet() {
                 <div>
                   <label className="text-xs text-muted-foreground font-medium block mb-1">Actual Mins:</label>
                   <input type="text" value={actualHrs} onChange={e => setActualHrs(e.target.value)}
-                    className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8" />
+                    disabled={!canEdit}
+                    className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8 disabled:opacity-50" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium block mb-1">Work Type: <span className="text-red-500">*</span></label>
                   <select value={workType} onChange={e => setWorkType(e.target.value)}
-                    className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8">
+                    disabled={!canEdit}
+                    className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8 disabled:opacity-50">
                     {WORK_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium block mb-1">Billable: <span className="text-red-500">*</span></label>
                   <select value={billable} onChange={e => setBillable(e.target.value)}
-                    className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8">
+                    disabled={!canEdit}
+                    className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8 disabled:opacity-50">
                     {BILLABLE_OPTIONS.map(b => <option key={b}>{b}</option>)}
                   </select>
                 </div>
@@ -940,7 +980,8 @@ export function Timesheet() {
                 <label className="text-xs text-muted-foreground font-medium block mb-1">Short Description:</label>
                 <input type="text" value={shortDescription} onChange={e => setShortDescription(e.target.value)}
                   placeholder="Brief description of work done..."
-                  className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8" />
+                  disabled={!canEdit}
+                  className="w-full p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8 disabled:opacity-50" />
               </div>
 
               {/* Notes Editor */}
@@ -950,13 +991,10 @@ export function Timesheet() {
                   <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                 </div>
                 <div className="border border-border rounded-lg overflow-hidden">
-                  <div
-                    ref={editorRef}
-                    contentEditable={canEdit}
-                    onInput={handleEditorInput}
-                    className="min-h-[200px] p-3 text-sm outline-none focus:ring-1 focus:ring-inset focus:ring-sn-green bg-card"
-                    data-placeholder="Enter notes..."
-                    suppressContentEditableWarning
+                  <NotesEditor
+                    canEdit={canEdit}
+                    onBlur={handleEditorInput}
+                    editorRef={editorRef}
                   />
                   <RichTextToolbar
                     editorRef={editorRef}
@@ -979,11 +1017,16 @@ export function Timesheet() {
                   setNoteInternal(true);
                   if (editorRef.current) {
                     const current = editorRef.current.innerHTML || "";
-                    editorRef.current.innerHTML = current + " [Internal Note]: ";
-                    setNotesContent(editorRef.current.innerHTML);
+                    const nextHTML = current + " [Internal Note]: ";
+                    editorRef.current.innerHTML = nextHTML;
+                    setNotesContent(nextHTML);
+                    if (waAutoSync) {
+                      setWaMessage(nextHTML);
+                    }
                   }
                 }}
-                className="text-sm font-bold text-sn-dark hover:underline"
+                disabled={!canEdit}
+                className="text-sm font-bold text-sn-dark hover:underline disabled:opacity-50"
               >
                 Add Internal Time Note
               </button>
