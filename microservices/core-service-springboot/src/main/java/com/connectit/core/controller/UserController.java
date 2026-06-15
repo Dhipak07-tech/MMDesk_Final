@@ -126,11 +126,15 @@ public class UserController {
             userService.update(user.getUid(), updates);
 
             // 5. Log password change activity in audit logs
-            String auditId = "sal_" + UUID.randomUUID().toString().substring(0, 8) + "_" + System.currentTimeMillis();
-            jdbcTemplate.update(
-                "INSERT INTO settings_audit_logs (id, module_id, module_name, action, old_value, new_value, performed_by, performed_by_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                auditId, user.getUid(), "User", "Password Reset", "[REDACTED]", "[REDACTED]", user.getEmail(), user.getRole()
-            );
+            try {
+                String auditId = "sal_" + UUID.randomUUID().toString().substring(0, 8) + "_" + System.currentTimeMillis();
+                jdbcTemplate.update(
+                    "INSERT INTO settings_audit_logs (id, module_id, module_name, action, old_value, new_value, performed_by, performed_by_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    auditId, user.getUid(), "User", "Password Reset", "[REDACTED]", "[REDACTED]", user.getEmail(), user.getRole()
+                );
+            } catch (Exception logEx) {
+                System.err.println("[UserController] Warning: Failed to log password reset activity in settings_audit_logs: " + logEx.getMessage());
+            }
 
             // 6. Send password change email notification
             String emailBody = emailService.buildTemplate(

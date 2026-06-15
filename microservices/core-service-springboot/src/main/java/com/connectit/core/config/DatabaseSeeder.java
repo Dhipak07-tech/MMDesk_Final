@@ -139,6 +139,18 @@ public class DatabaseSeeder implements CommandLineRunner {
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                     "company_id VARCHAR(128))");
 
+            // Settings Audit Logs
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS settings_audit_logs (" +
+                    "id VARCHAR(128) PRIMARY KEY, " +
+                    "module_id VARCHAR(128), " +
+                    "module_name VARCHAR(255), " +
+                    "action VARCHAR(255), " +
+                    "old_value TEXT, " +
+                    "new_value TEXT, " +
+                    "performed_by VARCHAR(255), " +
+                    "performed_by_role VARCHAR(100), " +
+                    "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
             // Incident Categories
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS incident_categories (" +
                     "id INT AUTO_INCREMENT PRIMARY KEY, " +
