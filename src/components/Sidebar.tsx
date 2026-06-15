@@ -65,6 +65,15 @@ export function Sidebar() {
   const { setTheme, resolvedTheme } = useTheme();
   const location = useLocation();
 
+  const isActive = (itemPath: string) => {
+    if (!itemPath) return false;
+    if (itemPath.includes("?")) {
+      const [path, search] = itemPath.split("?");
+      return location.pathname === path && location.search.includes(search);
+    }
+    return location.pathname === itemPath;
+  };
+
   const isDarkMode = resolvedTheme === "dark";
   const [expandedSections, setExpandedSections] = useState<string[]>(() => {
     const saved = localStorage.getItem("sn-sidebar-expanded");
@@ -159,16 +168,16 @@ export function Sidebar() {
       label: "Groups",
       items: profile?.role === "user"
         ? [
-          { icon: Users, label: "My Groups", path: "/groups/my-groups" },
-          { icon: History, label: "Group Activities", path: "/groups/activities" },
+          { icon: Users, label: "My Groups", path: "/groups?tab=dashboard" },
+          { icon: History, label: "Group Activities", path: "/groups?tab=calendar" },
         ]
         : [
-          { icon: Users, label: "My Groups", path: "/groups/my-groups" },
-          { icon: List, label: "All Groups", path: "/groups/all-groups" },
-          { icon: Users, label: "Group Members", path: "/groups/members" },
-          { icon: History, label: "Group Activities", path: "/groups/activities" },
-          { icon: BarChart2, label: "Group Reports", path: "/groups/reports" },
-          { icon: Settings, label: "Group Settings", path: "/groups/settings" },
+          { icon: Users, label: "My Groups", path: "/groups?tab=dashboard" },
+          { icon: List, label: "All Groups", path: "/groups?tab=teams" },
+          { icon: Users, label: "Group Members", path: "/groups?tab=members" },
+          { icon: History, label: "Group Activities", path: "/groups?tab=calendar" },
+          { icon: BarChart2, label: "Group Reports", path: "/groups?tab=reports" },
+          { icon: Settings, label: "Group Settings", path: "/groups?tab=teams" },
         ]
     },
     {
@@ -302,14 +311,14 @@ export function Sidebar() {
                     to={item.path || "#"}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2 rounded-xl transition-all relative group cursor-pointer",
-                      location.pathname === item.path
+                      isActive(item.path)
                         ? "bg-blue-500/10 text-blue-500 dark:text-blue-400 border-r border-blue-500 shadow-[inset_0_0_12px_rgba(37,99,235,0.1)] font-semibold"
                         : "text-text-dim hover:bg-white/5 hover:text-white"
                     )}
                   >
                     <item.icon className={cn(
                       "w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110",
-                      location.pathname === item.path ? "text-blue-500 drop-shadow-[0_0_8px_rgba(37,99,235,0.6)]" : "text-text-dim group-hover:text-white"
+                      isActive(item.path) ? "text-blue-500 drop-shadow-[0_0_8px_rgba(37,99,235,0.6)]" : "text-text-dim group-hover:text-white"
                     )} />
                     {!isCollapsed && <span className="text-xs truncate flex-grow">{item.label}</span>}
                     {!isCollapsed && item.badge !== undefined && item.badge > 0 && (
