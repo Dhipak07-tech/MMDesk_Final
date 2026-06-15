@@ -2,10 +2,12 @@ package com.connectit.core.controller;
 
 import com.connectit.core.model.User;
 import com.connectit.core.service.UserService;
+import com.connectit.core.service.EmailService;
 import com.connectit.core.util.SimpleHash;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.*;
 
@@ -15,6 +17,8 @@ import java.util.*;
 public class UserController {
 
     private final UserService userService;
+    private final EmailService emailService;
+    private final JdbcTemplate jdbcTemplate;
 
     @GetMapping("/users")
     public ResponseEntity<?> list() {
@@ -72,6 +76,77 @@ public class UserController {
     public ResponseEntity<?> delete(@PathVariable String uid) {
         userService.softDelete(uid);
         return ResponseEntity.ok(Map.of("success",true));
+    }
+
+    @PostMapping("/users/reset-password")
+    public ResponseEntity<?> resetPassword(
+            @RequestBody Map<String, String> body,
+            @RequestHeader(value = "x-user-uid", required = false) String headerUid) {
+        String currentPassword = body.get("currentPassword");
+        String newPassword = body.get("newPassword");
+        String confirmNewPassword = body.get("confirmNewPassword");
+
+        if (currentPassword == null || newPassword == null || confirmNewPassword == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "All fields are required."));
+        }
+
+        if (headerUid == null || headerUid.isBlank()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized: User session not found."));
+        }
+
+        Optional<User> userOpt = userService.findByUid(headerUid);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "User not found."));
+        }
+
+        User user = userOpt.get();
+
+        // 1. Verify current password
+        Optional<User> authUserOpt = userService.authenticate(user.getEmail(), currentPassword);
+        if (authUserOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Incorrect current password."));
+        }
+
+        // 2. Ensure new password and confirm password match
+        if (!newPassword.equals(confirmNewPassword)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "New password and confirm password do not match."));
+        }
+
+        // 3. Prevent weak or invalid passwords based on existing password policies
+        if (newPassword.length() < 6) {
+            return ResponseEntity.badRequest().body(Map.of("error", "New password must be at least 6 characters."));
+        }
+
+        try {
+            // 4. Encrypt/hash passwords using the current security implementation
+            String newHash = SimpleHash.hash(newPassword);
+            
+            User updates = new User();
+            updates.setPasswordHash(newHash);
+            userService.update(user.getUid(), updates);
+
+            // 5. Log password change activity in audit logs
+            String auditId = "sal_" + UUID.randomUUID().toString().substring(0, 8) + "_" + System.currentTimeMillis();
+            jdbcTemplate.update(
+                "INSERT INTO settings_audit_logs (id, module_id, module_name, action, old_value, new_value, performed_by, performed_by_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                auditId, user.getUid(), "User", "Password Reset", "[REDACTED]", "[REDACTED]", user.getEmail(), user.getRole()
+            );
+
+            // 6. Send password change email notification
+            String emailBody = emailService.buildTemplate(
+                "Password Changed",
+                null,
+                "<p>Hello " + user.getName() + ",</p>" +
+                "<p>The password for your Connect IT account has been successfully changed.</p>" +
+                "<p>If you did not make this change, please contact your administrator immediately.</p>",
+                null
+            );
+            emailService.sendAsync(user.getEmail(), "Connect IT - Password Reset Successful", emailBody);
+
+            return ResponseEntity.ok(Map.of("success", true, "message", "Password reset successfully."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to reset password: " + e.getMessage()));
+        }
     }
 
     private Map<String,Object> serialize(User u) {
