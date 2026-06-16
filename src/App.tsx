@@ -64,6 +64,7 @@ const ForecastingPlanning = lazy(() => import("./pages/ForecastingPlanning").the
 const CallLogs = lazy(() => import("./pages/calls/CallLogs").then(m => ({ default: m.CallLogs })));
 const CreateCall = lazy(() => import("./pages/calls/CreateCall").then(m => ({ default: m.CreateCall })));
 const CallDetail = lazy(() => import("./pages/calls/CallDetail").then(m => ({ default: m.CallDetail })));
+const AIAssistant = lazy(() => import("./pages/ai/AIAssistant").then(m => ({ default: m.AIAssistant })));
 
 function LoadingScreen() {
   return (
@@ -184,6 +185,7 @@ function AppBody() {
                     <Route path="/calls" element={<CallLogs />} />
                     <Route path="/calls/new" element={<CreateCall />} />
                     <Route path="/calls/:id" element={<CallDetail />} />
+                    <Route path="/ai-assistant" element={<AIAssistant />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" />} />

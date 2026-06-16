@@ -44,6 +44,7 @@ const ForecastingPlanning = lazy(() => import("../pages/ForecastingPlanning").th
 const CallLogs = lazy(() => import("../pages/calls/CallLogs").then(m => ({ default: m.CallLogs })));
 const CreateCall = lazy(() => import("../pages/calls/CreateCall").then(m => ({ default: m.CreateCall })));
 const CallDetail = lazy(() => import("../pages/calls/CallDetail").then(m => ({ default: m.CallDetail })));
+const AIAssistant = lazy(() => import("../pages/ai/AIAssistant").then(m => ({ default: m.AIAssistant })));
 
 /**
  * Maps a path string to a React component without using a nested Router.
@@ -132,6 +133,8 @@ function resolveComponent(path: string): React.ReactNode {
       return <CallLogs />;
     case "/calls/new":
       return <CreateCall />;
+    case "/ai-assistant":
+      return <AIAssistant />;
     default:
       break;
   }

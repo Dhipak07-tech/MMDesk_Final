@@ -7,7 +7,7 @@ import {
   FileText, ArrowRightSquare, MinusSquare, XSquare, Plus, PlusCircle, LogOut,
   FolderOpen, UserMinus, UserCheck, Play, Square, Bell, Search, Sun, Moon,
   Monitor, ClipboardList, ShoppingCart, Database, AlertOctagon, GitPullRequest,
-  Users as UsersIcon, Eye, EyeOff, PhoneCall
+  Users as UsersIcon, Eye, EyeOff, PhoneCall, BrainCircuit
 } from "lucide-react";
 import { TabContentMapper } from "./TabContentMapper";
 import { cn } from "@/lib/utils";
@@ -120,6 +120,7 @@ function getTabTitleFromPath(path: string): string {
     const callId = cleanPath.split("/")[2];
     return `Call #${callId}`;
   }
+  if (cleanPath === "/ai-assistant") return "AI Assistant";
   
   return "New Tab";
 }
@@ -160,6 +161,7 @@ function getTabIconFromPath(path: string) {
   if (cleanPath === "/global-search") return Search;
   if (cleanPath.startsWith("/ts-meeting")) return CalendarDays;
   if (cleanPath.startsWith("/calls")) return PhoneCall;
+  if (cleanPath === "/ai-assistant") return BrainCircuit;
   
   return FileText;
 }

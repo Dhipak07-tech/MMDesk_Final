@@ -44,6 +44,7 @@ import {
   EyeOff,
   X,
   PhoneCall,
+  BrainCircuit,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -181,6 +182,13 @@ export function Sidebar() {
       items: [
         { icon: PhoneCall, label: "Call Logs", path: "/calls" },
         { icon: PlusCircle, label: "Log New Call", path: "/calls/new" },
+      ]
+    },
+    {
+      label: "AI Assistant",
+      agentOrAdminOnly: true,
+      items: [
+        { icon: BrainCircuit, label: "AI Assistant", path: "/ai-assistant" },
       ]
     },
     {
