@@ -107,9 +107,7 @@ public class TicketService {
         sendCreateNotifications(t, data);
 
         // Email notifications
-        if (!"Email".equalsIgnoreCase(t.getChannel())) {
-            emailService.notifyTicketCreated(t);
-        }
+        emailService.notifyTicketCreated(t);
 
         return t;
     }
@@ -124,6 +122,11 @@ public class TicketService {
         String prevAssignee       = t.getAssignedTo();
         String prevApprovalStatus = t.getApprovalStatus();
         String prevPriority       = t.getPriority();
+        String prevTitle          = t.getTitle();
+        String prevDesc           = t.getDescription();
+        String prevCategory       = t.getCategory();
+        String prevSubcat         = t.getSubcategory();
+        String prevGroup          = t.getAssignmentGroup();
 
         // SLA breach RCA validation
         String newStatus = (String) data.get("status");
@@ -154,6 +157,31 @@ public class TicketService {
 
         t = ticketRepo.save(t);
 
+        // Track field changes for notifyUpdated
+        List<String> changeDetails = new ArrayList<>();
+        if (data.containsKey("title") && !Objects.equals(data.get("title"), prevTitle)) {
+            changeDetails.add("Short Description updated from '" + (prevTitle != null ? prevTitle : "none") + "' to '" + data.get("title") + "'");
+        }
+        if (data.containsKey("description") && !Objects.equals(data.get("description"), prevDesc)) {
+            changeDetails.add("Description updated");
+        }
+        if (data.containsKey("category") && !Objects.equals(data.get("category"), prevCategory)) {
+            changeDetails.add("Category updated from '" + (prevCategory != null ? prevCategory : "none") + "' to '" + data.get("category") + "'");
+        }
+        if (data.containsKey("subcategory") && !Objects.equals(data.get("subcategory"), prevSubcat)) {
+            changeDetails.add("Subcategory updated from '" + (prevSubcat != null ? prevSubcat : "none") + "' to '" + data.get("subcategory") + "'");
+        }
+        if (data.containsKey("priority") && !Objects.equals(data.get("priority"), prevPriority)) {
+            changeDetails.add("Priority updated from '" + (prevPriority != null ? prevPriority : "none") + "' to '" + data.get("priority") + "'");
+        }
+        if (data.containsKey("assignmentGroup") && !Objects.equals(data.get("assignmentGroup"), prevGroup)) {
+            changeDetails.add("Assignment Group updated from '" + (prevGroup != null ? prevGroup : "none") + "' to '" + data.get("assignmentGroup") + "'");
+        }
+
+        if (!changeDetails.isEmpty()) {
+            emailService.notifyUpdated(t, updatedByName, changeDetails);
+        }
+
         // Activity entry
         String msg = "Ticket updated";
         if (newStatus != null && !newStatus.equals(prevStatus)) msg = "Status changed to " + newStatus;
@@ -171,13 +199,13 @@ public class TicketService {
                     "status_changed", t.getTicketNumber());
             }
 
-            emailService.notifyStatusChanged(t, prevStatus, newStatusLocal);
+            emailService.notifyStatusChanged(t, prevStatus, newStatusLocal, updatedByName);
             if ("Resolved".equalsIgnoreCase(newStatusLocal)) {
-                emailService.notifyResolved(t);
+                emailService.notifyResolved(t, updatedByName);
             } else if ("Closed".equalsIgnoreCase(newStatusLocal)) {
-                emailService.notifyClosed(t);
+                emailService.notifyClosed(t, updatedByName);
             } else if (List.of("Resolved", "Closed").contains(prevStatus) && !List.of("Resolved", "Closed").contains(newStatusLocal)) {
-                emailService.notifyReopened(t);
+                emailService.notifyReopened(t, updatedByName);
             }
         }
 
@@ -187,19 +215,7 @@ public class TicketService {
                 "Ticket " + t.getTicketNumber() + " has been assigned to you.",
                 "ticket_assigned", t.getTicketNumber());
 
-            final Ticket finalT = t;
-            if (prevAssignee != null) {
-                // Reassignment
-                String oldAgentName = userRepo.findByUid(prevAssignee).map(User::getName).orElse("Previous Agent");
-                userRepo.findByUid(newAssignee).ifPresent(agent -> {
-                    emailService.notifyReassigned(finalT, agent.getEmail(), agent.getName(), oldAgentName);
-                });
-            } else {
-                // Assignment
-                userRepo.findByUid(newAssignee).ifPresent(agent -> {
-                    emailService.notifyAssigned(finalT, agent.getEmail(), agent.getName());
-                });
-            }
+            emailService.notifyAssigned(t, updatedByName);
         }
 
         // Approval requested check
@@ -336,74 +352,10 @@ public class TicketService {
                 || Boolean.TRUE.equals(data.get("send_email"))
                 || Boolean.TRUE.equals(data.get("sendEmail"));
             
-            boolean shouldEmailNote = emailNoteOption || ("public".equals(visType) && "comment".equals(actType) && !"email".equalsIgnoreCase(a.getChannel()));
+            boolean shouldEmailNote = emailNoteOption || (("comment".equals(actType) || "work_note".equals(actType)) && !"email".equalsIgnoreCase(a.getChannel()));
 
             if (shouldEmailNote) {
-                String recipient = null;
-                if (data.containsKey("recipient") && data.get("recipient") != null && !data.get("recipient").toString().isBlank()) {
-                    recipient = data.get("recipient").toString();
-                } else if (data.containsKey("to") && data.get("to") != null && !data.get("to").toString().isBlank()) {
-                    recipient = data.get("to").toString();
-                } else {
-                    recipient = t.getCallerEmail() != null ? t.getCallerEmail() : (t.getCaller() != null && t.getCaller().contains("@") ? t.getCaller() : null);
-                }
-
-                if (recipient != null && recipient.contains("@")) {
-                    String creatorEmail = a.getCreatedBy();
-                    if (creatorEmail != null && !creatorEmail.contains("@")) {
-                        creatorEmail = userRepo.findByUid(creatorEmail)
-                            .map(User::getEmail)
-                            .orElse(creatorEmail);
-                    }
-                    if (emailNoteOption || !recipient.equalsIgnoreCase(creatorEmail)) {
-                        List<EmailLog> logs = emailLogRepo.findByTicketIdOrderByCreatedAtDesc(ticketId);
-                        String inReplyTo = null;
-                        String references = null;
-                        if (!logs.isEmpty()) {
-                            EmailLog lastLog = logs.get(0);
-                            inReplyTo = lastLog.getMessageId();
-                            references = (lastLog.getReferencesHeader() != null ? lastLog.getReferencesHeader() + " " : "") +
-                                         (lastLog.getMessageId() != null ? lastLog.getMessageId() : "");
-                            references = references.trim();
-                        }
-
-                        String subject = "Re: [" + t.getTicketNumber() + "] " + t.getTitle();
-                        String formattedTime = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                        String emailBody;
-                        if (emailNoteOption) {
-                            emailBody = emailService.buildTemplate("Ticket Note Notification", t.getTicketNumber(),
-                                "<div style=\"font-family: sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;\">" +
-                                "  <h2 style=\"color: #2563eb;\">New Ticket Note Added</h2>" +
-                                "  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">" +
-                                "    <tr><td style=\"padding: 6px 0; font-weight: bold; width: 120px;\">Ticket ID:</td><td>" + t.getTicketNumber() + "</td></tr>" +
-                                "    <tr><td style=\"padding: 6px 0; font-weight: bold;\">Subject:</td><td>" + t.getTitle() + "</td></tr>" +
-                                "    <tr><td style=\"padding: 6px 0; font-weight: bold;\">Note Author:</td><td>" + a.getCreatedByName() + "</td></tr>" +
-                                "    <tr><td style=\"padding: 6px 0; font-weight: bold;\">Timestamp:</td><td>" + formattedTime + "</td></tr>" +
-                                "  </table>" +
-                                "  <div style=\"padding: 16px; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 4px; font-size: 14px; white-space: pre-wrap; margin-bottom: 20px;\">" +
-                                "    " + a.getMessage() + "" +
-                                "  </div>" +
-                                "  <p style=\"font-size: 12px; color: #64748b;\">This is an automated notification from Ticklora.</p>" +
-                                "</div>", t.getTicketNumber());
-                        } else {
-                            emailBody = emailService.buildTemplate("New Comment Added", t.getTicketNumber(),
-                                "<p>A new comment has been added to your ticket by <strong>" + a.getCreatedByName() + "</strong>:</p>" +
-                                "<div style='padding:12px;background:#f8fafc;border-left:4px solid #1e293b;margin:16px 0;white-space:pre-wrap;'>" +
-                                a.getMessage() + "</div>", t.getTicketNumber());
-                        }
-
-                        String metaJson = null;
-                        if ((inReplyTo != null && !inReplyTo.isBlank()) || (references != null && !references.isBlank())) {
-                            try {
-                                Map<String, String> metaMap = new HashMap<>();
-                                if (inReplyTo != null && !inReplyTo.isBlank()) metaMap.put("inReplyTo", inReplyTo);
-                                if (references != null && !references.isBlank()) metaMap.put("references", references);
-                                metaJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(metaMap);
-                            } catch (Exception ignored) {}
-                        }
-                        emailService.enqueue("ticket_comment", t.getId(), t.getTicketNumber(), recipient, subject, emailBody, metaJson);
-                    }
-                }
+                emailService.notifyCommentAdded(t, a);
             }
         });
 

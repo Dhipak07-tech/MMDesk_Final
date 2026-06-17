@@ -56,15 +56,43 @@ public class EmailService {
         queueRepo.save(NotificationQueue.builder()
             .eventType(eventType).ticketId(ticketId).ticketNumber(ticketNumber)
             .recipient(recipient).subject(subject).bodyHtml(bodyHtml)
-            .status("pending").priority(3).retryCount(0).maxRetries(5)
+            .status("pending").priority(3).retryCount(0).maxRetries(3)
             .metadataJson(metadataJson)
             .build());
+
+        // Track pending email log immediately
+        logEmail("outbound", recipient, defaultFrom, subject,
+            ticketNumber, ticketId, "pending", null, eventType, null, null, null);
     }
 
     @Transactional
     public void enqueue(String eventType, Long ticketId, String ticketNumber,
                         String recipient, String subject, String bodyHtml) {
         enqueue(eventType, ticketId, ticketNumber, recipient, subject, bodyHtml, null);
+    }
+
+    private void updateEmailLog(String direction, String recipient, String sender, String subject,
+                                String ticketNumber, Long ticketId, String status, String errorMsg, String emailType,
+                                String messageId, String inReplyTo, String referencesHeader) {
+        List<EmailLog> pendingLogs = emailLogRepo.findByTicketIdAndRecipientAndEmailTypeAndStatus(
+            ticketId, recipient, emailType, "pending"
+        );
+        if (!pendingLogs.isEmpty()) {
+            EmailLog logEntry = pendingLogs.get(0);
+            logEntry.setSender(sender);
+            logEntry.setSubject(subject);
+            logEntry.setStatus(status);
+            logEntry.setErrorMessage(errorMsg);
+            logEntry.setMessageId(messageId);
+            logEntry.setInReplyTo(inReplyTo);
+            logEntry.setReferencesHeader(referencesHeader);
+            if ("sent".equals(status)) {
+                logEntry.setSentAt(LocalDateTime.now());
+            }
+            emailLogRepo.save(logEntry);
+        } else {
+            logEmail(direction, recipient, sender, subject, ticketNumber, ticketId, status, errorMsg, emailType, messageId, inReplyTo, referencesHeader);
+        }
     }
 
     // ── Process queue (called by scheduler every 30s) ──────────────────────────
@@ -97,7 +125,7 @@ public class EmailService {
                 job.setStatus("sent");
                 job.setProcessedAt(LocalDateTime.now());
                 queueRepo.save(job);
-                logEmail("outbound", job.getRecipient(), fromAddress, job.getSubject(),
+                updateEmailLog("outbound", job.getRecipient(), fromAddress, job.getSubject(),
                     job.getTicketNumber(), job.getTicketId(), "sent", null, job.getEventType(), sentMessageId, inReplyTo, references);
                 log.info("[EmailQueue] ✓ Sent to {}", job.getRecipient());
             } catch (Exception e) {
@@ -105,9 +133,9 @@ public class EmailService {
                 int delaySeconds = RETRY_DELAYS_SECONDS[Math.min(retries - 1, RETRY_DELAYS_SECONDS.length - 1)];
                 job.setRetryCount(retries);
                 job.setErrorMessage(e.getMessage());
-                if (retries >= (job.getMaxRetries() == null ? 5 : job.getMaxRetries())) {
+                if (retries >= (job.getMaxRetries() == null ? 3 : job.getMaxRetries())) {
                     job.setStatus("failed");
-                    logEmail("outbound", job.getRecipient(), fromAddress, job.getSubject(),
+                    updateEmailLog("outbound", job.getRecipient(), fromAddress, job.getSubject(),
                         job.getTicketNumber(), job.getTicketId(), "failed", e.getMessage(), job.getEventType(), null, null, null);
                 } else {
                     job.setStatus("retry");
@@ -126,44 +154,366 @@ public class EmailService {
         catch (Exception e) { log.error("[Email] Async send failed: {}", e.getMessage()); }
     }
 
+    // ── Recipient Resolution & Formatting Helpers ─────────────────────────────
+    public String formatTicketNumber(String num) {
+        if (num == null) return "";
+        if (num.startsWith("INC") && num.length() > 3 && num.charAt(3) != '-') {
+            return "INC-" + num.substring(3);
+        }
+        return num;
+    }
+
+    public Set<String> resolveRecipients(Ticket t, List<String> targetRoles, boolean includeAgent, boolean includeCreator, boolean includeGroupMembers) {
+        Set<String> emails = new HashSet<>();
+
+        // 1. Admin roles
+        if (targetRoles != null && !targetRoles.isEmpty()) {
+            List<User> admins = userRepo.findByRoleInAndIsActiveTrue(targetRoles);
+            for (User u : admins) {
+                if (isEmail(u.getEmail())) {
+                    emails.add(u.getEmail().trim().toLowerCase());
+                }
+            }
+        }
+
+        // 2. Assigned Agent
+        if (includeAgent && t.getAssignedTo() != null) {
+            String agentEmail = resolveAgentEmail(t);
+            if (isEmail(agentEmail)) {
+                emails.add(agentEmail.trim().toLowerCase());
+            }
+        }
+
+        // 3. Ticket Creator / Caller
+        if (includeCreator) {
+            String caller = t.getCallerEmail() != null ? t.getCallerEmail() : t.getCaller();
+            if (isEmail(caller)) {
+                emails.add(caller.trim().toLowerCase());
+            }
+            if (t.getCreatedBy() != null) {
+                String creatorEmail = t.getCreatedBy();
+                if (!isEmail(creatorEmail)) {
+                    creatorEmail = userRepo.findByUid(t.getCreatedBy())
+                        .map(User::getEmail)
+                        .orElse(null);
+                }
+                if (isEmail(creatorEmail)) {
+                    emails.add(creatorEmail.trim().toLowerCase());
+                }
+            }
+        }
+
+        // 4. Group Members
+        if (includeGroupMembers && t.getAssignmentGroup() != null && !t.getAssignmentGroup().isBlank()) {
+            try {
+                List<String> groupEmails = jdbcTemplate.queryForList(
+                    "SELECT DISTINCT m.user_email FROM settings_group_members m " +
+                    "JOIN settings_groups g ON m.group_id = g.id " +
+                    "WHERE g.name = ? AND m.status = 'active'", String.class, t.getAssignmentGroup());
+                for (String email : groupEmails) {
+                    if (isEmail(email)) {
+                        emails.add(email.trim().toLowerCase());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("[Email] Failed to fetch group members for group '{}': {}", t.getAssignmentGroup(), e.getMessage());
+            }
+        }
+
+        return emails;
+    }
+
     // ── Ticket event templates ─────────────────────────────────────────────────
     public void notifyTicketCreated(Ticket t) {
-        if (t.getCallerEmail() == null && !isEmail(t.getCaller())) return;
-        String to = t.getCallerEmail() != null ? t.getCallerEmail() : t.getCaller();
-        enqueue("ticket_created", t.getId(), t.getTicketNumber(), to,
-            "[" + t.getTicketNumber() + "] Ticket Created Successfully",
-            buildTemplate("Ticket Created", t.getTicketNumber(),
-                "<p>Hello,</p><p>Your support ticket has been created successfully.</p>" + ticketTable(t) +
-                "<p>Our team will review your request shortly.</p>", t.getTicketNumber()));
+        Set<String> recipients = resolveRecipients(t, 
+            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
+            true, // includeAgent
+            true, // includeCreator
+            true  // includeGroupMembers
+        );
+
+        String ticketNum = formatTicketNumber(t.getTicketNumber());
+        String subject = "[Ticket Created] " + ticketNum + " - " + t.getTitle();
+        
+        String createdDate = t.getCreatedAt() != null ? 
+            t.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : 
+            LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        
+        String bodyText = 
+            "<p>Hello,</p>" +
+            "<p>A new ticket has been created.</p>" +
+            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
+            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
+            "<p><strong>Created By:</strong> " + (t.getCreatedByName() != null ? t.getCreatedByName() : t.getCreatedBy()) + "</p>" +
+            "<p><strong>Assigned To:</strong> " + (t.getAssignedToName() != null ? t.getAssignedToName() : "Unassigned") + "</p>" +
+            "<p><strong>Priority:</strong> " + t.getPriority() + "</p>" +
+            "<p><strong>Category:</strong> " + (t.getCategory() != null ? t.getCategory() : "—") + "</p>" +
+            "<p><strong>Status:</strong> " + t.getStatus() + "</p>" +
+            "<p><strong>Created Date:</strong> " + createdDate + "</p>" +
+            "<p>Please log in to the system for complete details.</p>" +
+            "<p>Regards,<br/>Technosprint Ticketing System</p>";
+
+        String htmlContent = buildTemplate("Ticket Created", ticketNum, bodyText, t.getTicketNumber());
+
+        for (String recipient : recipients) {
+            enqueue("ticket_created", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent);
+        }
     }
 
-    public void notifyStatusChanged(Ticket t, String oldStatus, String newStatus) {
-        String to = t.getCallerEmail() != null ? t.getCallerEmail() : t.getCaller();
-        if (!isEmail(to)) return;
-        enqueue("status_changed", t.getId(), t.getTicketNumber(), to,
-            "[" + t.getTicketNumber() + "] Status Updated: " + oldStatus + " → " + newStatus,
-            buildTemplate("Ticket Status Updated", t.getTicketNumber(),
-                "<p>Hello,</p><p>Your ticket status has been updated from <strong>" + oldStatus +
-                "</strong> to <strong>" + newStatus + "</strong>.</p>" + ticketTable(t), t.getTicketNumber()));
+    public void notifyAssigned(Ticket t, String assignedBy) {
+        Set<String> recipients = resolveRecipients(t, 
+            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
+            true, // includeAgent
+            true, // includeCreator
+            true  // includeGroupMembers
+        );
+
+        String ticketNum = formatTicketNumber(t.getTicketNumber());
+        String subject = "[Ticket Assigned] " + ticketNum;
+        
+        String bodyText = 
+            "<p>Hello,</p>" +
+            "<p><strong>Ticket Assignment Update</strong></p>" +
+            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
+            "<p><strong>Assigned By:</strong> " + (assignedBy != null ? assignedBy : "System") + "</p>" +
+            "<p><strong>Assigned To:</strong> " + (t.getAssignedToName() != null ? t.getAssignedToName() : "Unassigned") + "</p>" +
+            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
+            "<p><strong>Status:</strong> " + t.getStatus() + "</p>" +
+            "<p>Please log in to review the ticket.</p>" +
+            "<p>Regards,<br/>Technosprint Ticketing System</p>";
+
+        String htmlContent = buildTemplate("Ticket Assigned", ticketNum, bodyText, t.getTicketNumber());
+
+        for (String recipient : recipients) {
+            enqueue("ticket_assigned", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent);
+        }
     }
 
-    public void notifyAssigned(Ticket t, String agentEmail, String agentName) {
-        if (!isEmail(agentEmail)) return;
-        enqueue("ticket_assigned", t.getId(), t.getTicketNumber(), agentEmail,
-            "[" + t.getTicketNumber() + "] Ticket Assigned to " + agentName,
-            buildTemplate("New Ticket Assigned", t.getTicketNumber(),
-                "<p>Hello <strong>" + agentName + "</strong>,</p>" +
-                "<p>A new ticket has been assigned to you.</p>" + ticketTable(t), t.getTicketNumber()));
+    public void notifyStatusChanged(Ticket t, String oldStatus, String newStatus, String updatedByName) {
+        Set<String> recipients = resolveRecipients(t, 
+            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
+            true, // includeAgent
+            true, // includeCreator
+            true  // includeGroupMembers
+        );
+
+        String ticketNum = formatTicketNumber(t.getTicketNumber());
+        String subject = "[Status Updated] " + ticketNum;
+        
+        String updateTime = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        String bodyText = 
+            "<p>Hello,</p>" +
+            "<p><strong>Ticket Status Update</strong></p>" +
+            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
+            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
+            "<p><strong>Previous Status:</strong> " + oldStatus + "</p>" +
+            "<p><strong>New Status:</strong> " + newStatus + "</p>" +
+            "<p><strong>Updated By:</strong> " + (updatedByName != null ? updatedByName : "System") + "</p>" +
+            "<p><strong>Date & Time:</strong> " + updateTime + "</p>" +
+            "<p>Please log in to the system for complete details.</p>" +
+            "<p>Regards,<br/>Technosprint Ticketing System</p>";
+
+        String htmlContent = buildTemplate("Ticket Status Updated", ticketNum, bodyText, t.getTicketNumber());
+
+        for (String recipient : recipients) {
+            enqueue("status_changed", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent);
+        }
     }
 
-    public void notifyResolved(Ticket t) {
-        String to = t.getCallerEmail() != null ? t.getCallerEmail() : t.getCaller();
-        if (!isEmail(to)) return;
-        enqueue("ticket_resolved", t.getId(), t.getTicketNumber(), to,
-            "[" + t.getTicketNumber() + "] Ticket Resolved",
-            buildTemplate("Ticket Resolved", t.getTicketNumber(),
-                "<p>Hello,</p><p>Your ticket has been <strong style='color:#16a34a'>resolved</strong>.</p>" +
-                ticketTable(t) + "<p>Reply to this email if you need further assistance.</p>", t.getTicketNumber()));
+    public void notifyResolved(Ticket t, String resolvedBy) {
+        Set<String> recipients = resolveRecipients(t, 
+            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
+            true, // includeAgent
+            true, // includeCreator
+            true  // includeGroupMembers
+        );
+
+        String ticketNum = formatTicketNumber(t.getTicketNumber());
+        String subject = "[Status Updated] " + ticketNum;
+        String updateTime = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        String bodyText = 
+            "<p>Hello,</p>" +
+            "<p><strong>Ticket Resolved</strong></p>" +
+            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
+            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
+            "<p><strong>Resolved By:</strong> " + (resolvedBy != null ? resolvedBy : "System") + "</p>" +
+            "<p><strong>Resolution Notes:</strong><br/>" + (t.getResolutionNotes() != null ? t.getResolutionNotes() : "—") + "</p>" +
+            "<p><strong>Status:</strong> Resolved</p>" +
+            "<p><strong>Date & Time:</strong> " + updateTime + "</p>" +
+            "<p>Please log in to review the resolution details.</p>" +
+            "<p>Regards,<br/>Technosprint Ticketing System</p>";
+
+        String htmlContent = buildTemplate("Ticket Resolved", ticketNum, bodyText, t.getTicketNumber());
+
+        for (String recipient : recipients) {
+            enqueue("ticket_resolved", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent);
+        }
+    }
+
+    public void notifyClosed(Ticket t, String closedBy) {
+        Set<String> recipients = resolveRecipients(t, 
+            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
+            true, // includeAgent
+            true, // includeCreator
+            true  // includeGroupMembers
+        );
+
+        String ticketNum = formatTicketNumber(t.getTicketNumber());
+        String subject = "[Status Updated] " + ticketNum;
+        String updateTime = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        String bodyText = 
+            "<p>Hello,</p>" +
+            "<p><strong>Ticket Closed</strong></p>" +
+            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
+            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
+            "<p><strong>Closed By:</strong> " + (closedBy != null ? closedBy : "System") + "</p>" +
+            "<p><strong>Status:</strong> Closed</p>" +
+            "<p><strong>Date & Time:</strong> " + updateTime + "</p>" +
+            "<p>Regards,<br/>Technosprint Ticketing System</p>";
+
+        String htmlContent = buildTemplate("Ticket Closed", ticketNum, bodyText, t.getTicketNumber());
+
+        for (String recipient : recipients) {
+            enqueue("ticket_closed", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent);
+        }
+    }
+
+    public void notifyReopened(Ticket t, String reopenedBy) {
+        Set<String> recipients = resolveRecipients(t, 
+            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
+            true, // includeAgent
+            true, // includeCreator
+            true  // includeGroupMembers
+        );
+
+        String ticketNum = formatTicketNumber(t.getTicketNumber());
+        String subject = "[Status Updated] " + ticketNum;
+        String updateTime = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        String bodyText = 
+            "<p>Hello,</p>" +
+            "<p><strong>Ticket Reopened</strong></p>" +
+            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
+            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
+            "<p><strong>Reopened By:</strong> " + (reopenedBy != null ? reopenedBy : "System") + "</p>" +
+            "<p><strong>Status:</strong> Reopened</p>" +
+            "<p><strong>Date & Time:</strong> " + updateTime + "</p>" +
+            "<p>Please log in to review the ticket.</p>" +
+            "<p>Regards,<br/>Technosprint Ticketing System</p>";
+
+        String htmlContent = buildTemplate("Ticket Reopened", ticketNum, bodyText, t.getTicketNumber());
+
+        for (String recipient : recipients) {
+            enqueue("ticket_reopened", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent);
+        }
+    }
+
+    public void notifyUpdated(Ticket t, String updatedBy, List<String> changes) {
+        Set<String> recipients = resolveRecipients(t, 
+            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
+            true, // includeAgent
+            true, // includeCreator
+            true  // includeGroupMembers
+        );
+
+        String ticketNum = formatTicketNumber(t.getTicketNumber());
+        String subject = "[Ticket Updated] " + ticketNum;
+        String updateTime = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        StringBuilder changesHtml = new StringBuilder();
+        for (String c : changes) {
+            changesHtml.append("<li style='margin-bottom:8px;'>").append(c).append("</li>");
+        }
+
+        String bodyText = 
+            "<p>Hello,</p>" +
+            "<p>A ticket has been updated.</p>" +
+            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
+            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
+            "<p><strong>Updated By:</strong> " + (updatedBy != null ? updatedBy : "System") + "</p>" +
+            "<p><strong>Date & Time:</strong> " + updateTime + "</p>" +
+            "<p><strong>Changes:</strong></p>" +
+            "<ul style='padding-left:20px;margin:16px 0;'>" + changesHtml.toString() + "</ul>" +
+            "<p>Please log in to the system for complete details.</p>" +
+            "<p>Regards,<br/>Technosprint Ticketing System</p>";
+
+        String htmlContent = buildTemplate("Ticket Updated", ticketNum, bodyText, t.getTicketNumber());
+
+        for (String recipient : recipients) {
+            enqueue("ticket_updated", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent);
+        }
+    }
+
+    public void notifyCommentAdded(Ticket t, TicketActivity a) {
+        Set<String> recipients = resolveRecipients(t, 
+            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
+            true, // includeAgent
+            true, // includeCreator
+            true  // includeGroupMembers
+        );
+
+        // Exclude comment author
+        String creatorEmail = a.getCreatedBy();
+        if (creatorEmail != null) {
+            if (!isEmail(creatorEmail)) {
+                creatorEmail = userRepo.findByUid(creatorEmail)
+                    .map(User::getEmail)
+                    .orElse(null);
+            }
+            if (creatorEmail != null) {
+                recipients.remove(creatorEmail.trim().toLowerCase());
+            }
+        }
+
+        String ticketNum = formatTicketNumber(t.getTicketNumber());
+        String subject = "[New Update] " + ticketNum;
+        String formattedTime = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        String bodyText = 
+            "<p>Hello,</p>" +
+            "<p><strong>Ticket Comment Update</strong></p>" +
+            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
+            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
+            "<p><strong>Comment Author:</strong> " + a.getCreatedByName() + "</p>" +
+            "<p><strong>Comment Time:</strong> " + formattedTime + "</p>" +
+            "<p><strong>Comment:</strong></p>" +
+            "<div style='padding:12px;background:#f8fafc;border-left:4px solid #1e293b;margin:16px 0;white-space:pre-wrap;'>" +
+            a.getMessage() + "</div>" +
+            "<p>Please log in to review the ticket.</p>" +
+            "<p>Regards,<br/>Technosprint Ticketing System</p>";
+
+        String htmlContent = buildTemplate("Ticket Comment Added", ticketNum, bodyText, t.getTicketNumber());
+
+        // Reference headers
+        List<EmailLog> logs = emailLogRepo.findByTicketIdOrderByCreatedAtDesc(t.getId()).stream()
+            .filter(l -> l.getMessageId() != null && !l.getMessageId().isBlank())
+            .toList();
+        String inReplyTo = null;
+        String references = null;
+        if (!logs.isEmpty()) {
+            EmailLog lastLog = logs.get(0);
+            inReplyTo = lastLog.getMessageId();
+            references = (lastLog.getReferencesHeader() != null ? lastLog.getReferencesHeader() + " " : "") +
+                         (lastLog.getMessageId() != null ? lastLog.getMessageId() : "");
+            references = references.trim();
+        }
+
+        String metaJson = null;
+        if ((inReplyTo != null && !inReplyTo.isBlank()) || (references != null && !references.isBlank())) {
+            try {
+                Map<String, String> metaMap = new HashMap<>();
+                if (inReplyTo != null && !inReplyTo.isBlank()) metaMap.put("inReplyTo", inReplyTo);
+                if (references != null && !references.isBlank()) metaMap.put("references", references);
+                metaJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(metaMap);
+            } catch (Exception ignored) {}
+        }
+
+        for (String recipient : recipients) {
+            enqueue("ticket_comment", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent, metaJson);
+        }
     }
 
     public void notifySlaWarning(Ticket t, int pct, String slaType) {
@@ -184,47 +534,6 @@ public class EmailService {
                 buildTemplate("SLA Breached", t.getTicketNumber(),
                     "<div style='background:#fee2e2;border-left:4px solid #dc2626;padding:12px;margin:16px 0'>" +
                     "<strong>🚨 SLA " + slaType + " has been BREACHED. Immediate escalation required.</strong></div>" +
-                    ticketTable(t), t.getTicketNumber()));
-        }
-    }
-
-    public void notifyReassigned(Ticket t, String agentEmail, String agentName, String oldAgentName) {
-        if (!isEmail(agentEmail)) return;
-        enqueue("ticket_reassigned", t.getId(), t.getTicketNumber(), agentEmail,
-            "[" + t.getTicketNumber() + "] Ticket Reassigned to " + agentName,
-            buildTemplate("Ticket Reassigned", t.getTicketNumber(),
-                "<p>Hello <strong>" + agentName + "</strong>,</p>" +
-                "<p>A ticket has been reassigned to you from <strong>" + (oldAgentName != null ? oldAgentName : "Unassigned") + "</strong>.</p>" +
-                ticketTable(t), t.getTicketNumber()));
-    }
-
-    public void notifyClosed(Ticket t) {
-        String to = t.getCallerEmail() != null ? t.getCallerEmail() : t.getCaller();
-        if (!isEmail(to)) return;
-        enqueue("ticket_closed", t.getId(), t.getTicketNumber(), to,
-            "[" + t.getTicketNumber() + "] Ticket Closed",
-            buildTemplate("Ticket Closed", t.getTicketNumber(),
-                "<p>Hello,</p><p>Your ticket has been <strong style='color:#475569'>closed</strong>.</p>" +
-                ticketTable(t) + "<p>If you have further questions, please contact support.</p>", t.getTicketNumber()));
-    }
-
-    public void notifyReopened(Ticket t) {
-        // Notify caller
-        String caller = t.getCallerEmail() != null ? t.getCallerEmail() : t.getCaller();
-        if (isEmail(caller)) {
-            enqueue("ticket_reopened", t.getId(), t.getTicketNumber(), caller,
-                "[" + t.getTicketNumber() + "] Ticket Reopened",
-                buildTemplate("Ticket Reopened", t.getTicketNumber(),
-                    "<p>Hello,</p><p>Your ticket has been reopened.</p>" +
-                    ticketTable(t), t.getTicketNumber()));
-        }
-        // Notify assigned agent if any
-        String agentEmail = resolveAgentEmail(t);
-        if (isEmail(agentEmail)) {
-            enqueue("ticket_reopened", t.getId(), t.getTicketNumber(), agentEmail,
-                "[" + t.getTicketNumber() + "] Ticket Reopened (Assigned to you)",
-                buildTemplate("Ticket Reopened", t.getTicketNumber(),
-                    "<p>Hello,</p><p>A ticket assigned to you has been reopened by the caller.</p>" +
                     ticketTable(t), t.getTicketNumber()));
         }
     }
@@ -552,13 +861,13 @@ public class EmailService {
 
     public String buildTemplate(String title, String ticketNumber, String body, String tn) {
         String footer = tn != null ? "Reply with [" + tn + "] in the subject to update your ticket." :
-            "This is an automated message from Ticklora ITSM.";
+            "This is an automated message from Technosprint Ticketing System.";
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;font-family:Segoe UI,Arial,sans-serif;background:#f4f6f9'>" +
             "<div style='max-width:640px;margin:20px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)'>" +
-            "<div style='background:linear-gradient(135deg,#1a1a2e,#16213e);padding:28px 32px;color:#fff'>" +
+            "<div style='background:linear-gradient(135deg,#1e3a8a,#172554);padding:28px 32px;color:#fff'>" +
             "<h1 style='margin:0;font-size:20px'>🎫 " + title + "</h1>" +
-            "<div style='color:#94a3b8;font-size:13px;margin-top:4px'>Ticklora ITSM Platform</div></div>" +
-            "<div style='padding:32px'>" + body + "</div>" +
+            "<div style='color:#94a3b8;font-size:13px;margin-top:4px'>Technosprint Support</div></div>" +
+            "<div style='padding:32px;color:#334155;line-height:1.6;font-size:14px;'>" + body + "</div>" +
             "<div style='padding:20px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center'>" +
             footer + "</div></div></body></html>";
     }

@@ -12,8 +12,10 @@ public interface EmailLogRepository extends JpaRepository<EmailLog, Long> {
     List<EmailLog> findAllByOrderByCreatedAtDesc(Pageable p);
     List<EmailLog> findByMessageId(String messageId);
     boolean existsByMessageId(String messageId);
+    List<EmailLog> findByTicketIdAndRecipientAndEmailTypeAndStatus(Long ticketId, String recipient, String emailType, String status);
     @Query("SELECT COUNT(e) FROM EmailLog e WHERE e.direction='outbound' AND e.sentAt >= :since")
     long countSentSince(LocalDateTime since);
     @Query("SELECT COUNT(e) FROM EmailLog e WHERE e.direction='inbound' AND e.receivedAt >= :since")
     long countReceivedSince(LocalDateTime since);
 }
+
