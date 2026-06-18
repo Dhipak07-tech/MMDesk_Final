@@ -45,6 +45,7 @@ import {
   X,
   PhoneCall,
   BrainCircuit,
+  MessageCircle,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -212,19 +213,19 @@ export function Sidebar() {
     },
     {
       label: "Groups",
-      items: profile?.role === "user"
-        ? [
-          { icon: Users, label: "My Groups", path: "/groups?tab=dashboard" },
-          { icon: History, label: "Group Activities", path: "/groups?tab=calendar" },
-        ]
-        : [
-          { icon: Users, label: "My Groups", path: "/groups?tab=dashboard" },
-          { icon: List, label: "All Groups", path: "/groups?tab=teams" },
-          { icon: Users, label: "Group Members", path: "/groups?tab=members" },
-          { icon: History, label: "Group Activities", path: "/groups?tab=calendar" },
-          { icon: BarChart2, label: "Group Reports", path: "/groups?tab=reports" },
-          { icon: Settings, label: "Group Settings", path: "/groups?tab=teams" },
-        ]
+      items: [
+        { icon: LayoutDashboard, label: "Group Dashboard", path: "/groups?tab=dashboard" },
+        { icon: CalendarDays, label: "Smart Calendar", path: "/groups?tab=calendar" },
+        { icon: Map, label: "Planning Center", path: "/groups?tab=planning" },
+        { icon: Clock, label: "Timesheets", path: "/groups?tab=timesheets" },
+        { icon: CheckSquare, label: "Tasks", path: "/groups?tab=tasks" },
+        { icon: GitPullRequest, label: "Sprint Board", path: "/groups?tab=sprint_board" },
+        { icon: Trophy, label: "Performance", path: "/groups?tab=performance" },
+        { icon: MessageCircle, label: "Discussions", path: "/groups?tab=discussions" },
+        { icon: BookOpen, label: "Knowledge Base", path: "/groups?tab=kb" },
+        { icon: ClipboardList, label: "Reports", path: "/groups?tab=reports" },
+        { icon: BarChart3, label: "Analytics & Health", path: "/groups?tab=analytics" }
+      ]
     },
     {
       label: "Data Analytics",
@@ -240,7 +241,7 @@ export function Sidebar() {
       items: [
         { icon: Users, label: "User Management", path: "/users", moduleKey: "users" },
         { icon: KeyRound, label: "Access Control", path: "/access-control", moduleKey: "access_control" },
-        { icon: Users, label: "Group Management", path: "/groups" },
+        { icon: Users, label: "Group Management", path: "/groups?tab=teams" },
         { icon: Settings2, label: "System Settings", path: "/settings", moduleKey: "settings" },
         { icon: CheckCircle2, label: "Approved Tickets", path: "/approved-tickets" },
         { icon: ClipboardList, label: "Ticket Approvals", path: "/timesheet-approvals", moduleKey: "timesheet_approvals" },

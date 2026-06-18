@@ -558,6 +558,7 @@ export function Tickets() {
         affectedUserEmail: newTicket.affectedUserEmail,
         reportingUserEmail: newTicket.callerEmail,
         customFields: newTicket.customFields,
+        watchList: newTicket.watchList,
         // SLA tracking fields
         responseDeadline: responseDeadline.toISOString(),
         resolutionDeadline: null,

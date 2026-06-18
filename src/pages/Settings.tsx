@@ -301,9 +301,11 @@ export function Settings() {
                 <MasterColumn
                   title="Sub-Categories"
                   icon={Radio}
-                  items={activeSubcategories}
+                  items={activeSubcategories.filter((s: any) => s.categoryId === selectedCatId)}
                   selectedId={selectedSubId}
-                  disabled={false}
+                  disabled={!selectedCatId}
+                  parentId={selectedCatId}
+                  parentLabel="Category"
                   onSelect={(id) => { setSelectedSubId(id); setSelectedSrvId(null); setSelectedGroupId(null); }}
                   onAdd={() => { setEditingItem({ type: 'Subcategory', data: { categoryId: selectedCatId || "" } }); setIsModalOpen(true); }}
                   onEdit={(item) => { setEditingItem({ type: 'Subcategory', data: item }); setIsModalOpen(true); }}
@@ -313,9 +315,11 @@ export function Settings() {
                 <MasterColumn
                   title="Providers"
                   icon={Box}
-                  items={activeProviders}
+                  items={activeProviders.filter((p: any) => p.subcategoryId === selectedSubId)}
                   selectedId={selectedSrvId}
-                  disabled={false}
+                  disabled={!selectedSubId}
+                  parentId={selectedSubId}
+                  parentLabel="Sub-Category"
                   onSelect={(id) => { setSelectedSrvId(id); setSelectedGroupId(null); }}
                   onAdd={() => { setEditingItem({ type: 'Service Provider', data: { subcategoryId: selectedSubId || "" } }); setIsModalOpen(true); }}
                   onEdit={(item) => { setEditingItem({ type: 'Service Provider', data: item }); setIsModalOpen(true); }}
@@ -341,9 +345,11 @@ export function Settings() {
                 <MasterColumn
                   title="Group Members"
                   icon={UserPlus}
-                  items={activeMembers.map(m => ({ ...m, name: m.userName }))}
+                  items={activeMembers.filter((m: any) => m.groupId === selectedGroupId).map(m => ({ ...m, name: m.userName }))}
                   selectedId={null}
-                  disabled={false}
+                  disabled={!selectedGroupId}
+                  parentId={selectedGroupId}
+                  parentLabel="Group"
                   onSelect={() => { }}
                   onAdd={() => { setEditingItem({ type: 'Group Member', data: { groupId: selectedGroupId || "" } }); setIsModalOpen(true); }}
                   onEdit={(item) => { setEditingItem({ type: 'Group Member', data: item }); setIsModalOpen(true); }}
@@ -735,8 +741,11 @@ export function Settings() {
   );
 }
 
-function MasterColumn({ title, icon: Icon, items, selectedId, onSelect, onAdd, onEdit, onDelete, disabled, isAdmin }: any) {
+function MasterColumn({ title, icon: Icon, items, selectedId, onSelect, onAdd, onEdit, onDelete, disabled, isAdmin, parentId, parentLabel }: any) {
   const [searchTerm, setSearchTerm] = useState("");
+  // true when this column requires a parent selection before adding
+  const needsParent = !!parentLabel;
+  const parentSelected = !needsParent || !!parentId;
 
   const filteredItems = useMemo(() => {
     return items.filter((item: any) =>
@@ -744,6 +753,12 @@ function MasterColumn({ title, icon: Icon, items, selectedId, onSelect, onAdd, o
       (item.userName || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [items, searchTerm]);
+
+  const newLabel = title === "Categories"
+    ? "Category"
+    : title === "Sub-Categories"
+    ? "Sub-Category"
+    : title.endsWith('s') ? title.slice(0, -1) : title;
 
   return (
     <div className={cn(
@@ -769,61 +784,93 @@ function MasterColumn({ title, icon: Icon, items, selectedId, onSelect, onAdd, o
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-        {filteredItems.map((item: any) => (
-          <motion.div
-            layout
-            key={item.id}
-            onClick={() => onSelect(item.id)}
-            className={cn(
-              "w-full flex items-center justify-between p-4 rounded-2xl group transition-all duration-500 border relative overflow-hidden cursor-pointer",
-              selectedId === item.id
-                ? "bg-sn-green/10 border-sn-green/30 shadow-inner"
-                : "hover:bg-muted/50 border-transparent"
-            )}
-          >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl border border-border/50 bg-card flex items-center justify-center overflow-hidden shrink-0">
-                  {item.image ? (
-                    <img src={item.image} className="w-full h-full object-contain" alt="" />
-                  ) : (
-                    <Icon size={18} className="text-muted-foreground/30" />
-                  )}
-                </div>
-                <div className="text-left">
-                  <div className={cn("text-sm font-black transition-colors", selectedId === item.id ? "text-sn-green" : "text-sn-dark dark:text-gray-200")}>
-                    {item.name}
-                  </div>
-                  {item.providerName && <div className="text-[9px] font-bold text-muted-foreground uppercase">{item.providerName}</div>}
-                  {item.sla && <div className="text-[9px] font-black text-sn-green uppercase">{item.sla} SLA</div>}
-                </div>
-              </div>
-
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {isAdmin && (
-                <>
-                  <button onClick={() => onEdit(item)} className="p-2 text-sn-green hover:bg-sn-green/10 rounded-lg transition-all"><Edit3 size={14} /></button>
-                  <button onClick={() => onDelete(item)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={14} /></button>
-                </>
-              )}
-              <button className="p-2 text-muted-foreground hover:bg-muted rounded-lg transition-all"><ChevronRight size={14} /></button>
+        {/* Show hint when parent not yet selected */}
+        {needsParent && !parentSelected ? (
+          <div className="flex flex-col items-center justify-center h-40 gap-3 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 flex items-center justify-center">
+              <Lock size={22} className="text-amber-500" />
             </div>
-          </motion.div>
-        ))}
-        {items.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/30">
-            <Icon size={32} strokeWidth={1} />
-            <span className="text-[10px] font-black uppercase tracking-widest mt-2">
-              {disabled ? `Select a parent to view ${title.toLowerCase()}` : `No ${title.toLowerCase()} found`}
-            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                Select a {parentLabel} first
+              </p>
+              <p className="text-[10px] text-muted-foreground/60 mt-1">
+                Choose a {parentLabel} from the left column to add a {newLabel}
+              </p>
+            </div>
           </div>
+        ) : (
+          <>
+            {filteredItems.map((item: any) => (
+              <motion.div
+                layout
+                key={item.id}
+                onClick={() => onSelect(item.id)}
+                className={cn(
+                  "w-full flex items-center justify-between p-4 rounded-2xl group transition-all duration-500 border relative overflow-hidden cursor-pointer",
+                  selectedId === item.id
+                    ? "bg-sn-green/10 border-sn-green/30 shadow-inner"
+                    : "hover:bg-muted/50 border-transparent"
+                )}
+              >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl border border-border/50 bg-card flex items-center justify-center overflow-hidden shrink-0">
+                      {item.image ? (
+                        <img src={item.image} className="w-full h-full object-contain" alt="" />
+                      ) : (
+                        <Icon size={18} className="text-muted-foreground/30" />
+                      )}
+                    </div>
+                    <div className="text-left">
+                      <div className={cn("text-sm font-black transition-colors", selectedId === item.id ? "text-sn-green" : "text-sn-dark dark:text-gray-200")}>
+                        {item.name}
+                      </div>
+                      {item.providerName && <div className="text-[9px] font-bold text-muted-foreground uppercase">{item.providerName}</div>}
+                      {item.sla && <div className="text-[9px] font-black text-sn-green uppercase">{item.sla} SLA</div>}
+                    </div>
+                  </div>
+
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isAdmin && (
+                    <>
+                      <button onClick={() => onEdit(item)} className="p-2 text-sn-green hover:bg-sn-green/10 rounded-lg transition-all"><Edit3 size={14} /></button>
+                      <button onClick={() => onDelete(item)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={14} /></button>
+                    </>
+                  )}
+                  <button className="p-2 text-muted-foreground hover:bg-muted rounded-lg transition-all"><ChevronRight size={14} /></button>
+                </div>
+              </motion.div>
+            ))}
+            {filteredItems.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/30">
+                <Icon size={32} strokeWidth={1} />
+                <span className="text-[10px] font-black uppercase tracking-widest mt-2">
+                  {disabled ? `Select a parent to view ${title.toLowerCase()}` : `No ${title.toLowerCase()} found`}
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {isAdmin && (
         <div className="p-5 border-t border-border/50 dark:border-white/5 bg-muted/10">
-          <Button onClick={onAdd} className="w-full bg-sn-dark text-sn-green h-12 rounded-xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all">
-            <Plus size={16} /> New {title === "Categories" ? "Category" : title === "Sub-Categories" ? "Sub-Category" : title.endsWith('s') ? title.slice(0, -1) : title}
-          </Button>
+          {!parentSelected ? (
+            <div
+              title={`Select a ${parentLabel} first to add a ${newLabel}`}
+              className="w-full bg-muted/40 text-muted-foreground/40 h-12 rounded-xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest cursor-not-allowed border border-dashed border-muted-foreground/20 select-none"
+            >
+              <Lock size={13} className="shrink-0" />
+              Select a {parentLabel} First
+            </div>
+          ) : (
+            <Button
+              onClick={onAdd}
+              className="w-full bg-sn-dark text-sn-green h-12 rounded-xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              <Plus size={16} /> New {newLabel}
+            </Button>
+          )}
         </div>
       )}
     </div>

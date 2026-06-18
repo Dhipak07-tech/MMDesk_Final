@@ -3,6 +3,7 @@ package com.connectit.core.service;
 import com.connectit.core.model.*;
 import com.connectit.core.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +12,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TicketService {
 
     private final TicketRepository ticketRepo;
@@ -86,6 +88,7 @@ public class TicketService {
             .createdBy(createdBy)
             .createdByName(createdByName)
             .companyId(companyId)
+            .watchList(data.containsKey("watchList") ? (String) data.get("watchList") : (String) data.get("watch_list"))
             .responseDeadline(now.plusHours(RESPONSE_HOURS.getOrDefault(priority, 24)))
             .resolutionDeadline(now.plusHours(RESOLUTION_HOURS.getOrDefault(priority, 72)))
             .slaDelayLogsJson("[]")
@@ -346,16 +349,19 @@ public class TicketService {
 
             ticketRepo.save(t);
 
-            // Queue outbound email if requested or if it's a public comment from portal/API (not inbound email itself)
+            // Queue outbound email ONLY if explicitly requested via email_note flag
             boolean emailNoteOption = Boolean.TRUE.equals(data.get("email_note")) 
                 || Boolean.TRUE.equals(data.get("emailNote"))
                 || Boolean.TRUE.equals(data.get("send_email"))
                 || Boolean.TRUE.equals(data.get("sendEmail"));
             
-            boolean shouldEmailNote = emailNoteOption || (("comment".equals(actType) || "work_note".equals(actType)) && !"email".equalsIgnoreCase(a.getChannel()));
-
-            if (shouldEmailNote) {
-                emailService.notifyCommentAdded(t, a);
+            if (emailNoteOption) {
+                try {
+                    emailService.notifyCommentAdded(t, a);
+                } catch (Exception emailEx) {
+                    // Email failure must NOT prevent the activity from being saved
+                    log.warn("[TicketService] Email notification failed for ticket {} (non-critical): {}", ticketId, emailEx.getMessage());
+                }
             }
         });
 
@@ -494,6 +500,8 @@ public class TicketService {
                 try { t.setFirstResponseAt(LocalDateTime.parse((String) fra)); } catch (Exception ignored) {}
             }
         }
+        if (data.containsKey("watchList"))           t.setWatchList((String) data.get("watchList"));
+        if (data.containsKey("watch_list"))          t.setWatchList((String) data.get("watch_list"));
     }
 
     private boolean isEmail(String s) { return s != null && s.contains("@"); }

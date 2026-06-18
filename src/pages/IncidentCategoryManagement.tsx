@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { ROLE_HIERARCHY } from "../lib/roles";
 import {
   ShieldAlert, Plus, Search, Edit, Trash2, X, Check,
-  Tag, ChevronUp, ChevronDown, RefreshCw, AlertTriangle, Settings2, Sliders, ToggleLeft, ToggleRight, Trash
+  Tag, ChevronUp, ChevronDown, RefreshCw, AlertTriangle, Sliders, ToggleLeft, ToggleRight, Trash
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

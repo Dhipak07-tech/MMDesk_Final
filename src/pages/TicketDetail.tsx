@@ -1150,6 +1150,24 @@ export function TicketDetail() {
                 </div>
               </div>
 
+              {/* Watch list */}
+              <div className="grid grid-cols-3 items-center gap-4">
+                <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Watch list</label>
+                <div className="col-span-2 flex gap-1">
+                  <input
+                    readOnly={!canEdit}
+                    value={editedTicket?.watchList || ""}
+                    onChange={(e) => updateLocalField("watchList", e.target.value)}
+                    placeholder="Separate emails with commas"
+                    className={cn(
+                      "flex-grow p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8",
+                      canEdit ? "bg-white" : "bg-muted/30"
+                    )}
+                  />
+                  <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={!canEdit}><Users className="w-3 h-3" /></Button>
+                </div>
+              </div>
+
               {/* Business Phone */}
               <div className="grid grid-cols-3 items-center gap-4">
                 <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Business phone</label>
@@ -1197,6 +1215,46 @@ export function TicketDetail() {
                   )}
                 >
                   {visibleCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </div>
+
+              {/* Subcategory */}
+              <div className="grid grid-cols-3 items-center gap-4">
+                <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Subcategory</label>
+                <select
+                  disabled={!canEdit || !editedTicket?.categoryId}
+                  value={editedTicket?.subcategoryId || ""}
+                  onChange={(e) => {
+                    const subcategory = visibleSubcategories.find((item) => item.id === e.target.value);
+                    setEditedTicket((prev: any) => ({ ...prev, subcategoryId: e.target.value, subcategory: subcategory?.name || "", serviceId: "", service: "", serviceProvider: "", assignmentGroup: "" }));
+                  }}
+                  className={cn(
+                    "col-span-2 p-1.5 border border-border rounded text-xs outline-none h-8 transition-colors disabled:opacity-50 disabled:bg-muted bg-white",
+                    canEdit ? "bg-white" : "bg-muted/30"
+                  )}
+                >
+                  <option value="">-- Select Subcategory --</option>
+                  {visibleSubcategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </div>
+
+              {/* Service */}
+              <div className="grid grid-cols-3 items-center gap-4">
+                <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Service</label>
+                <select
+                  disabled={!canEdit || !editedTicket?.subcategoryId}
+                  value={editedTicket?.serviceId || ""}
+                  onChange={(e) => {
+                    const provider = visibleProviders.find((item) => item.id === e.target.value);
+                    setEditedTicket((prev: any) => ({ ...prev, serviceId: e.target.value, service: provider?.name || "", serviceProvider: provider?.name || "", assignmentGroup: "" }));
+                  }}
+                  className={cn(
+                    "col-span-2 p-1.5 border border-border rounded text-xs outline-none h-8 transition-colors disabled:opacity-50 disabled:bg-muted bg-white",
+                    canEdit ? "bg-white" : "bg-muted/30"
+                  )}
+                >
+                  <option value="">-- Select Service --</option>
+                  {visibleProviders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
               </div>
 

@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.*;
+import com.connectit.core.util.DbUtil;
 
 @RestController
 @RequestMapping("/api")
@@ -280,8 +281,7 @@ public class CompanyController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
 
             logHistory(newId, "created", "all", "", name);
 

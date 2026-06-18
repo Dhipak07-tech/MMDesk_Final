@@ -1938,71 +1938,43 @@ export function Groups() {
   };
 
   return (
-    <div className="flex -m-8 h-[calc(100vh-4.25rem)] overflow-hidden">
-      {/* Secondary Nested Sidebar */}
-      <div className="w-60 border-r border-border bg-slate-900 text-white flex flex-col shrink-0">
-        <div className="p-4 border-b border-border space-y-4 shrink-0 bg-slate-950/40">
-          <div className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-indigo-400 tracking-widest block">Active Group Workspace</span>
+    <div className="flex flex-col w-full h-[calc(100vh-4.25rem)] overflow-hidden -m-8">
+      {/* Top Group Selector Bar */}
+      <div className="bg-white dark:bg-slate-900 border-b border-border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0 shadow-sm z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-500/10 text-blue-500 rounded-lg flex items-center justify-center font-bold">
+            <UsersIcon className="w-4.5 h-4.5" />
+          </div>
+          <div>
+            <span className="text-[9px] font-black uppercase text-blue-500 tracking-widest block">Active Group Workspace</span>
             <select
               value={selectedGroupId}
               onChange={e => setSelectedGroupId(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 p-2 rounded-lg text-xs font-bold text-white outline-none focus:ring-1 focus:ring-sn-green"
+              className="bg-transparent border-none p-0 text-sm font-bold text-slate-800 dark:text-white outline-none focus:ring-0 cursor-pointer font-outfit"
             >
               {groups.map(g => (
-                <option key={g.id} value={g.id}>{g.name}</option>
+                <option key={g.id} value={g.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-white">{g.name}</option>
               ))}
             </select>
           </div>
-
-          {activeGroup && (
-            <div className="bg-slate-800/40 border border-slate-700/60 p-3 rounded-lg text-[10px] space-y-1 bg-gradient-to-br from-slate-900 to-slate-950">
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-bold uppercase">Project:</span>
-                <span className="font-bold text-white truncate max-w-[100px]">{activeGroup.projectName || "N/A"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-bold uppercase">Department:</span>
-                <span className="font-bold text-white truncate max-w-[100px]">{activeGroup.department || "N/A"}</span>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Tab Links list */}
-        <nav className="flex-grow overflow-y-auto p-2 space-y-0.5 custom-scrollbar">
-          {[
-            { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-            { id: "teams", label: "Teams & Hierarchy", icon: Shield },
-            { id: "members", label: "Members Matrix", icon: UserCheck },
-            { id: "calendar", label: "Smart Calendar", icon: CalendarIcon },
-            { id: "planning", label: "Planning Center", icon: Map },
-            { id: "timesheets", label: "Timesheets", icon: Clock },
-            { id: "tasks", label: "Tasks", icon: CheckSquare },
-            { id: "sprint_board", label: "Sprint Board", icon: GitPullRequest },
-            { id: "performance", label: "Performance", icon: Trophy },
-            { id: "discussions", label: "Discussions", icon: MessageCircle },
-            { id: "kb", label: "Knowledge Base", icon: BookOpen },
-            { id: "reports", label: "Reports", icon: ClipboardList },
-            { id: "analytics", label: "Analytics & Health", icon: BarChart3 }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold hover:bg-slate-800 hover:text-white transition-all text-slate-300",
-                activeTab === tab.id && "bg-blue-600/25 text-blue-400 border-r-2 border-blue-500 font-bold shadow-inner"
-              )}
-            >
-              <tab.icon className="w-4 h-4 shrink-0" />
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </nav>
+        {activeGroup && (
+          <div className="flex gap-4 text-[10px] font-outfit">
+            <div className="bg-slate-50 dark:bg-slate-800/40 border border-border px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+              <span className="text-slate-400 font-bold uppercase">Project:</span>
+              <span className="font-bold text-slate-800 dark:text-white">{activeGroup.projectName || "N/A"}</span>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-800/40 border border-border px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+              <span className="text-slate-400 font-bold uppercase">Department:</span>
+              <span className="font-bold text-slate-800 dark:text-white">{activeGroup.department || "N/A"}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Workspace Content Area */}
-      <div className="flex-grow overflow-y-auto p-8 bg-slate-50 dark:bg-slate-950/20">
+      <div className="flex-grow overflow-y-auto p-8 bg-slate-50 dark:bg-slate-950/20 custom-scrollbar">
         {activeTab === "dashboard" && renderDashboard()}
         {activeTab === "teams" && renderTeams()}
         {activeTab === "members" && renderMembers()}

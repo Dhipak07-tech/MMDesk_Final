@@ -47,6 +47,12 @@ public class EmailService {
     @Value("${app.imap.port:993}")
     private Integer imapPort;
 
+    @Value("${spring.mail.username:info@technosprint.net}")
+    private String smtpUser;
+
+    @Value("${spring.mail.password:}")
+    private String smtpPassword;
+
     private static final int[] RETRY_DELAYS_SECONDS = {60, 300, 900, 1800, 3600};
 
     // ── Enqueue ────────────────────────────────────────────────────────────────
@@ -217,6 +223,17 @@ public class EmailService {
                 }
             } catch (Exception e) {
                 log.error("[Email] Failed to fetch group members for group '{}': {}", t.getAssignmentGroup(), e.getMessage());
+            }
+        }
+
+        // 5. Watch List (Watchers)
+        if (t.getWatchList() != null && !t.getWatchList().isBlank()) {
+            String[] watchers = t.getWatchList().split(",");
+            for (String w : watchers) {
+                String trimmed = w.trim().toLowerCase();
+                if (isEmail(trimmed)) {
+                    emails.add(trimmed);
+                }
             }
         }
 
@@ -608,53 +625,55 @@ public class EmailService {
     }
 
     private JavaMailSender getActiveMailSender(CompanyEmailConfig cfg) {
-        if (cfg != null) {
-            JavaMailSenderImpl impl = new JavaMailSenderImpl();
-            impl.setHost(cfg.getSmtpHost());
-            impl.setPort(cfg.getSmtpPort() != null ? cfg.getSmtpPort() : 587);
-            boolean useOAuth = isOffice365Host(cfg.getSmtpHost());
-            if (useOAuth) {
-                try {
-                    String token = getOAuth2AccessToken();
-                    impl.setUsername(cfg.getSmtpUser());
-                    impl.setPassword(token);
+        String host = cfg != null ? cfg.getSmtpHost() : smtpHost;
+        int port = cfg != null ? (cfg.getSmtpPort() != null ? cfg.getSmtpPort() : 587) : (smtpPort != null ? smtpPort : 587);
+        String username = cfg != null ? cfg.getSmtpUser() : smtpUser;
+        String password = cfg != null ? cfg.getSmtpPass() : smtpPassword;
 
-                    Properties props = impl.getJavaMailProperties();
-                    props.put("mail.transport.protocol", "smtp");
-                    props.put("mail.smtp.auth", "true");
-                    props.put("mail.smtp.auth.mechanisms", "XOAUTH2");
-                    props.put("mail.smtp.auth.login.disable", "true");
-                    props.put("mail.smtp.auth.plain.disable", "true");
-                    props.put("mail.smtp.starttls.enable", "true");
-                    props.put("mail.debug", "false");
-                    props.put("mail.smtp.ssl.trust", cfg.getSmtpHost());
-                    log.info("[Email] Using OAuth2 XOAUTH2 for SMTP to {}", cfg.getSmtpHost());
-                } catch (Exception e) {
-                    log.error("[Email] OAuth2 token failed, falling back to basic auth: {}", e.getMessage());
-                    impl.setUsername(cfg.getSmtpUser());
-                    impl.setPassword(cfg.getSmtpPass());
-                    Properties props = impl.getJavaMailProperties();
-                    props.put("mail.transport.protocol", "smtp");
-                    props.put("mail.smtp.auth", "true");
-                    props.put("mail.smtp.starttls.enable", "true");
-                    props.put("mail.debug", "false");
-                    props.put("mail.smtp.ssl.trust", cfg.getSmtpHost());
-                }
-            } else {
-                impl.setUsername(cfg.getSmtpUser());
-                impl.setPassword(cfg.getSmtpPass());
+        JavaMailSenderImpl impl = new JavaMailSenderImpl();
+        impl.setHost(host);
+        impl.setPort(port);
 
+        boolean useOAuth = isOffice365Host(host);
+        if (useOAuth) {
+            try {
+                String token = getOAuth2AccessToken();
+                impl.setUsername(username);
+                impl.setPassword(token);
+
+                Properties props = impl.getJavaMailProperties();
+                props.put("mail.transport.protocol", "smtp");
+                props.put("mail.smtp.auth", "true");
+                props.put("mail.smtp.auth.mechanisms", "XOAUTH2");
+                props.put("mail.smtp.auth.login.disable", "true");
+                props.put("mail.smtp.auth.plain.disable", "true");
+                props.put("mail.smtp.starttls.enable", "true");
+                props.put("mail.debug", "false");
+                props.put("mail.smtp.ssl.trust", host);
+                log.info("[Email] Using OAuth2 XOAUTH2 for SMTP to {}", host);
+            } catch (Exception e) {
+                log.error("[Email] OAuth2 token failed, falling back to basic auth: {}", e.getMessage());
+                impl.setUsername(username);
+                impl.setPassword(password);
                 Properties props = impl.getJavaMailProperties();
                 props.put("mail.transport.protocol", "smtp");
                 props.put("mail.smtp.auth", "true");
                 props.put("mail.smtp.starttls.enable", "true");
                 props.put("mail.debug", "false");
-                props.put("mail.smtp.ssl.trust", cfg.getSmtpHost());
+                props.put("mail.smtp.ssl.trust", host);
             }
-            
-            return impl;
+        } else {
+            impl.setUsername(username);
+            impl.setPassword(password);
+
+            Properties props = impl.getJavaMailProperties();
+            props.put("mail.transport.protocol", "smtp");
+            props.put("mail.smtp.auth", "true");
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.debug", "false");
+            props.put("mail.smtp.ssl.trust", host);
         }
-        return mailSender;
+        return impl;
     }
 
     public CompanyEmailConfig getConfigForTicket(Long ticketId) {

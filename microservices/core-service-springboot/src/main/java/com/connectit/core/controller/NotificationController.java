@@ -16,6 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import com.connectit.core.util.DbUtil;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -167,8 +168,7 @@ public class NotificationController {
                         return ps;
                     }, keyHolder);
 
-                    Number key = keyHolder.getKey();
-                    long newId = key != null ? key.longValue() : 0;
+                    long newId = DbUtil.getGeneratedId(keyHolder);
 
                     Map<String, Object> newNotif = new HashMap<>();
                     newNotif.put("id", String.valueOf(newId));

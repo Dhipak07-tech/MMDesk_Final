@@ -9,6 +9,7 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.connectit.core.util.DbUtil;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -124,8 +125,7 @@ public class TSMeetingController {
                     return ps;
                 }, keyHolder);
 
-                Number key = keyHolder.getKey();
-                long newNotifId = key != null ? key.longValue() : 0;
+                long newNotifId = DbUtil.getGeneratedId(keyHolder);
 
                 Map<String, Object> newNotif = new HashMap<>();
                 newNotif.put("id", String.valueOf(newNotifId));

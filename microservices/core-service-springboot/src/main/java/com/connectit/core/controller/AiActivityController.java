@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.connectit.core.util.DbUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -277,8 +278,7 @@ public class AiActivityController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
 
             Map<String, Object> res = new HashMap<>(body);
             res.put("id", String.valueOf(newId));
@@ -327,8 +327,7 @@ public class AiActivityController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
 
             Map<String, Object> res = new HashMap<>(body);
             res.put("id", String.valueOf(newId));

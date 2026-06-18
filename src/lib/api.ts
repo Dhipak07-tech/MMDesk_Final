@@ -280,6 +280,8 @@ function mapDbTicketToFrontend(t: any): any {
     created_at: t.created_at || t.createdAt || null,
     updatedAt: t.updated_at || t.updatedAt || t.created_at || t.createdAt || null,
     updated_at: t.updated_at || t.updatedAt || t.created_at || t.createdAt || null,
+    watchList: t.watch_list || t.watchList || "",
+    watch_list: t.watch_list || t.watchList || "",
   };
 }
 

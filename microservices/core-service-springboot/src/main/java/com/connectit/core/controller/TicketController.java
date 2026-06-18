@@ -169,6 +169,7 @@ public class TicketController {
             TicketActivity a = ticketService.addActivity(id, body);
             return ResponseEntity.status(201).body(serializeActivity(a));
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }

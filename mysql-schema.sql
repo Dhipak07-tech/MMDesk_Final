@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     resolution_method VARCHAR(255) NULL,
     closure_reason VARCHAR(255) NULL,
     company_id BIGINT NULL,
+    watch_list VARCHAR(1000) NULL,
     parent_ticket_id INT NULL,
     FOREIGN KEY (parent_ticket_id) REFERENCES tickets(id) ON DELETE SET NULL,
     INDEX idx_ticket_number (ticket_number),

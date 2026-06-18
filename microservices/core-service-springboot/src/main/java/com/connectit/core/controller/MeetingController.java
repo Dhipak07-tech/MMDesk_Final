@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.connectit.core.util.DbUtil;
 
 import java.io.File;
 import java.sql.PreparedStatement;
@@ -210,8 +211,7 @@ public class MeetingController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            int newMeetingId = key != null ? key.intValue() : 0;
+            int newMeetingId = (int) DbUtil.getGeneratedId(keyHolder);
 
             // Log Audit trail
             jdbcTemplate.update(

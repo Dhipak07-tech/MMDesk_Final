@@ -11,6 +11,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import jakarta.mail.internet.MimeMessage;
+import com.connectit.core.util.DbUtil;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -95,8 +96,7 @@ public class TimesheetController {
             return ps;
         }, keyHolder);
 
-        Number key = keyHolder.getKey();
-        long newId = key != null ? key.longValue() : 0;
+        long newId = DbUtil.getGeneratedId(keyHolder);
 
         List<Map<String, Object>> created = jdbcTemplate.queryForList("SELECT * FROM timesheets WHERE id = ?", newId);
         if (created.isEmpty()) {
@@ -250,8 +250,7 @@ public class TimesheetController {
             return ps;
         }, keyHolder);
 
-        Number key = keyHolder.getKey();
-        long newId = key != null ? key.longValue() : 0;
+        long newId = DbUtil.getGeneratedId(keyHolder);
 
         List<Map<String, Object>> created = jdbcTemplate.queryForList("SELECT * FROM time_cards WHERE id = ?", newId);
         if (created.isEmpty()) {
@@ -351,8 +350,7 @@ public class TimesheetController {
             return ps;
         }, keyHolder);
 
-        Number key = keyHolder.getKey();
-        long newId = key != null ? key.longValue() : 0;
+        long newId = DbUtil.getGeneratedId(keyHolder);
 
         List<Map<String, Object>> created = jdbcTemplate.queryForList("SELECT * FROM activity_sessions WHERE id = ?", newId);
         return ResponseEntity.ok(stringifyId(new HashMap<>(created.get(0))));
@@ -450,8 +448,7 @@ public class TimesheetController {
             return ps;
         }, keyHolder);
 
-        Number key = keyHolder.getKey();
-        long newId = key != null ? key.longValue() : 0;
+        long newId = DbUtil.getGeneratedId(keyHolder);
 
         List<Map<String, Object>> created = jdbcTemplate.queryForList("SELECT * FROM activity_entries WHERE id = ?", newId);
         return ResponseEntity.ok(stringifyId(new HashMap<>(created.get(0))));
@@ -547,8 +544,7 @@ public class TimesheetController {
             return ps;
         }, keyHolder);
 
-        Number key = keyHolder.getKey();
-        long newId = key != null ? key.longValue() : 0;
+        long newId = DbUtil.getGeneratedId(keyHolder);
 
         List<Map<String, Object>> created = jdbcTemplate.queryForList("SELECT * FROM message_history WHERE id = ?", newId);
         return ResponseEntity.ok(stringifyId(new HashMap<>(created.get(0))));

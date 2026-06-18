@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     resolution_method VARCHAR(255) NULL,
     closure_reason VARCHAR(255) NULL,
     company_id BIGINT NULL,
+    watch_list VARCHAR(1000) NULL,
     parent_ticket_id INT NULL,
     sla_delay_meta_json JSON NULL,
     sla_delay_logs_json JSON NULL,

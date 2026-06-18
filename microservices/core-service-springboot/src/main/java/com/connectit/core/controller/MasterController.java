@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.connectit.core.util.DbUtil;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -429,8 +430,7 @@ public class MasterController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
 
             Map<String, Object> res = new HashMap<>();
             res.put("id", String.valueOf(newId));
@@ -607,8 +607,7 @@ public class MasterController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
 
             Map<String, Object> res = new HashMap<>();
             res.put("id", String.valueOf(newId));
@@ -782,8 +781,7 @@ public class MasterController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
 
             List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM " + table + " WHERE id = ?", newId);
             if (rows.isEmpty()) {
@@ -910,8 +908,7 @@ public class MasterController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
             List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM mst_categories WHERE id = ?", newId);
             if (rows.isEmpty()) return ResponseEntity.ok(Map.of("id", String.valueOf(newId)));
             Map<String, Object> r = rows.get(0);
@@ -1017,8 +1014,7 @@ public class MasterController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
             Map<String, Object> m = new HashMap<>();
             m.put("id", String.valueOf(newId));
             m.put("name", name);
@@ -1145,8 +1141,7 @@ public class MasterController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
             Map<String, Object> m = new HashMap<>();
             m.put("id", String.valueOf(newId));
             m.put("name", name);
@@ -1252,8 +1247,7 @@ public class MasterController {
                 return ps;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            long newId = key != null ? key.longValue() : 0;
+            long newId = DbUtil.getGeneratedId(keyHolder);
             Map<String, Object> m = new HashMap<>();
             m.put("id", String.valueOf(newId));
             m.put("userId", userId);

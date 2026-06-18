@@ -156,6 +156,9 @@ public class Ticket {
     @Column(name = "company_id")
     private Long companyId;
 
+    @Column(name = "watch_list", length = 1000)
+    private String watchList;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
