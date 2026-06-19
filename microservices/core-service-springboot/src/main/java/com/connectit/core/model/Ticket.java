@@ -3,6 +3,7 @@ package com.connectit.core.model;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "tickets", indexes = {
@@ -39,6 +40,11 @@ public class Ticket {
 
     @Column(length = 100)
     private String category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    @JsonIgnore
+    private Category categoryEntity;
 
     @Column(name = "incident_category", length = 100)
     private String incidentCategory;
@@ -79,14 +85,29 @@ public class Ticket {
     @Column(name = "assignment_group", length = 100)
     private String assignmentGroup;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assignment_group_id")
+    @JsonIgnore
+    private AssignmentGroup assignmentGroupEntity;
+
     @Column(name = "assigned_to", length = 128)
     private String assignedTo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_to_user_id")
+    @JsonIgnore
+    private User assignedToUser;
 
     @Column(name = "assigned_to_name")
     private String assignedToName;
 
     @Column(name = "created_by", nullable = false, length = 128)
     private String createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    @JsonIgnore
+    private User createdByUser;
 
     @Column(name = "created_by_name")
     private String createdByName;

@@ -21,6 +21,8 @@ public class TicketService {
     private final UserRepository userRepo;
     private final EmailLogRepository emailLogRepo;
     private final EmailService emailService;
+    private final CategoryRepository categoryRepo;
+    private final AssignmentGroupRepository groupRepo;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private static final Map<String,Integer> RESPONSE_HOURS = Map.of(
@@ -94,6 +96,7 @@ public class TicketService {
             .slaDelayLogsJson("[]")
             .build();
 
+        resolveNormalizedEntities(t);
         t = ticketRepo.save(t);
 
         // Timeline entry
@@ -158,6 +161,7 @@ public class TicketService {
             }
         }
 
+        resolveNormalizedEntities(t);
         t = ticketRepo.save(t);
 
         // Track field changes for notifyUpdated
@@ -505,4 +509,36 @@ public class TicketService {
     }
 
     private boolean isEmail(String s) { return s != null && s.contains("@"); }
+
+    private void resolveNormalizedEntities(Ticket t) {
+        if (t.getCategory() != null && !t.getCategory().isBlank()) {
+            t.setCategoryEntity(categoryRepo.findByName(t.getCategory()).orElseGet(() -> 
+                categoryRepo.save(Category.builder().name(t.getCategory()).build())
+            ));
+        } else {
+            t.setCategoryEntity(null);
+        }
+
+        if (t.getAssignmentGroup() != null && !t.getAssignmentGroup().isBlank()) {
+            t.setAssignmentGroupEntity(groupRepo.findByName(t.getAssignmentGroup()).orElseGet(() -> 
+                groupRepo.save(AssignmentGroup.builder().name(t.getAssignmentGroup()).build())
+            ));
+        } else {
+            t.setAssignmentGroupEntity(null);
+        }
+
+        if (t.getAssignedTo() != null && !t.getAssignedTo().isBlank()) {
+            t.setAssignedToUser(userRepo.findByUid(t.getAssignedTo())
+                .orElseGet(() -> userRepo.findByEmail(t.getAssignedTo()).orElse(null)));
+        } else {
+            t.setAssignedToUser(null);
+        }
+
+        if (t.getCreatedBy() != null && !t.getCreatedBy().isBlank()) {
+            t.setCreatedByUser(userRepo.findByUid(t.getCreatedBy())
+                .orElseGet(() -> userRepo.findByEmail(t.getCreatedBy()).orElse(null)));
+        } else {
+            t.setCreatedByUser(null);
+        }
+    }
 }
