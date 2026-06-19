@@ -683,14 +683,26 @@ html:not(.dark) [style*="color: rgb(255,255,255)"]:not(.dark *) {
 /* --- USER STRICT COLOR CONSTRAINTS --- */
 
 /* 1. Light mode: No letters should be white */
-html:not(.dark) .text-white {
+html:not(.dark) .text-white,
+html:not(.dark) .text-slate-50,
+html:not(.dark) .text-gray-50,
+html:not(.dark) [style*="color: white"],
+html:not(.dark) [style*="color:#fff"],
+html:not(.dark) [style*="color: #fff"],
+html:not(.dark) [style*="color: #FFFFFF"] {
   color: #0f172a !important; /* Dark Slate / Foreground */
 }
 
 /* 2. Light mode: No black boxes should be visible */
 html:not(.dark) .bg-black,
 html:not(.dark) .bg-slate-900,
-html:not(.dark) .bg-gray-900 {
+html:not(.dark) .bg-slate-800,
+html:not(.dark) .bg-slate-700,
+html:not(.dark) .bg-gray-900,
+html:not(.dark) .bg-gray-800,
+html:not(.dark) .bg-gray-700,
+html:not(.dark) .bg-zinc-900,
+html:not(.dark) .bg-zinc-800 {
   background-color: #ffffff !important; /* White / Card */
   color: #0f172a !important; /* Ensure text is readable on white */
 }
@@ -700,7 +712,11 @@ html.dark .text-black,
 html.dark .text-slate-900,
 html.dark .text-gray-900,
 html.dark .text-slate-800,
-html.dark .text-gray-800 {
+html.dark .text-gray-800,
+html.dark .text-slate-700,
+html.dark .text-gray-700,
+html.dark .text-zinc-900,
+html.dark .text-zinc-800 {
   color: #f1f5f9 !important; /* White / Foreground */
 }
 
@@ -709,7 +725,11 @@ html.dark .bg-white,
 html.dark .bg-slate-50,
 html.dark .bg-gray-50,
 html.dark .bg-slate-100,
-html.dark .bg-gray-100 {
+html.dark .bg-gray-100,
+html.dark .bg-slate-200,
+html.dark .bg-gray-200,
+html.dark .bg-zinc-50,
+html.dark .bg-zinc-100 {
   background-color: #111827 !important; /* Dark / Card */
   color: #f1f5f9 !important; /* Ensure text is readable on dark */
   border-color: #2D3B55 !important;
