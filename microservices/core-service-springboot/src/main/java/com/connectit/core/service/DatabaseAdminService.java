@@ -12,9 +12,25 @@ public class DatabaseAdminService {
 
     private final JdbcTemplate jdbcTemplate;
 
+    private String schemaFilter = null;
+
+    private String getSchemaFilter() {
+        if (schemaFilter != null) {
+            return schemaFilter;
+        }
+        try {
+            jdbcTemplate.execute("SELECT current_database()");
+            schemaFilter = "public";
+        } catch (Exception e) {
+            schemaFilter = "DATABASE()";
+        }
+        return schemaFilter;
+    }
+
     public List<Map<String, Object>> getTables() {
-        // Works for MySQL/PostgreSQL assuming Spring standard connection
-        String sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() OR table_schema = 'public'";
+        String filter = getSchemaFilter();
+        String schemaVal = "public".equals(filter) ? "'public'" : "DATABASE()";
+        String sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = " + schemaVal + " OR table_schema = 'PUBLIC'";
         List<String> tableNames = jdbcTemplate.queryForList(sql, String.class);
         
         List<Map<String, Object>> tablesInfo = new ArrayList<>();
@@ -43,9 +59,12 @@ public class DatabaseAdminService {
             sortBy = null;
         }
 
+        String filter = getSchemaFilter();
+        String schemaVal = "public".equals(filter) ? "'public'" : "DATABASE()";
+
         // Get columns
         List<Map<String, Object>> columnsInfo = jdbcTemplate.queryForList(
-                "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? AND (table_schema = DATABASE() OR table_schema = 'public')",
+                "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? AND (table_schema = " + schemaVal + " OR table_schema = 'PUBLIC')",
                 tableName
         );
 
