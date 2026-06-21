@@ -11,7 +11,7 @@ USE connectit_db;
 -- USERS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     uid VARCHAR(128) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255),
@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_login TIMESTAMP NULL,
+    restricted_modules TEXT,
     INDEX idx_email (email),
     INDEX idx_uid (uid),
     INDEX idx_role (role),
@@ -37,7 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- TICKETS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tickets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     ticket_number VARCHAR(50) UNIQUE NOT NULL,
     caller VARCHAR(255) NOT NULL,
     caller_user_id VARCHAR(128),
@@ -91,7 +92,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     closure_reason VARCHAR(255) NULL,
     company_id BIGINT NULL,
     watch_list VARCHAR(1000) NULL,
-    parent_ticket_id INT NULL,
+    parent_ticket_id BIGINT NULL,
     sla_delay_meta_json JSON NULL,
     sla_delay_logs_json JSON NULL,
     FOREIGN KEY (parent_ticket_id) REFERENCES tickets(id) ON DELETE SET NULL,
@@ -113,8 +114,8 @@ CREATE TABLE IF NOT EXISTS tickets (
 -- TICKET HISTORY TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ticket_history (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     action VARCHAR(255) NOT NULL,
     user VARCHAR(255),
     user_id VARCHAR(128),
@@ -129,8 +130,8 @@ CREATE TABLE IF NOT EXISTS ticket_history (
 -- COMMENTS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS comments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     user_id VARCHAR(128),
     user_name VARCHAR(255),
     user_role VARCHAR(50),
@@ -148,8 +149,8 @@ CREATE TABLE IF NOT EXISTS comments (
 -- TICKET ACTIVITIES TABLE (Unified Timeline)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ticket_activities (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id VARCHAR(128) NOT NULL,  -- VARCHAR to support both INT IDs and Firebase IDs
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     activity_type VARCHAR(50) NOT NULL,
     visibility_type VARCHAR(50) NOT NULL,
     channel VARCHAR(50) DEFAULT 'portal',
@@ -169,8 +170,8 @@ CREATE TABLE IF NOT EXISTS ticket_activities (
 -- APPROVALS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS approvals (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
     requested_by VARCHAR(128) NOT NULL,
     requested_by_name VARCHAR(255),
@@ -190,7 +191,7 @@ CREATE TABLE IF NOT EXISTS approvals (
 -- SLA POLICIES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sla_policies (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     priority VARCHAR(50) NOT NULL,
     category VARCHAR(100),
@@ -214,7 +215,7 @@ CREATE TABLE IF NOT EXISTS sla_policies (
 
 -- SLA CONFIGURATIONS (alias table for compatibility)
 CREATE TABLE IF NOT EXISTS sla_configurations (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     priority VARCHAR(50) NOT NULL,
     department VARCHAR(100),
@@ -230,7 +231,7 @@ CREATE TABLE IF NOT EXISTS sla_configurations (
 -- SLA BREACHES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sla_breaches (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     record_id VARCHAR(128) NOT NULL,  -- Supports Firebase doc IDs and INT IDs
     record_type VARCHAR(50) NOT NULL DEFAULT 'Ticket',
     assigned_user VARCHAR(128) NOT NULL,
@@ -254,7 +255,7 @@ CREATE TABLE IF NOT EXISTS sla_breaches (
 -- SLA AUDIT LOGS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sla_audit_logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     ticket_id VARCHAR(128) NOT NULL,
     sla_type VARCHAR(50) NOT NULL,
     event_type VARCHAR(50) NOT NULL,
@@ -268,7 +269,7 @@ CREATE TABLE IF NOT EXISTS sla_audit_logs (
 -- ASSETS / CMDB TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS assets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     type ENUM('Server', 'Database', 'Network', 'Application', 'Hardware', 'Service') DEFAULT 'Hardware',
     status ENUM('Operational', 'Degraded', 'Maintenance', 'Retired') DEFAULT 'Operational',
@@ -294,7 +295,7 @@ CREATE TABLE IF NOT EXISTS assets (
 -- PROBLEMS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS problems (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     problem_number VARCHAR(50) UNIQUE NOT NULL,
     title VARCHAR(500) NOT NULL,
     description TEXT,
@@ -323,7 +324,7 @@ CREATE TABLE IF NOT EXISTS problems (
 -- CHANGES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `changes` (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     change_number VARCHAR(50) UNIQUE NOT NULL,
     title VARCHAR(500) NOT NULL,
     description TEXT,
@@ -357,7 +358,7 @@ CREATE TABLE IF NOT EXISTS `changes` (
 -- KNOWLEDGE BASE ARTICLES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS knowledge_articles (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     article_number VARCHAR(50) UNIQUE NOT NULL,
     title VARCHAR(500) NOT NULL,
     category VARCHAR(100),
@@ -394,7 +395,7 @@ CREATE TABLE IF NOT EXISTS knowledge_articles (
 -- NOTIFICATIONS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS notifications (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(128) NOT NULL,
     type VARCHAR(50) DEFAULT 'system',
     title VARCHAR(255),
@@ -403,7 +404,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     ticket_number VARCHAR(50),
     actor_id VARCHAR(128),
     actor_name VARCHAR(255),
-    related_ticket_id INT NULL,
+    related_ticket_id BIGINT NULL,
     related_entity_type VARCHAR(50),
     related_entity_id VARCHAR(50),
     is_read BOOLEAN DEFAULT FALSE,
@@ -419,7 +420,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- USER SESSIONS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS user_sessions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(128) NOT NULL,
     session_token VARCHAR(255) UNIQUE NOT NULL,
     ip_address VARCHAR(50),
@@ -457,7 +458,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- SYSTEM SETTINGS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS system_settings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     setting_key VARCHAR(100) UNIQUE NOT NULL,
     setting_value TEXT,
     setting_type ENUM('string', 'number', 'boolean', 'json') DEFAULT 'string',
@@ -471,7 +472,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- TIMESHEETS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS timesheets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(128) NOT NULL,
     week_start DATE NOT NULL,
     week_end DATE NOT NULL,
@@ -492,8 +493,8 @@ CREATE TABLE IF NOT EXISTS timesheets (
 -- TIME CARDS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS time_cards (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    timesheet_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    timesheet_id BIGINT NOT NULL,
     user_id VARCHAR(128) NOT NULL,
     entry_date DATE NOT NULL,
     task VARCHAR(255),
@@ -522,7 +523,7 @@ CREATE TABLE IF NOT EXISTS time_cards (
 -- ACTIVITY SESSIONS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS activity_sessions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     session_id VARCHAR(100) NOT NULL,
     user_id VARCHAR(128) NOT NULL,
     user_name VARCHAR(255),
@@ -542,7 +543,7 @@ CREATE TABLE IF NOT EXISTS activity_sessions (
 -- ACTIVITY ENTRIES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS activity_entries (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     session_id VARCHAR(100),
     user_id VARCHAR(128) NOT NULL,
     screenshot_url TEXT,
@@ -566,7 +567,7 @@ CREATE TABLE IF NOT EXISTS activity_entries (
 -- INCIDENT CATEGORIES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS incident_categories (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
     status ENUM('Active', 'Inactive') DEFAULT 'Active',
@@ -582,8 +583,8 @@ CREATE TABLE IF NOT EXISTS incident_categories (
 -- INCIDENT CATEGORY OPTIONS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS incident_category_options (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    category_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    category_id BIGINT NOT NULL,
     value_text VARCHAR(255) NOT NULL,
     status ENUM('Active', 'Inactive') DEFAULT 'Active',
     created_by VARCHAR(255),
@@ -598,7 +599,7 @@ CREATE TABLE IF NOT EXISTS incident_category_options (
 -- TICKET CUSTOM FIELDS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ticket_custom_fields (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     ticket_id VARCHAR(128) NOT NULL,
     category_id INT NOT NULL,
     category_name VARCHAR(100) NOT NULL,
@@ -611,8 +612,8 @@ CREATE TABLE IF NOT EXISTS ticket_custom_fields (
 -- EMAIL QUEUE TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS email_queue (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT,
     company_id INT,
     email_integration_id INT,
     direction ENUM('outbound', 'inbound') DEFAULT 'outbound',
@@ -633,8 +634,8 @@ CREATE TABLE IF NOT EXISTS email_queue (
 -- TICKET EMAIL ACTIVITIES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ticket_email_activities (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     direction ENUM('inbound', 'outbound'),
     sender VARCHAR(255),
     recipient VARCHAR(255),
@@ -649,8 +650,8 @@ CREATE TABLE IF NOT EXISTS ticket_email_activities (
 -- EMAIL LOGS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS email_logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT,
     ticket_number VARCHAR(50),
     direction ENUM('inbound', 'outbound') DEFAULT 'outbound',
     recipient VARCHAR(255),
@@ -683,8 +684,8 @@ CREATE TABLE IF NOT EXISTS email_logs (
 -- EMAIL THREADS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS email_threads (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     ticket_number VARCHAR(50) NOT NULL,
     thread_id VARCHAR(255) UNIQUE NOT NULL,
     original_message_id VARCHAR(255),
@@ -702,9 +703,9 @@ CREATE TABLE IF NOT EXISTS email_threads (
 -- NOTIFICATIONS QUEUE TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS notifications_queue (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     event_type VARCHAR(50) NOT NULL,
-    ticket_id INT,
+    ticket_id BIGINT,
     ticket_number VARCHAR(50),
     recipient VARCHAR(255) NOT NULL,
     subject VARCHAR(255),
@@ -727,7 +728,7 @@ CREATE TABLE IF NOT EXISTS notifications_queue (
 -- COMPANIES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS companies (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255),
     contact_name VARCHAR(255),
     phone VARCHAR(50),
@@ -761,7 +762,7 @@ CREATE TABLE IF NOT EXISTS companies (
 -- COMPANY EMAIL CONFIGS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS company_email_configs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     company_name VARCHAR(255),
     email_address VARCHAR(255),
     smtp_host VARCHAR(255),
@@ -785,8 +786,8 @@ CREATE TABLE IF NOT EXISTS company_email_configs (
 -- COMPANY HISTORY TABLE  (was missing from original mysql-schema.sql)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS company_history (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    company_id INT,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    company_id BIGINT,
     action VARCHAR(100),
     field_name VARCHAR(100),
     old_value TEXT,
@@ -818,7 +819,7 @@ CREATE TABLE IF NOT EXISTS settings_groups (
 -- MESSAGE HISTORY TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS message_history (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(128) NOT NULL,
     user_name VARCHAR(255),
     message_type VARCHAR(50) NOT NULL,
@@ -831,7 +832,7 @@ CREATE TABLE IF NOT EXISTS message_history (
 -- WORK NOTES TABLE  (was missing from original mysql-schema.sql)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS work_notes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     ticket_id VARCHAR(128) NOT NULL,
     user_id VARCHAR(128),
     user_name VARCHAR(255),
@@ -848,7 +849,7 @@ CREATE TABLE IF NOT EXISTS work_notes (
 -- WORK SESSIONS TABLE  (was missing from original mysql-schema.sql)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS work_sessions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     ticket_id VARCHAR(128),
     user_id VARCHAR(128) NOT NULL,
     user_name VARCHAR(255),
@@ -867,7 +868,7 @@ CREATE TABLE IF NOT EXISTS work_sessions (
 -- MEETINGS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS meetings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     meeting_id VARCHAR(100) UNIQUE NOT NULL,
     creation_method VARCHAR(50) NOT NULL,
     title VARCHAR(500) NOT NULL,
@@ -909,8 +910,8 @@ CREATE TABLE IF NOT EXISTS meetings (
 -- MEETING VERSIONS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS meeting_versions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_db_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    meeting_db_id BIGINT NOT NULL,
     meeting_id VARCHAR(100) NOT NULL,
     version INT NOT NULL,
     title VARCHAR(500),
@@ -973,7 +974,7 @@ CREATE TABLE IF NOT EXISTS ts_meetings (
 -- TS MEETING CHAT TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ts_meeting_chat (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tsm_id VARCHAR(50) NOT NULL,
     sender_id VARCHAR(128),
     sender_name VARCHAR(255),
@@ -991,7 +992,7 @@ CREATE TABLE IF NOT EXISTS ts_meeting_chat (
 -- TS MEETING ATTENDANCE TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ts_meeting_attendance (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tsm_id VARCHAR(50) NOT NULL,
     peer_id VARCHAR(50),
     name VARCHAR(255),

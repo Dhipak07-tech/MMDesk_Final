@@ -10,7 +10,7 @@ USE connectit_db;
 -- USERS TABLE (Replaces Firebase Auth + Firestore users collection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     uid VARCHAR(128) UNIQUE NOT NULL,          -- Firebase UID format compatibility
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255),                  -- For email/password auth
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- TICKETS TABLE (Replaces Firestore tickets collection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tickets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     ticket_number VARCHAR(50) UNIQUE NOT NULL,   -- INCxxxxxxx format
     caller VARCHAR(255) NOT NULL,
     caller_user_id VARCHAR(128),                 -- Reference to users.uid
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     closure_reason VARCHAR(255) NULL,
     company_id BIGINT NULL,
     watch_list VARCHAR(1000) NULL,
-    parent_ticket_id INT NULL,
+    parent_ticket_id BIGINT NULL,
     FOREIGN KEY (parent_ticket_id) REFERENCES tickets(id) ON DELETE SET NULL,
     INDEX idx_ticket_number (ticket_number),
     INDEX idx_status (status),
@@ -104,8 +104,8 @@ CREATE TABLE IF NOT EXISTS tickets (
 -- TICKET HISTORY TABLE (Replaces Firestore ticket history array)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ticket_history (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     action VARCHAR(255) NOT NULL,
     user VARCHAR(255),
     user_id VARCHAR(128),
@@ -120,8 +120,8 @@ CREATE TABLE IF NOT EXISTS ticket_history (
 -- COMMENTS TABLE (Replaces Firestore comments subcollection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS comments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     user_id VARCHAR(128),
     user_name VARCHAR(255),
     user_role VARCHAR(50),
@@ -139,8 +139,8 @@ CREATE TABLE IF NOT EXISTS comments (
 -- TICKET ACTIVITIES TABLE (Unified Timeline)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ticket_activities (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     activity_type VARCHAR(50) NOT NULL,            -- e.g., 'work_note', 'comment', 'email', 'status_change', 'system'
     visibility_type VARCHAR(50) NOT NULL,          -- e.g., 'internal', 'public'
     channel VARCHAR(50) DEFAULT 'portal',
@@ -161,8 +161,8 @@ CREATE TABLE IF NOT EXISTS ticket_activities (
 -- APPROVALS TABLE (Replaces Firestore approvals collection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS approvals (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
     requested_by VARCHAR(128) NOT NULL,
     requested_by_name VARCHAR(255),
@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS approvals (
 -- SLA POLICIES TABLE (Replaces Firestore sla_policies collection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sla_policies (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     priority VARCHAR(50) NOT NULL,
     category VARCHAR(100),
@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS sla_policies (
 -- ASSETS/CMD TABLE (Replaces Firestore assets collection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS assets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     type ENUM('Server', 'Database', 'Network', 'Application', 'Hardware', 'Service') DEFAULT 'Hardware',
     status ENUM('Operational', 'Degraded', 'Maintenance', 'Retired') DEFAULT 'Operational',
@@ -234,7 +234,7 @@ CREATE TABLE IF NOT EXISTS assets (
 -- PROBLEMS TABLE (Replaces Firestore problems collection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS problems (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     problem_number VARCHAR(50) UNIQUE NOT NULL,
     title VARCHAR(500) NOT NULL,
     description TEXT,
@@ -263,7 +263,7 @@ CREATE TABLE IF NOT EXISTS problems (
 -- CHANGES TABLE (Replaces Firestore changes collection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS changes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     change_number VARCHAR(50) UNIQUE NOT NULL,
     title VARCHAR(500) NOT NULL,
     description TEXT,
@@ -297,7 +297,7 @@ CREATE TABLE IF NOT EXISTS changes (
 -- KNOWLEDGE BASE TABLE (Replaces Firestore knowledge collection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS knowledge_articles (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     article_number VARCHAR(50) UNIQUE NOT NULL,
     title VARCHAR(500) NOT NULL,
     category VARCHAR(100),
@@ -333,12 +333,12 @@ CREATE TABLE IF NOT EXISTS knowledge_articles (
 -- NOTIFICATIONS TABLE (For real-time notifications)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS notifications (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(128) NOT NULL,
     type ENUM('ticket_assigned', 'ticket_updated', 'approval_required', 'sla_breach', 'system') DEFAULT 'system',
     title VARCHAR(255) NOT NULL,
     message TEXT,
-    related_ticket_id INT,
+    related_ticket_id BIGINT,
     related_entity_type VARCHAR(50),               -- ticket, problem, change, approval
     related_entity_id VARCHAR(50),
     is_read BOOLEAN DEFAULT FALSE,
@@ -355,7 +355,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- USER SESSIONS TABLE (For session management)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS user_sessions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(128) NOT NULL,
     session_token VARCHAR(255) UNIQUE NOT NULL,
     ip_address VARCHAR(50),
@@ -393,7 +393,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- SYSTEM SETTINGS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS system_settings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     setting_key VARCHAR(100) UNIQUE NOT NULL,
     setting_value TEXT,
     setting_type ENUM('string', 'number', 'boolean', 'json') DEFAULT 'string',
@@ -407,7 +407,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- TIMESHEETS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS timesheets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(128) NOT NULL,
     week_start DATE NOT NULL,
     week_end DATE NOT NULL,
@@ -424,8 +424,8 @@ CREATE TABLE IF NOT EXISTS timesheets (
 -- TIME CARDS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS time_cards (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    timesheet_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    timesheet_id BIGINT NOT NULL,
     user_id VARCHAR(128) NOT NULL,
     entry_date DATE NOT NULL,
     task VARCHAR(255),
@@ -471,7 +471,7 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
 -- INCIDENT CATEGORIES TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS incident_categories (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
     status ENUM('Active', 'Inactive') DEFAULT 'Active',
@@ -487,8 +487,8 @@ CREATE TABLE IF NOT EXISTS incident_categories (
 -- EMAIL QUEUE TABLE (For background outbound email processing)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS email_queue (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT,
     company_id INT,
     email_integration_id INT,
     direction ENUM('outbound', 'inbound') DEFAULT 'outbound',
@@ -508,8 +508,8 @@ CREATE TABLE IF NOT EXISTS email_queue (
 -- TICKET EMAIL ACTIVITIES TABLE (Audit trail for emails)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ticket_email_activities (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ticket_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
     direction ENUM('inbound', 'outbound'),
     sender VARCHAR(255),
     recipient VARCHAR(255),
@@ -525,7 +525,7 @@ CREATE TABLE IF NOT EXISTS ticket_email_activities (
 -- COMPANY FEATURE PERMISSIONS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS company_feature_permissions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     company_id VARCHAR(128) NOT NULL,
     feature_id VARCHAR(128) NOT NULL,
     can_view BOOLEAN DEFAULT TRUE,
@@ -555,7 +555,7 @@ CREATE TABLE IF NOT EXISTS call_logs (
     agent_name VARCHAR(255) NULL,
     call_date_time TIMESTAMP NOT NULL,
     status VARCHAR(50) NOT NULL,
-    linked_ticket_id INT NULL,
+    linked_ticket_id BIGINT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (linked_ticket_id) REFERENCES tickets(id) ON DELETE SET NULL,
