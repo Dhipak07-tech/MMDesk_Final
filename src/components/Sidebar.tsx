@@ -462,7 +462,7 @@ export function Sidebar() {
  </nav>
 
  {/* Sidebar Footer */}
- <div className="p-3 border-t border-white/10 space-y-1.5 shrink-0 bg-black/20">
+ <div className="p-3 border-t border-slate-200 dark:border-white/10 space-y-1.5 shrink-0 bg-white dark:bg-[#0f172a] relative z-10">
  <button
  onClick={() => setTheme(isDarkMode ?"light" :"dark")}
  className={cn(
