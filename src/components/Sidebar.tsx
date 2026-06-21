@@ -222,7 +222,6 @@ export function Sidebar() {
  { icon: GitPullRequest, label:"Sprint Board", path:"/groups?tab=sprint_board" },
  { icon: Trophy, label:"Performance", path:"/groups?tab=performance" },
  { icon: MessageCircle, label:"Discussions", path:"/groups?tab=discussions" },
- { icon: BookOpen, label:"Knowledge Base", path:"/groups?tab=kb" },
  { icon: ClipboardList, label:"Reports", path:"/groups?tab=reports" },
  { icon: BarChart3, label:"Analytics & Health", path:"/groups?tab=analytics" }
  ]

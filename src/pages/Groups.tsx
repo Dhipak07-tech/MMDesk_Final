@@ -2099,7 +2099,6 @@ export function Groups() {
  {activeTab ==="sprint_board" && renderSprintBoard()}
  {activeTab ==="performance" && renderPerformance()}
  {activeTab ==="discussions" && renderDiscussions()}
- {activeTab ==="kb" && renderKB()}
  {activeTab ==="reports" && renderReports()}
  {activeTab ==="analytics" && renderAnalytics()}
  </div>
