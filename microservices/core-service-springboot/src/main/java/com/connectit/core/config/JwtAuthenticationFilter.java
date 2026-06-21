@@ -37,14 +37,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(auth);
         }
 
-        // Also support x-user-uid header (backward compat with React frontend)
-        String uid = req.getHeader("x-user-uid");
-        if (uid != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            userRepository.findByUid(uid).ifPresent(user -> {
+        // Also support x-user-uid header or user_id query param (backward compat with React frontend)
+        String uidHeader = req.getHeader("x-user-uid");
+        final String requestUid = uidHeader != null ? uidHeader : req.getParameter("user_id");
+        if (requestUid != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            userRepository.findByUid(requestUid).ifPresent(user -> {
                 String userRole = user.getRole();
                 String safeRole = userRole != null ? userRole.toUpperCase() : "USER";
                 var auth = new UsernamePasswordAuthenticationToken(
-                    uid, null,
+                    requestUid, null,
                     List.of(new SimpleGrantedAuthority("ROLE_" + safeRole))
                 );
                 SecurityContextHolder.getContext().setAuthentication(auth);

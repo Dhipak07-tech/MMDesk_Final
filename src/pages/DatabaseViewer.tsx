@@ -16,7 +16,7 @@ export function DatabaseViewer() {
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('ASC');
 
-  const isAdmin = profile?.role === 'ultra_super_admin' || profile?.role === 'super_admin';
+  const isAdmin = profile?.role === 'ultra_super_admin' || profile?.role === 'super_admin' || profile?.role === 'admin';
 
   useEffect(() => {
     if (isAdmin) {

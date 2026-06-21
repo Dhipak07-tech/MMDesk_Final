@@ -399,6 +399,74 @@ public class DatabaseSeeder implements CommandLineRunner {
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                     "PRIMARY KEY (collection_name, id))");
 
+            // Activity Sessions
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS activity_sessions (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "session_id VARCHAR(100) NOT NULL, " +
+                    "user_id VARCHAR(128) NOT NULL, " +
+                    "user_name VARCHAR(255), " +
+                    "start_time DATETIME, " +
+                    "stop_time DATETIME, " +
+                    "duration INT DEFAULT 0, " +
+                    "status VARCHAR(20) DEFAULT 'active', " +
+                    "ticket_number VARCHAR(50), " +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+            // Activity Entries
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS activity_entries (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "session_id VARCHAR(100), " +
+                    "user_id VARCHAR(128) NOT NULL, " +
+                    "screenshot_url TEXT, " +
+                    "screenshot_filename VARCHAR(255), " +
+                    "screenshot_format VARCHAR(20), " +
+                    "screenshot_size_kb INT, " +
+                    "activity_label TEXT, " +
+                    "description TEXT, " +
+                    "confidence DECIMAL(5,4), " +
+                    "captured_at DATETIME, " +
+                    "keystrokes INT DEFAULT 0, " +
+                    "clicks INT DEFAULT 0, " +
+                    "ticket_number VARCHAR(50), " +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+            // Work Notes
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS work_notes (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "ticket_id VARCHAR(128) NOT NULL, " +
+                    "user_id VARCHAR(128), " +
+                    "user_name VARCHAR(255), " +
+                    "note TEXT NOT NULL, " +
+                    "is_internal BOOLEAN DEFAULT TRUE, " +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+            // Work Sessions
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS work_sessions (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "ticket_id VARCHAR(128), " +
+                    "user_id VARCHAR(128) NOT NULL, " +
+                    "user_name VARCHAR(255), " +
+                    "session_type VARCHAR(50) DEFAULT 'work', " +
+                    "start_time DATETIME, " +
+                    "end_time DATETIME, " +
+                    "duration INT DEFAULT 0, " +
+                    "notes TEXT, " +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+            // Settings Workflows
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS settings_workflows (" +
+                    "id VARCHAR(128) PRIMARY KEY, " +
+                    "name VARCHAR(255) NOT NULL, " +
+                    "description TEXT, " +
+                    "`trigger` VARCHAR(100), " +
+                    "status VARCHAR(50) DEFAULT 'active', " +
+                    "attachment TEXT, " +
+                    "image TEXT, " +
+                    "created_by VARCHAR(128) DEFAULT 'system', " +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
             log.info("[DatabaseSeeder] DDL initialization of settings tables checked/applied.");
         } catch (Exception e) {
             log.error("[DatabaseSeeder] DDL initialization failed: {}", e.getMessage(), e);

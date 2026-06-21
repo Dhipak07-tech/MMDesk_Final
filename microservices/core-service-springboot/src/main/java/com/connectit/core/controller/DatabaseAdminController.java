@@ -17,13 +17,13 @@ public class DatabaseAdminController {
     private final DatabaseAdminService databaseAdminService;
 
     @GetMapping("/tables")
-    @PreAuthorize("hasAnyRole('ULTRA_SUPER_ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ULTRA_SUPER_ADMIN', 'SUPER_ADMIN', 'ADMIN')")
     public ResponseEntity<List<Map<String, Object>>> getTables() {
         return ResponseEntity.ok(databaseAdminService.getTables());
     }
 
     @GetMapping("/tables/{tableName}")
-    @PreAuthorize("hasAnyRole('ULTRA_SUPER_ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ULTRA_SUPER_ADMIN', 'SUPER_ADMIN', 'ADMIN')")
     public ResponseEntity<Map<String, Object>> getTableData(
             @PathVariable String tableName,
             @RequestParam(defaultValue = "1") int page,
