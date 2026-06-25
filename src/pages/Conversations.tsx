@@ -1,3 +1,4 @@
+import { SafeAny } from '@/types';
 import React, { useState, useEffect, useRef } from"react";
 import { 
  collection, 
@@ -10,8 +11,8 @@ import {
  addDoc, 
  serverTimestamp,
  updateDoc
-} from"firebase/firestore";
-import { db, handleFirestoreError, OperationType } from"../lib/firebase";
+} from "@/lib/firebase-stubs";
+import { db, handleFirestoreError, OperationType } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
 import { 
@@ -148,7 +149,7 @@ export function Conversations() {
  }
  };
 
- const formatDateShort = (date: any) => {
+ const formatDateShort = (date: SafeAny) => {
  if (!date) return"";
  let d;
  if (typeof date.toDate ==="function") d = date.toDate();
@@ -344,3 +345,7 @@ export function Conversations() {
  </div>
  );
 }
+
+
+
+

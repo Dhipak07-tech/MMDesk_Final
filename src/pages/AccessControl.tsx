@@ -1,7 +1,9 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState } from"react";
-import { collection, onSnapshot, updateDoc, doc, serverTimestamp, setDoc, query, orderBy, where } from"firebase/firestore";
+import { collection, onSnapshot, updateDoc, doc, serverTimestamp, setDoc, query, orderBy, where } from "@/lib/firebase-stubs";
 // Firebase Auth removed — user creation uses the REST API
-import { auth, db } from"../lib/firebase";
+import { auth, db } from "../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { Role, ROLE_HIERARCHY, ROLE_LABELS, ROLE_COLORS, assignableRoles, canManage } from"../lib/roles";
 import {
@@ -194,7 +196,7 @@ export function AccessControl() {
  const myAssignable = assignableRoles(myRole);
 
  /* ── Toggle full account access ── */
- const toggleAccess = async (u: any) => {
+ const toggleAccess = async (u: SafeAny) => {
  const uRole = (u.role ||"user") as Role;
  if (!canManage(myRole, uRole)) { alert("You cannot modify this user's access."); return; }
  const willDisable = u.disabled !== true;
@@ -206,7 +208,7 @@ export function AccessControl() {
  accessUpdatedBy: profile?.uid,
  accessUpdatedAt: serverTimestamp(),
  });
- } catch (error: any) {
+ } catch (error: SafeAny) {
  console.error("Failed to toggle access:", error);
  alert(`Failed to update account access: ${error.message || error}`);
  } finally {
@@ -235,7 +237,7 @@ export function AccessControl() {
  moduleUpdatedBy: profile?.uid,
  moduleUpdatedAt: serverTimestamp(),
  });
- } catch (error: any) {
+ } catch (error: SafeAny) {
  console.error("Failed to toggle module access:", error);
  alert(`Failed to update feature access: ${error.message || error}`);
  } finally {
@@ -253,7 +255,7 @@ export function AccessControl() {
  await updateDoc(doc(db,"users", userId), {
  role: newRole, roleUpdatedBy: profile?.uid, roleUpdatedAt: serverTimestamp(),
  });
- } catch (error: any) {
+ } catch (error: SafeAny) {
  console.error("Failed to change user role:", error);
  alert(`Failed to change role: ${error.message || error}`);
  } finally {
@@ -279,10 +281,10 @@ export function AccessControl() {
  const uid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
  // Check if email already exists
- const checkRes = await fetch("/api/users");
+ const checkRes = await api("/api/users");
  if (checkRes.ok) {
  const existingUsers = await checkRes.json();
- const emailExists = existingUsers.some((u: any) =>
+ const emailExists = existingUsers.some((u: SafeAny) =>
  u.email?.toLowerCase() === newUser.email.toLowerCase().trim()
  );
  if (emailExists) {
@@ -293,7 +295,7 @@ export function AccessControl() {
  }
 
  // Create user via REST API
- const res = await fetch("/api/users", {
+ const res = await api("/api/users", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -316,7 +318,7 @@ export function AccessControl() {
 
  setShowCreate(false);
  setNewUser({ name:"", email:"", password:"", role:"user" });
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setCreateError(err.message ||"Failed to create user.");
  }
  setCreating(false);
@@ -643,7 +645,7 @@ export function AccessControl() {
  setUpdating(u.id +"_restrict_all");
  try {
  await updateDoc(doc(db,"users", u.id), { restrictedModules: MODULES.map(m => m.key) });
- } catch (error: any) {
+ } catch (error: SafeAny) {
  console.error("Failed to restrict all modules:", error);
  alert(`Failed to restrict all features: ${error.message || error}`);
  } finally {
@@ -660,7 +662,7 @@ export function AccessControl() {
  setUpdating(u.id +"_allow_all");
  try {
  await updateDoc(doc(db,"users", u.id), { restrictedModules: [] });
- } catch (error: any) {
+ } catch (error: SafeAny) {
  console.error("Failed to allow all modules:", error);
  alert(`Failed to allow all features: ${error.message || error}`);
  } finally {
@@ -921,3 +923,7 @@ export function AccessControl() {
  </div>
  );
 }
+
+
+
+

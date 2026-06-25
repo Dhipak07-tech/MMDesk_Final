@@ -4,12 +4,14 @@ import com.connectit.core.model.*;
 import com.connectit.core.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class SlaService {
 
     private final SLAPolicyRepository policyRepo;
@@ -20,10 +22,12 @@ public class SlaService {
         return policyRepo.findAllByOrderByPriorityAsc();
     }
 
+    @Transactional
     public SLAPolicy save(SLAPolicy policy) {
         return policyRepo.save(policy);
     }
 
+    @Transactional
     public void delete(Long id) {
         policyRepo.deleteById(id);
     }

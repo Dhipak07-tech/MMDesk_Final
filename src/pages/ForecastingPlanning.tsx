@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState } from"react";
 import { Sparkles, Calendar, TrendingUp, BarChart2, Download, Plus, Trash2, Edit3, CheckCircle2, ChevronRight } from"lucide-react";
 import { Button } from"@/components/ui/button";
@@ -66,15 +68,15 @@ export function ForecastingPlanning() {
  setLoading(true);
  try {
  const [tgtRes, fcastRes, evRes] = await Promise.all([
- fetch("/api/planning/targets"),
- fetch("/api/planning/forecasts"),
- fetch("/api/planning/calendar-events")
+ api("/api/planning/targets"),
+ api("/api/planning/forecasts"),
+ api("/api/planning/calendar-events")
  ]);
 
  if (tgtRes.ok) {
  const tgts = await tgtRes.json();
  // Spring Boot keys mapping
- setTargets(tgts.map((t: any) => ({
+ setTargets(tgts.map((t: SafeAny) => ({
  id: t.ID || t.id,
  targetType: t.TARGET_TYPE || t.targetType,
  targetPeriod: t.TARGET_PERIOD || t.targetPeriod,
@@ -88,7 +90,7 @@ export function ForecastingPlanning() {
 
  if (fcastRes.ok) {
  const fcasts = await fcastRes.json();
- setForecasts(fcasts.map((f: any) => ({
+ setForecasts(fcasts.map((f: SafeAny) => ({
  id: f.ID || f.id,
  forecastPeriod: f.FORECAST_PERIOD || f.forecastPeriod,
  predictedVolume: f.PREDICTED_VOLUME || f.predictedVolume,
@@ -99,7 +101,7 @@ export function ForecastingPlanning() {
 
  if (evRes.ok) {
  const evs = await evRes.json();
- setEvents(evs.map((e: any) => ({
+ setEvents(evs.map((e: SafeAny) => ({
  id: e.ID || e.id,
  title: e.TITLE || e.title,
  eventType: e.EVENT_TYPE || e.eventType,
@@ -121,7 +123,7 @@ export function ForecastingPlanning() {
  const handleSaveTarget = async (e: React.FormEvent) => {
  e.preventDefault();
  try {
- const res = await fetch("/api/planning/targets", {
+ const res = await api("/api/planning/targets", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(newTarget)
@@ -132,7 +134,7 @@ export function ForecastingPlanning() {
  setShowTargetModal(false);
  fetchData();
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setToast({ text: err.message, type:"error" });
  } finally {
  setTimeout(() => setToast(null), 4000);
@@ -142,7 +144,7 @@ export function ForecastingPlanning() {
  const handleDeleteTarget = async (id: string) => {
  if (!confirm("Are you sure you want to delete this target?")) return;
  try {
- const res = await fetch(`/api/planning/targets/${id}`, {
+ const res = await api(`/api/planning/targets/${id}`, {
  method:"DELETE"
  });
  const data = await res.json();
@@ -150,7 +152,7 @@ export function ForecastingPlanning() {
  setToast({ text:"Target metric removed", type:"success" });
  fetchData();
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setToast({ text: err.message, type:"error" });
  } finally {
  setTimeout(() => setToast(null), 4000);
@@ -160,7 +162,7 @@ export function ForecastingPlanning() {
  const handleSaveEvent = async (e: React.FormEvent) => {
  e.preventDefault();
  try {
- const res = await fetch("/api/planning/calendar-events", {
+ const res = await api("/api/planning/calendar-events", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(newEvent)
@@ -171,7 +173,7 @@ export function ForecastingPlanning() {
  setShowEventModal(false);
  fetchData();
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setToast({ text: err.message, type:"error" });
  } finally {
  setTimeout(() => setToast(null), 4000);
@@ -511,3 +513,5 @@ export function ForecastingPlanning() {
  </div>
  );
 }
+
+

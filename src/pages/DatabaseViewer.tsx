@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Download, RefreshCw, Database, Search, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -33,7 +35,7 @@ export function DatabaseViewer() {
   const fetchTables = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/database/tables');
+      const res = await api('/api/admin/database/tables');
       if (res.ok) {
         const data = await res.json();
         setTables(data);
@@ -56,7 +58,7 @@ export function DatabaseViewer() {
       if (search) params.append('search', search);
       if (sortBy) params.append('sortBy', sortBy);
 
-      const res = await fetch(`/api/admin/database/tables/${selectedTable}?${params.toString()}`);
+      const res = await api(`/api/admin/database/tables/${selectedTable}?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setTableData(data);
@@ -71,7 +73,7 @@ export function DatabaseViewer() {
   const handleExportCSV = () => {
     if (!tableData || !tableData.rows || tableData.rows.length === 0) return;
     
-    const columns = tableData.columns.map((c: any) => c.column_name || c.COLUMN_NAME);
+    const columns = tableData.columns.map((c: SafeAny) => c.column_name || c.COLUMN_NAME);
     const csvRows = [];
     
     // Headers
@@ -192,7 +194,7 @@ export function DatabaseViewer() {
               <table className="w-full text-left whitespace-nowrap">
                 <thead className="bg-muted/50 sticky top-0 z-10 backdrop-blur-sm">
                   <tr>
-                    {tableData.columns.map((col: any) => {
+                    {tableData.columns.map((col: SafeAny) => {
                       const colName = col.column_name || col.COLUMN_NAME;
                       return (
                         <th 
@@ -219,9 +221,9 @@ export function DatabaseViewer() {
                       </td>
                     </tr>
                   ) : (
-                    tableData.rows.map((row: any, i: number) => (
+                    tableData.rows.map((row: SafeAny, i: number) => (
                       <tr key={i} className="hover:bg-muted/30 transition-colors">
-                        {tableData.columns.map((col: any) => {
+                        {tableData.columns.map((col: SafeAny) => {
                           const colName = col.column_name || col.COLUMN_NAME;
                           const val = row[colName];
                           return (
@@ -289,3 +291,5 @@ export function DatabaseViewer() {
     </div>
   );
 }
+
+

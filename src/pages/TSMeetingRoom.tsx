@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useRef } from"react";
 import { useParams, useNavigate, useLocation } from"react-router-dom";
 import { useAuth } from"../contexts/AuthContext";
@@ -41,7 +43,7 @@ export function TSMeetingRoom() {
  const handleMeetingEnded = () => {
  // Log attendance leave time before navigating away
  const leaveTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
- fetch(`/api/ts-meetings/${tsmId}/leave`, {
+ api(`/api/ts-meetings/${tsmId}/leave`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ peerId, name: peerName, leaveTime })
@@ -89,14 +91,14 @@ export function TSMeetingRoom() {
  // Log attendance join on component mount
  useEffect(() => {
  const joinTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
- fetch(`/api/ts-meetings/${tsmId}/join`, {
+ api(`/api/ts-meetings/${tsmId}/join`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ peerId, name: peerName, joinTime })
  });
 
  // Load meeting notes
- fetch(`/api/ts-meetings/${tsmId}`)
+ api(`/api/ts-meetings/${tsmId}`)
  .then(res => res.json())
  .then(data => {
  if (data.success && data.meeting) {
@@ -108,7 +110,7 @@ export function TSMeetingRoom() {
  return () => {
  // Log attendance leave on unmount
  const leaveTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
- fetch(`/api/ts-meetings/${tsmId}/leave`, {
+ api(`/api/ts-meetings/${tsmId}/leave`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ peerId, name: peerName, leaveTime })
@@ -128,7 +130,7 @@ export function TSMeetingRoom() {
  meeting.sendChat(chatInput);
  
  // Save to DB chat history
- fetch(`/api/ts-meetings/${tsmId}/chat`, {
+ api(`/api/ts-meetings/${tsmId}/chat`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -153,7 +155,7 @@ export function TSMeetingRoom() {
 
  try {
  setUploadingFile(true);
- const res = await fetch("/api/moms/upload", {
+ const res = await api("/api/moms/upload", {
  method:"POST",
  body: formData
  });
@@ -167,7 +169,7 @@ export function TSMeetingRoom() {
  meeting.sendChat(`Shared file: ${fileName}`, fileUrl, fileName);
 
  // Save to DB
- fetch(`/api/ts-meetings/${tsmId}/chat`, {
+ api(`/api/ts-meetings/${tsmId}/chat`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -191,7 +193,7 @@ export function TSMeetingRoom() {
  const saveNotes = async () => {
  try {
  setNotesSaving(true);
- const res = await fetch(`/api/ts-meetings/${tsmId}`, {
+ const res = await api(`/api/ts-meetings/${tsmId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ notes: meetingNotes })
@@ -810,7 +812,7 @@ export function TSMeetingRoom() {
 
 // ── Remote Video Tile Component ──────────────────────────────────────────────
 
-function RemoteVideoTile({ peer }: { peer: RemotePeer; key?: any }) {
+function RemoteVideoTile({ peer }: { peer: RemotePeer; key?: SafeAny }) {
  const videoRef = useRef<HTMLVideoElement | null>(null);
 
  useEffect(() => {
@@ -864,3 +866,5 @@ function RemoteVideoTile({ peer }: { peer: RemotePeer; key?: any }) {
  </div>
  );
 }
+
+

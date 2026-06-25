@@ -1,3 +1,4 @@
+import { SafeAny } from '@/types';
 import React from"react";
 import { AlertTriangle, RefreshCcw } from"lucide-react";
 import { Button } from"@/components/ui/button";
@@ -12,10 +13,10 @@ interface State {
 }
 
 export class ErrorBoundary extends React.Component<any, any> {
- state: any;
- props: any;
+ state: SafeAny;
+ props: SafeAny;
 
- constructor(props: any) {
+ constructor(props: SafeAny) {
  super(props);
  this.state = {
  hasError: false,
@@ -23,11 +24,11 @@ export class ErrorBoundary extends React.Component<any, any> {
  };
  }
 
- static getDerivedStateFromError(error: any) {
+ static getDerivedStateFromError(error: SafeAny) {
  return { hasError: true, error };
  }
 
- componentDidCatch(error: any, errorInfo: any) {
+ componentDidCatch(error: SafeAny, errorInfo: SafeAny) {
  console.error("Uncaught error:", error, errorInfo);
  }
 
@@ -62,3 +63,4 @@ export class ErrorBoundary extends React.Component<any, any> {
  return this.props.children;
  }
 }
+

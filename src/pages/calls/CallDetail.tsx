@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState } from"react";
 import { useParams, useNavigate, Link } from"react-router-dom";
 import { useAuth } from"../../contexts/AuthContext";
@@ -85,7 +87,7 @@ export function CallDetail() {
  const fetchCallDetails = async () => {
  if (!id) return;
  try {
- const res = await fetch(`/api/calls/${id}`);
+ const res = await api(`/api/calls/${id}`);
  if (res.ok) {
  const data = await res.json();
  setCall(data);
@@ -123,7 +125,7 @@ export function CallDetail() {
  const fetchNotes = async () => {
  if (!id) return;
  try {
- const res = await fetch(`/api/calls/${id}/notes`);
+ const res = await api(`/api/calls/${id}/notes`);
  if (res.ok) {
  const data = await res.json();
  setNotes(data);
@@ -136,7 +138,7 @@ export function CallDetail() {
  const fetchActivities = async () => {
  if (!id) return;
  try {
- const res = await fetch(`/api/calls/${id}/activities`);
+ const res = await api(`/api/calls/${id}/activities`);
  if (res.ok) {
  const data = await res.json();
  setActivities(data);
@@ -149,11 +151,11 @@ export function CallDetail() {
  // Load agents
  const fetchAgents = async () => {
  try {
- const res = await fetch("/api/users");
+ const res = await api("/api/users");
  if (res.ok) {
  const usersList = await res.json();
  setAgents(
- usersList.filter((u: any) =>
+ usersList.filter((u: SafeAny) =>
  ["agent","admin","sub_admin","super_admin","ultra_super_admin"].includes(u.role)
  )
  );
@@ -202,7 +204,7 @@ export function CallDetail() {
  callDateTime: new Date(callDateTime).toISOString(),
  };
 
- const res = await fetch(`/api/calls/${id}`, {
+ const res = await api(`/api/calls/${id}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(payload),
@@ -234,7 +236,7 @@ export function CallDetail() {
  setConverting(true);
 
  try {
- const res = await fetch(`/api/calls/${id}/convert`, {
+ const res = await api(`/api/calls/${id}/convert`, {
  method:"POST",
  });
 
@@ -260,7 +262,7 @@ export function CallDetail() {
  if (!window.confirm("Are you sure you want to delete this call log? This cannot be undone.")) return;
 
  try {
- const res = await fetch(`/api/calls/${id}`, { method:"DELETE" });
+ const res = await api(`/api/calls/${id}`, { method:"DELETE" });
  if (res.ok) {
  navigate("/calls");
  } else {
@@ -280,7 +282,7 @@ export function CallDetail() {
 
  setAddingNote(true);
  try {
- const res = await fetch(`/api/calls/${id}/notes`, {
+ const res = await api(`/api/calls/${id}/notes`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ message: newNote.trim() }),
@@ -304,7 +306,7 @@ export function CallDetail() {
  const handleUpdateNote = async (noteId: number) => {
  if (!id || !editingNoteText.trim()) return;
  try {
- const res = await fetch(`/api/calls/${id}/notes/${noteId}`, {
+ const res = await api(`/api/calls/${id}/notes/${noteId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ message: editingNoteText.trim() }),
@@ -327,7 +329,7 @@ export function CallDetail() {
  if (!id) return;
  if (!window.confirm("Are you sure you want to delete this note?")) return;
  try {
- const res = await fetch(`/api/calls/${id}/notes/${noteId}`, {
+ const res = await api(`/api/calls/${id}/notes/${noteId}`, {
  method:"DELETE",
  });
 
@@ -888,3 +890,5 @@ export function CallDetail() {
  </div>
  );
 }
+
+

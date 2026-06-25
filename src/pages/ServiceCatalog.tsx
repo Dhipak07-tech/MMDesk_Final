@@ -17,8 +17,8 @@ import {
 } from"lucide-react";
 import { Button } from"@/components/ui/button";
 import { cn } from"@/lib/utils";
-import { collection, addDoc, serverTimestamp } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, addDoc, serverTimestamp } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 
 const CATALOG_ITEMS = [
@@ -335,3 +335,6 @@ export function ServiceCatalog() {
  </div>
  );
 }
+
+
+

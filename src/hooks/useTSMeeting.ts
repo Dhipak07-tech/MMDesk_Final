@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import { useCallback, useEffect, useMemo, useRef, useState } from"react";
 
 type DevicePermissionState ="prompt" |"granted" |"denied" |"unsupported";
@@ -63,7 +65,7 @@ interface SignalingMessage {
  from?: string;
  fromName?: string;
  to?: string;
- payload?: any;
+ payload?: SafeAny;
 }
 
 interface MediaSelection {
@@ -100,7 +102,7 @@ const RTC_CONFIG: RTCConfiguration = {
  iceCandidatePoolSize: 10,
 };
 
-const AUDIO_CONSTRAINTS: any = {
+const AUDIO_CONSTRAINTS: SafeAny = {
  echoCancellation: { ideal: true },
  noiseSuppression: { ideal: true },
  autoGainControl: { ideal: true },
@@ -127,7 +129,7 @@ const DEFAULT_DIAGNOSTICS: MeetingDiagnostics = {
  signalingState:"stable",
 };
 
-function describeMediaError(err: any, scope:"camera" |"microphone" |"camera-microphone") {
+function describeMediaError(err: SafeAny, scope:"camera" |"microphone" |"camera-microphone") {
  if (!navigator.mediaDevices?.getUserMedia) {
  return"Browser media devices are unavailable. Use HTTPS or localhost in a supported browser.";
  }
@@ -638,7 +640,7 @@ export function useTSMeeting(params: {
 
  try {
  let stream: MediaStream | null = null;
- let lastError: any = null;
+ let lastError: SafeAny = null;
 
  for (const attempt of attempts) {
  try {
@@ -729,7 +731,7 @@ export function useTSMeeting(params: {
  });
 
  return nextStream;
- } catch (err: any) {
+ } catch (err: SafeAny) {
  const errorMessage = describeMediaError(err, videoEnabled && audioEnabled ?"camera-microphone" : videoEnabled ?"camera" :"microphone");
  setConnectionError(errorMessage);
  updateDiagnostics({
@@ -761,7 +763,7 @@ export function useTSMeeting(params: {
  replacePeerList(() =>
  existingPeers
  .filter((peer: { peerId: string }) => peer.peerId !== peerId)
- .map((peer: any) =>
+ .map((peer: SafeAny) =>
  createPeerRecord(peer.peerId, peer.name ||"Participant", {
  audioMuted: peer.audioMuted,
  videoMuted: peer.videoMuted,
@@ -1201,7 +1203,7 @@ export function useTSMeeting(params: {
 
  const endMeeting = useCallback(async () => {
  try {
- await fetch(`/api/ts-meetings/${tsmId}`, {
+ await api(`/api/ts-meetings/${tsmId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ status:"Completed" })
@@ -1474,3 +1476,5 @@ export function useTSMeeting(params: {
  toggleScreenShare,
  ]);
 }
+
+

@@ -20,6 +20,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Transactional(readOnly = true)
 public class EmailService {
 
     private final NotificationQueueRepository queueRepo;
@@ -733,8 +734,21 @@ public class EmailService {
         // and NEVER use employee/company-specific SMTP configs for outbound mail.
         // Company configs are used for INBOUND polling only.
         // ═══════════════════════════════════════════════════════════════════════
+        final String cleanDomain = "technosprint.net";
+        final String messageId = "<" + UUID.randomUUID().toString() + "@" + cleanDomain + ">";
+
         JavaMailSender activeSender = getActiveMailSender(null); // Force default sender
-        MimeMessage msg = activeSender.createMimeMessage();
+        MimeMessage msg;
+        if (activeSender instanceof JavaMailSenderImpl) {
+            msg = new MimeMessage(((JavaMailSenderImpl) activeSender).getSession()) {
+                @Override
+                protected void updateMessageID() throws jakarta.mail.MessagingException {
+                    setHeader("Message-ID", messageId);
+                }
+            };
+        } else {
+            msg = activeSender.createMimeMessage();
+        }
         MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
         
         // Always use the centralized company email as sender
@@ -746,14 +760,15 @@ public class EmailService {
         helper.setTo(to);
         helper.setSubject(subject);
         helper.setText(html, true);
+        helper.setSentDate(new java.util.Date());
+        
+        msg.setHeader("Message-ID", messageId);
+        msg.setHeader("Precedence", "bulk");
+        msg.setHeader("X-Auto-Response-Suppress", "All");
+
         if (ticketNumber != null) {
             msg.addHeader("X-Ticket-Number", ticketNumber);
         }
-        
-        // Generate Message-ID using the company domain
-        String cleanDomain = "technosprint.net";
-        String messageId = "<" + UUID.randomUUID().toString() + "@" + cleanDomain + ">";
-        msg.setHeader("Message-ID", messageId);
         
         if (inReplyTo != null && !inReplyTo.isBlank()) {
             msg.setHeader("In-Reply-To", inReplyTo);

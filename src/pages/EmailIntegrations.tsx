@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 // EmailIntegrations page copied from tis version
 import React, { useState, useEffect } from "react";
 import {
@@ -69,14 +71,14 @@ export function EmailIntegrations() {
     setSmtpTesting(true);
     setSmtpResult(null);
     try {
-      const res = await fetch("/api/email/smtp-test", {
+      const res = await api("/api/email/smtp-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ host: smtpHost, port: smtpPort, username: smtpUser, password: smtpPass })
       });
       const data = await res.json();
       setSmtpResult({ success: data.success, message: data.message || data.error });
-    } catch (e: any) {
+    } catch (e: SafeAny) {
       setSmtpResult({ success: false, message: e.message });
     }
     setSmtpTesting(false);
@@ -86,7 +88,7 @@ export function EmailIntegrations() {
     setSmtpTesting(true);
     setSmtpResult(null);
     try {
-      const res = await fetch("/api/email/smtp-update", {
+      const res = await api("/api/email/smtp-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ host: smtpHost, port: smtpPort, username: smtpUser, password: smtpPass, fromName: "Manage My Desk" })
@@ -94,7 +96,7 @@ export function EmailIntegrations() {
       const data = await res.json();
       setSmtpResult({ success: data.success, message: data.message || data.error });
       if (data.success) setSmtpApplied(true);
-    } catch (e: any) {
+    } catch (e: SafeAny) {
       setSmtpResult({ success: false, message: e.message });
     }
     setSmtpTesting(false);
@@ -146,12 +148,12 @@ export function EmailIntegrations() {
   const fetchDashboardData = async () => {
     setRefreshing(true);
     try {
-      const hRes = await fetch("/api/email/health");
+      const hRes = await api("/api/email/health");
       if (hRes.ok) {
         const hData = await hRes.json();
         setHealth(hData);
       }
-      const lRes = await fetch("/api/email/logs?limit=20");
+      const lRes = await api("/api/email/logs?limit=20");
       if (lRes.ok) {
         const lData = await lRes.json();
         setLogs(lData);
@@ -165,7 +167,7 @@ export function EmailIntegrations() {
   const fetchConfigs = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/email-configs");
+      const res = await api("/api/email-configs");
       const data = await res.json();
       if (Array.isArray(data)) {
         setConfigs(data);
@@ -184,7 +186,7 @@ export function EmailIntegrations() {
       const method = editingId ? "PUT" : "POST";
       const url = editingId ? `/api/email-configs/${editingId}` : "/api/email-configs";
 
-      const res = await fetch(url, {
+      const res = await api(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
@@ -219,14 +221,14 @@ export function EmailIntegrations() {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch("/api/email-configs/test", {
+      const res = await api("/api/email-configs/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
       });
       const data = await res.json();
       setTestResult({ success: data.success, message: data.detail || data.message || data.error });
-    } catch (e: any) {
+    } catch (e: SafeAny) {
       setTestResult({ success: false, message: e.message });
     }
     setTesting(false);
@@ -235,7 +237,7 @@ export function EmailIntegrations() {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this configuration?")) return;
     try {
-      await fetch(`/api/email-configs/${id}`, { method: "DELETE" });
+      await api(`/api/email-configs/${id}`, { method: "DELETE" });
       fetchConfigs();
       fetchDashboardData();
     } catch (e) { console.error(e); }
@@ -344,7 +346,7 @@ export function EmailIntegrations() {
         {smtpApplied && (
           <div className="flex gap-3 pt-2">
             <button onClick={async () => {
-              const res = await fetch("/api/email/send-test", {
+              const res = await api("/api/email/send-test", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ to: "support@technosprint.net" })
@@ -490,7 +492,7 @@ export function EmailIntegrations() {
  onClick={async () => {
  setSyncingQueue(true);
  try {
- await fetch("/api/email/queue/process", { method:"POST" });
+ await api("/api/email/queue/process", { method:"POST" });
  await fetchDashboardData();
  } catch (e) { console.error(e); }
  setSyncingQueue(false);
@@ -504,7 +506,7 @@ export function EmailIntegrations() {
  onClick={async () => {
  setSyncingQueue(true);
  try {
- await fetch("/api/email/queue/retry-failed", { method:"POST" });
+ await api("/api/email/queue/retry-failed", { method:"POST" });
  await fetchDashboardData();
  } catch (e) { console.error(e); }
  setSyncingQueue(false);
@@ -847,3 +849,5 @@ export function EmailIntegrations() {
  </div>
  );
 }
+
+

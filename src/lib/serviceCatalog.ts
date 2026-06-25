@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 /**
  * src/lib/serviceCatalog.ts
  *
@@ -13,7 +15,7 @@ export type CategoryItem = {
  name: string;
  description?: string;
  status: Status;
- createdAt: any;
+ createdAt: SafeAny;
  createdBy: string;
 };
 
@@ -24,7 +26,7 @@ export type SubcategoryItem = {
  categoryId: string;
  categoryName?: string;
  status: Status;
- createdAt: any;
+ createdAt: SafeAny;
  createdBy: string;
 };
 
@@ -36,7 +38,7 @@ export type ServiceProviderItem = {
  subcategoryId: string;
  sla: string;
  status: Status;
- createdAt: any;
+ createdAt: SafeAny;
  createdBy: string;
 };
 
@@ -65,9 +67,9 @@ export type GroupItem = {
  memberCount: number;
  openTickets?: number;
  slaCompliance?: number;
- createdAt: any;
+ createdAt: SafeAny;
  createdBy: string;
- updatedAt?: any;
+ updatedAt?: SafeAny;
  updatedBy?: string;
 };
 
@@ -96,7 +98,7 @@ export type GroupMemberItem = {
  currentWorkload: number;
  skills?: string[];
  status: Status;
- createdAt: any;
+ createdAt: SafeAny;
  createdBy: string;
 };
 
@@ -113,14 +115,14 @@ export type AuditLog = {
  moduleId: string;
  moduleName: string;
  action:"create" |"update" |"delete";
- oldValue: any;
- newValue: any;
+ oldValue: SafeAny;
+ newValue: SafeAny;
  performedBy: string;
  performedByRole: string;
- timestamp: any;
+ timestamp: SafeAny;
 };
 
-function sortByCreatedAt(a: any, b: any) {
+function sortByCreatedAt(a: SafeAny, b: SafeAny) {
  const aTime = a.createdAt?.seconds ?? (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
  const bTime = b.createdAt?.seconds ?? (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
  return aTime - bTime;
@@ -128,7 +130,7 @@ function sortByCreatedAt(a: any, b: any) {
 
 async function fetchCollection<T>(endpoint: string): Promise<T[]> {
  try {
- const res = await fetch(`/api/${endpoint}`);
+ const res = await api(`/api/${endpoint}`);
  if (!res.ok) return [];
  const data = await res.json();
  return Array.isArray(data) ? data : [];
@@ -189,3 +191,5 @@ export function getGroupsForServiceProvider(groups: GroupItem[], serviceProvider
 export function getMembersForGroup(members: GroupMemberItem[], groupId: string) {
  return members.filter((member) => member.groupId === groupId && member.status ==="active");
 }
+
+

@@ -1,3 +1,4 @@
+import { SafeAny } from '@/types';
 import React from"react";
 import {
  ResponsiveContainer,
@@ -16,7 +17,7 @@ import {
 interface AnalyticsChartProps {
  type:"pie" |"line";
  title: string;
- data: any[];
+ data: SafeAny[];
 }
 
 const COLORS = [
@@ -148,3 +149,4 @@ export default function AnalyticsChart({ type, title, data }: AnalyticsChartProp
  </div>
  );
 }
+

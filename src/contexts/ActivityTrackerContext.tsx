@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { ActivityWatcher, type ActivitySnapshot, type WatcherStatus } from '../lib/activityCapture';
 
@@ -129,7 +131,7 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
  fd.append('screenshot', blob, filename);
  fd.append('userId', (userRef.current?.uid || 'anon').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32));
  fd.append('format', 'jpeg');
- const res = await fetch('/api/upload-screenshot', { method: 'POST', body: fd });
+ const res = await api('/api/upload-screenshot', { method: 'POST', body: fd });
  if (res.ok) { const d = await res.json(); return d.image_url; }
  } catch { /* silent */ }
  return null;
@@ -188,7 +190,7 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
 
  try {
  const aiTimeout = setTimeout(() => { }, 15000);
- const res = await fetch('/api/ai/analyze-activity', {
+ const res = await api('/api/ai/analyze-activity', {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
  userId,
@@ -236,25 +238,25 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
  const task = taskMap[activity] || 'General Support';
  const shortDesc = `[AI Tracked] ${snap.appName} — ${snap.pageType}`;
 
- const tsRes = await fetch('/api/timesheets/get-or-create', {
+ const tsRes = await api('/api/timesheets/get-or-create', {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ user_id: userId, week_start: getWeekMonday(today), week_end: getWeekSunday(today) }),
  });
  if (tsRes.ok) {
  const ts = await tsRes.json();
- const cardsRes = await fetch(`/api/time-cards?timesheet_id=${ts.id}`);
+ const cardsRes = await api(`/api/time-cards?timesheet_id=${ts.id}`);
  if (cardsRes.ok) {
  const cards = await cardsRes.json();
  const existing = Array.isArray(cards) && cards.find(
- (c: any) => c.entry_date === today && c.task === task && (c.short_description || '').startsWith('[AI Tracked]')
+ (c: SafeAny) => c.entry_date === today && c.task === task && (c.short_description || '').startsWith('[AI Tracked]')
  );
  if (existing) {
- await fetch(`/api/time-cards/${existing.id}`, {
+ await api(`/api/time-cards/${existing.id}`, {
  method: 'PUT', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ hours_worked: (parseFloat(existing.hours_worked) || 0) + mins, description, short_description: shortDesc }),
  });
  } else {
- await fetch('/api/time-cards', {
+ await api('/api/time-cards', {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ timesheet_id: ts.id, user_id: userId, entry_date: today, task, hours_worked: mins, description, short_description: shortDesc, work_type: 'Remote', billable: 'Billable', status: 'Draft' }),
  });
@@ -265,7 +267,7 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
  })();
 
  // Persist activity entry
- fetch('/api/activity-entries', {
+ api('/api/activity-entries', {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
  session_id: currentSessionId,
@@ -305,7 +307,7 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
  sessionIdRef.current = sid;
 
  try {
- const res = await fetch('/api/activity-sessions', {
+ const res = await api('/api/activity-sessions', {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ session_id: sid, user_id: userId, user_name: userName, start_time: new Date().toISOString(), status: 'active', ticket_number: selectedIncidentRef.current || null }),
  });
@@ -334,7 +336,7 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
  const done = entries.filter(e => !e.isProcessing && !e.isIdle);
  if (done.length > 0) {
  try {
- const res = await fetch('/api/ai/generate-summary', {
+ const res = await api('/api/ai/generate-summary', {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ session_data: done.map(e => ({ timestamp: e.timestamp, activity: e.activity, description: e.description })), duration_seconds: finalDuration, userId }),
  });
@@ -344,7 +346,7 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
 
  if (currentSessionDbId) {
  try {
- await fetch(`/api/activity-sessions/${currentSessionDbId}`, {
+ await api(`/api/activity-sessions/${currentSessionDbId}`, {
  method: 'PUT', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ stop_time: new Date().toISOString(), duration: finalDuration, status: 'completed' }),
  });
@@ -355,19 +357,27 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
  useEffect(() => () => { watcherRef.current?.stop(); }, []);
  useEffect(() => { watcherRef.current?.updateInterval(screenshotInterval * 1000); }, [screenshotInterval]);
 
- // Note: startWatcher already guards against double-starts (returns early if isActive).
+  // Note: startWatcher already guards against double-starts (returns early if isActive).
 
- return (
- <ActivityTrackerContext.Provider value={{
- status, entries, elapsed, summary, error,
- startWatcher, stopWatcher, setEntries, setSummary, setError,
- intervalSec, setIntervalSec, captureScreenshots, setCaptureScreenshots,
- screenshotInterval, setScreenshotInterval,
- selectedIncident, setSelectedIncident
- }}>
- {children}
- </ActivityTrackerContext.Provider>
- );
+  const value = useMemo(() => ({
+    status, entries, elapsed, summary, error,
+    startWatcher, stopWatcher, setEntries, setSummary, setError,
+    intervalSec, setIntervalSec, captureScreenshots, setCaptureScreenshots,
+    screenshotInterval, setScreenshotInterval,
+    selectedIncident, setSelectedIncident
+  }), [
+    status, entries, elapsed, summary, error,
+    startWatcher, stopWatcher, setEntries, setSummary, setError,
+    intervalSec, setIntervalSec, captureScreenshots, setCaptureScreenshots,
+    screenshotInterval, setScreenshotInterval,
+    selectedIncident, setSelectedIncident
+  ]);
+
+  return (
+    <ActivityTrackerContext.Provider value={value}>
+      {children}
+    </ActivityTrackerContext.Provider>
+  );
 }
 
 export function useActivityTracker() {
@@ -377,3 +387,5 @@ export function useActivityTracker() {
  }
  return context;
 }
+
+

@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { MessageSquare, X, Send, Bot, User, Sparkles, Copy, Check, Trash2 } from 'lucide-react';
 
@@ -149,7 +151,7 @@ export function AIChatbot() {
  text: msg.text
  }));
 
- const res = await fetch('/api/ai/chat', {
+ const res = await api('/api/ai/chat', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ message: text, history }),
@@ -204,7 +206,7 @@ export function AIChatbot() {
  setIsLoading(false);
  }
  );
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setMessages(prev => [...prev, { 
  id: Date.now().toString(), 
  sender: 'ai', 
@@ -378,3 +380,5 @@ export function AIChatbot() {
  </div>
  );
 }
+
+

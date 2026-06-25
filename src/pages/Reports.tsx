@@ -1,6 +1,7 @@
+import { SafeAny } from '@/types';
 import React, { useEffect, useState, useMemo } from"react";
-import { collection, query, onSnapshot, where } from"firebase/firestore";
-import { db, handleFirestoreError, OperationType } from"../lib/firebase";
+import { collection, query, onSnapshot, where } from "@/lib/firebase-stubs";
+import { db, handleFirestoreError, OperationType } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from"recharts";
@@ -15,7 +16,7 @@ const PRIORITY_CONFIG: Record<string, { color: string; bg: string; border: strin
 "4 - Low": { color:"#3498db", bg:"bg-blue-500/15", border:"border-blue-500/40", label:"Low" },
 };
 
-function toMs(val: any): number {
+function toMs(val: SafeAny): number {
  if (!val) return NaN;
  if (typeof val === 'object' && val.seconds !== undefined) return val.seconds * 1000 + (val.nanoseconds || 0) / 1_000_000;
  if (typeof val === 'object' && typeof val.toDate === 'function') return val.toDate().getTime();
@@ -23,19 +24,19 @@ function toMs(val: any): number {
  return new Date(val).getTime();
 }
 
-function normalizeText(val: any): string {
+function normalizeText(val: SafeAny): string {
  return String(val ||"").trim().toLowerCase();
 }
 
-function getUserAvatar(user: any): string | null {
+function getUserAvatar(user: SafeAny): string | null {
  return user?.photoURL || user?.avatar || user?.avatarUrl || user?.profileImage || user?.image || null;
 }
 
-function getUserDisplayName(user: any): string {
+function getUserDisplayName(user: SafeAny): string {
  return user?.name || user?.displayName || user?.email || user?.uid ||"Unknown User";
 }
 
-function getUserDepartment(user: any): string {
+function getUserDepartment(user: SafeAny): string {
  return user?.department || user?.team || user?.groupName || user?.role ||"Unassigned";
 }
 
@@ -46,8 +47,8 @@ function IncidentMapView({
  usersLoading,
  usersError,
 }: {
- tickets: any[];
- users: any[];
+ tickets: SafeAny[];
+ users: SafeAny[];
  usersLoading: boolean;
  usersError: string | null;
 }) {
@@ -118,7 +119,7 @@ function IncidentMapView({
  row.avatar = row.avatar || getUserAvatar(matchedUser);
  row.department = row.department || getUserDepartment(matchedUser);
  row.latestActivity = Math.max(row.latestActivity, toMs(ticket.updatedAt) || toMs(ticket.createdAt) || 0);
- if (!row.items.some((item: any) => item.id === ticket.id)) {
+ if (!row.items.some((item: SafeAny) => item.id === ticket.id)) {
  row.items.push(ticket);
  }
 
@@ -177,7 +178,7 @@ function IncidentMapView({
  const matchesDepartment = departmentFilter ==="all" || normalizeText(row.department) === normalizeText(departmentFilter);
  const matchesUser = teamUserFilter ==="all" || normalizeText(row.id) === normalizeText(teamUserFilter) || normalizeText(row.name) === normalizeText(teamUserFilter);
 
- const filteredTickets = row.items.filter((ticket: any) => {
+ const filteredTickets = row.items.filter((ticket: SafeAny) => {
  const createdMs = toMs(ticket.createdAt) || toMs(ticket.updatedAt);
  if (dateFrom) {
  const fromMs = new Date(`${dateFrom}T00:00:00`).getTime();
@@ -195,7 +196,7 @@ function IncidentMapView({
  return matchesDepartment && matchesUser && filteredTickets.length > 0;
  })
  .map((row) => {
- const filteredTickets = row.items.filter((ticket: any) => {
+ const filteredTickets = row.items.filter((ticket: SafeAny) => {
  const createdMs = toMs(ticket.createdAt) || toMs(ticket.updatedAt);
  if (dateFrom) {
  const fromMs = new Date(`${dateFrom}T00:00:00`).getTime();
@@ -210,21 +211,21 @@ function IncidentMapView({
  return true;
  });
 
- const assignedTickets = filteredTickets.filter((ticket: any) =>
+ const assignedTickets = filteredTickets.filter((ticket: SafeAny) =>
  normalizeText(ticket.assignedTo) === normalizeText(row.id) ||
  normalizeText(ticket.assignedToName) === normalizeText(row.name)
  ).length;
- const createdTickets = filteredTickets.filter((ticket: any) =>
+ const createdTickets = filteredTickets.filter((ticket: SafeAny) =>
  normalizeText(ticket.createdBy) === normalizeText(row.id) ||
  normalizeText(ticket.createdByName) === normalizeText(row.name) ||
  normalizeText(ticket.createdByEmail) === normalizeText(row.name) ||
  normalizeText(ticket.caller) === normalizeText(row.name)
  ).length;
- const resolvedTickets = filteredTickets.filter((ticket: any) => ticket.status ==="Resolved").length;
- const closedTickets = filteredTickets.filter((ticket: any) => ticket.status ==="Closed").length;
- const pendingTickets = filteredTickets.filter((ticket: any) => ["Pending","Pending Approval","On Hold","Waiting for Customer","Awaiting User","Awaiting Vendor"].includes(ticket.status ||"")).length;
- const inProgressTickets = filteredTickets.filter((ticket: any) => ticket.status ==="In Progress").length;
- const escalatedTickets = filteredTickets.filter((ticket: any) =>
+ const resolvedTickets = filteredTickets.filter((ticket: SafeAny) => ticket.status ==="Resolved").length;
+ const closedTickets = filteredTickets.filter((ticket: SafeAny) => ticket.status ==="Closed").length;
+ const pendingTickets = filteredTickets.filter((ticket: SafeAny) => ["Pending","Pending Approval","On Hold","Waiting for Customer","Awaiting User","Awaiting Vendor"].includes(ticket.status ||"")).length;
+ const inProgressTickets = filteredTickets.filter((ticket: SafeAny) => ticket.status ==="In Progress").length;
+ const escalatedTickets = filteredTickets.filter((ticket: SafeAny) =>
  ticket.responseSlaStatus ==="Breached" ||
  ticket.resolutionSlaStatus ==="Breached" ||
  String(ticket.priority ||"").includes("Critical")
@@ -249,7 +250,7 @@ function IncidentMapView({
  resolutionPercentage,
  workloadStatus,
  openWorkload: Math.max(assignedTickets - resolvedTickets - closedTickets, 0),
- latestActivity: filteredTickets.reduce((max: number, ticket: any) => Math.max(max, toMs(ticket.updatedAt) || toMs(ticket.createdAt) || 0), 0),
+ latestActivity: filteredTickets.reduce((max: number, ticket: SafeAny) => Math.max(max, toMs(ticket.updatedAt) || toMs(ticket.createdAt) || 0), 0),
  };
  })
  .sort((a, b) => {
@@ -496,7 +497,7 @@ function IncidentMapView({
  </div>
 
  <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
- {individual.items.slice(0, 4).map((ticket: any) => {
+ {individual.items.slice(0, 4).map((ticket: SafeAny) => {
  const cfg = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG["4 - Low"];
  return (
  <Link
@@ -530,10 +531,10 @@ function IncidentMapView({
  {/* Map Grid */}
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
  {groupedData.map(group => {
- const criticalCount = group.items.filter((t: any) => t.priority?.includes("Critical")).length;
- const highCount = group.items.filter((t: any) => t.priority?.includes("High")).length;
+ const criticalCount = group.items.filter((t: SafeAny) => t.priority?.includes("Critical")).length;
+ const highCount = group.items.filter((t: SafeAny) => t.priority?.includes("High")).length;
  const breachedCount = group.items.filter(
- (t: any) => t.responseSlaStatus ==="Breached" || t.resolutionSlaStatus ==="Breached"
+ (t: SafeAny) => t.responseSlaStatus ==="Breached" || t.resolutionSlaStatus ==="Breached"
  ).length;
 
  return (
@@ -577,7 +578,7 @@ function IncidentMapView({
  {/* Priority Breakdown Bar */}
  <div className="w-full h-2 rounded-full bg-muted overflow-hidden flex mb-3">
  {["1 - Critical","2 - High","3 - Moderate","4 - Low"].map(p => {
- const pCount = group.items.filter((t: any) => t.priority === p).length;
+ const pCount = group.items.filter((t: SafeAny) => t.priority === p).length;
  if (pCount === 0) return null;
  const pct = (pCount / group.count) * 100;
  return (
@@ -594,7 +595,7 @@ function IncidentMapView({
  {/* Priority Tags */}
  <div className="flex flex-wrap gap-1.5 mb-3">
  {["1 - Critical","2 - High","3 - Moderate","4 - Low"].map(p => {
- const pCount = group.items.filter((t: any) => t.priority === p).length;
+ const pCount = group.items.filter((t: SafeAny) => t.priority === p).length;
  if (pCount === 0) return null;
  const cfg = PRIORITY_CONFIG[p];
  return (
@@ -621,7 +622,7 @@ function IncidentMapView({
 
  {/* Ticket List */}
  <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
- {group.items.slice(0, 8).map((t: any) => {
+ {group.items.slice(0, 8).map((t: SafeAny) => {
  const cfg = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG["4 - Low"];
  const isSlaBreached =
  t.responseSlaStatus ==="Breached" || t.resolutionSlaStatus ==="Breached";
@@ -704,23 +705,23 @@ export function Reports() {
  setTickets(ticketsList);
 
  // Status Distribution
- const statusCounts: any = {};
- ticketsList.forEach((t: any) => {
+ const statusCounts: SafeAny = {};
+ ticketsList.forEach((t: SafeAny) => {
  statusCounts[t.status] = (statusCounts[t.status] || 0) + 1;
  });
  setData(Object.keys(statusCounts).map(status => ({ name: status, count: statusCounts[status] })));
 
  // Category Distribution
- const catCounts: any = {};
- ticketsList.forEach((t: any) => {
+ const catCounts: SafeAny = {};
+ ticketsList.forEach((t: SafeAny) => {
  const catValue = t.incidentCategory || t.incident_category || t.category ||"Uncategorized";
  catCounts[catValue] = (catCounts[catValue] || 0) + 1;
  });
  setCategoryData(Object.keys(catCounts).map(cat => ({ name: cat, value: catCounts[cat] })));
 
  // Resolution Code Distribution
- const resCounts: any = {};
- ticketsList.forEach((t: any) => {
+ const resCounts: SafeAny = {};
+ ticketsList.forEach((t: SafeAny) => {
  if (t.status ==="Resolved" || t.status ==="Closed") {
  const code = t.resolutionCode ||"Uncoded";
  resCounts[code] = (resCounts[code] || 0) + 1;
@@ -732,7 +733,7 @@ export function Reports() {
  const slaCounts = {"Within SLA": 0,"At Risk": 0, Breached: 0 };
  const now = Date.now();
 
- const getDynamicSLAStatus = (ticket: any, type: 'response' | 'resolution') => {
+ const getDynamicSLAStatus = (ticket: SafeAny, type: 'response' | 'resolution') => {
  const metAt = type === 'response' ? ticket.firstResponseAt : ticket.resolvedAt;
  if (metAt) {
  const metMs = toMs(metAt);
@@ -764,7 +765,7 @@ export function Reports() {
  return"Within SLA";
  };
 
- ticketsList.forEach((t: any) => {
+ ticketsList.forEach((t: SafeAny) => {
  // Exclude resolved/closed/canceled tickets from"At Risk" or"Breached" if they met it.
  // But actually, we want to know historically if they breached.
  // If they are closed/resolved, getDynamicSLAStatus handles metAt checking.
@@ -853,7 +854,7 @@ export function Reports() {
  )}
  </Pie>
  <Tooltip
- formatter={(value: any, name: any) => [value +" tickets", name]}
+ formatter={(value: SafeAny, name: SafeAny) => [value +" tickets", name]}
  contentStyle={{ borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"12px" }}
  />
  </PieChart>
@@ -991,3 +992,7 @@ export function Reports() {
  </div>
  );
 }
+
+
+
+

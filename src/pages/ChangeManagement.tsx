@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from"react";
-import { collection, onSnapshot, addDoc, serverTimestamp, query, orderBy } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, onSnapshot, addDoc, serverTimestamp, query, orderBy } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { GitPullRequest, Search, Plus, CheckCircle2, Clock, AlertCircle, Calendar, User, ChevronRight, X, Edit, Trash2 } from"lucide-react";
 import { Button } from"@/components/ui/button";
@@ -129,7 +129,7 @@ export function ChangeManagement() {
  </button>
  <button onClick={async () => {
  if (confirm(`Are you sure you want to delete change ${c.id.slice(0,8)}?`)) {
- const { deleteDoc, doc } = await import("firebase/firestore");
+ const { deleteDoc, doc } = await import("@/lib/firebase-stubs");
  await deleteDoc(doc(db,"changes", c.id));
  }
  }} className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors" title="Delete Change">
@@ -203,3 +203,6 @@ export function ChangeManagement() {
  </div>
  );
 }
+
+
+

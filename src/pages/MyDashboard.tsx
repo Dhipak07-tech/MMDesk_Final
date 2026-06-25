@@ -1,5 +1,6 @@
+import { SafeAny } from '@/types';
 import React, { useEffect, useState } from"react";
-import { collection, query, onSnapshot, where } from"firebase/firestore";
+import { collection, query, onSnapshot, where } from "@/lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { Link } from"react-router-dom";
 import AnalyticsCard from"../components/AnalyticsCard";
@@ -8,7 +9,7 @@ import AnalyticsChart from"../components/AnalyticsChart";
 import RecentActivityList from"../components/RecentActivityList";
 import MyTasksList from"../components/MyTasksList";
 import QuickActions from"../components/QuickActions";
-import { db } from"../lib/firebase";
+import { db } from"../lib/firebase-stubs";
 import { validateTicket, computeSla, dedupeTickets, auditLog, toDate, isBleachedTicket } from"../lib/dashboardUtils";
 import { CustomizableDashboard } from"../components/CustomizableDashboard";
 
@@ -245,7 +246,7 @@ export function MyDashboard() {
  return unsubscribe;
  }, [user]);
 
- const validBreaches = breaches.filter(b => data?.allTickets?.some((t: any) => t.id === b.record_id) || false);
+ const validBreaches = breaches.filter(b => data?.allTickets?.some((t: SafeAny) => t.id === b.record_id) || false);
 
  if (!data) {
  return (
@@ -366,7 +367,7 @@ export function MyDashboard() {
  </thead>
  <tbody className="divide-y divide-border/30">
  {validBreaches.map((breach) => {
- const matchedTicket = data.allTickets?.find((t: any) => t.id === breach.record_id);
+ const matchedTicket = data.allTickets?.find((t: SafeAny) => t.id === breach.record_id);
  return (
  <tr key={breach.id} className="hover:bg-rose-500/5 transition-colors">
  <td className="p-3">
@@ -405,3 +406,7 @@ export function MyDashboard() {
 }
 
 export default MyDashboard;
+
+
+
+

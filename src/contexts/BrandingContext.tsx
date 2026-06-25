@@ -1,3 +1,4 @@
+import api from '@/lib/api';
 /**
  * src/contexts/BrandingContext.tsx
  *
@@ -32,7 +33,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
 
  const fetchBranding = async () => {
  try {
- const res = await fetch("/api/settings/branding");
+ const res = await api("/api/settings/branding");
  if (res.ok) {
  const data = await res.json();
  setBranding({
@@ -75,7 +76,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
 
  const updateCompanyName = async (name: string) => {
  try {
- const res = await fetch("/api/settings/branding", {
+ const res = await api("/api/settings/branding", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ companyName: name, logoBase64: branding.logoBase64, logoType: branding.logoType, updatedBy:"System" }),
@@ -88,7 +89,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
 
  const updateLogo = async (base64: string | null, type: string | null) => {
  try {
- const res = await fetch("/api/settings/branding", {
+ const res = await api("/api/settings/branding", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ companyName: branding.companyName, logoBase64: base64, logoType: type, updatedBy:"System" }),
@@ -111,3 +112,4 @@ export function useBranding() {
  if (context === undefined) throw new Error("useBranding must be used within a BrandingProvider");
  return context;
 }
+

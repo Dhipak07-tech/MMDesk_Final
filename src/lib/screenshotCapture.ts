@@ -1,3 +1,4 @@
+import api from '@/lib/api';
 /**
  * Screenshot Capture Module
  * Uses browser Screen Capture API (getDisplayMedia) to capture real screenshots.
@@ -224,7 +225,7 @@ export async function uploadScreenshot(
  formData.append('format', capture.format);
  formData.append('sizeKB', String(capture.sizeKB));
 
- const res = await fetch('/api/upload-screenshot', {
+ const res = await api('/api/upload-screenshot', {
  method: 'POST',
  body: formData,
  });
@@ -237,3 +238,4 @@ export async function uploadScreenshot(
  const data = await res.json();
  return data.image_url as string;
 }
+

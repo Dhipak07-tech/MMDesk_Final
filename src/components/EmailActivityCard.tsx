@@ -1,10 +1,11 @@
+import { SafeAny } from '@/types';
 import React, { useState } from"react";
 import { Mail, Clock, CheckCircle2, Paperclip, ExternalLink, X } from"lucide-react";
 import { cn } from"@/lib/utils";
 
 export interface EmailActivityCardProps {
- activity: any;
- formatDate: (date: any) => string;
+ activity: SafeAny;
+ formatDate: (date: SafeAny) => string;
 }
 
 function stripHtml(html: string) {
@@ -19,7 +20,7 @@ function stripHtml(html: string) {
 export function EmailActivityCard({ activity, formatDate }: EmailActivityCardProps) {
  const [modalOpen, setModalOpen] = useState(false);
 
- let metadata: any = {};
+ let metadata: SafeAny = {};
  try {
  metadata = typeof activity.metadata_json ==="string" ? JSON.parse(activity.metadata_json) : (activity.metadata_json || {});
  } catch (e) { }
@@ -105,7 +106,7 @@ export function EmailActivityCard({ activity, formatDate }: EmailActivityCardPro
  <div className="flex items-center gap-2">
  {metadata.attachments && metadata.attachments.length > 0 && (
  <div className="flex flex-wrap gap-2">
- {metadata.attachments.map((att: any, i: number) => (
+ {metadata.attachments.map((att: SafeAny, i: number) => (
  <span key={i} className="flex items-center gap-1 text-[10px] bg-white border border-purple-100 rounded px-2.5 py-1.5 text-sn-dark shadow-sm">
  <Paperclip className="w-3 h-3 text-muted-foreground" />
  {att.name}
@@ -161,3 +162,4 @@ export function EmailActivityCard({ activity, formatDate }: EmailActivityCardPro
  </div>
  );
 }
+

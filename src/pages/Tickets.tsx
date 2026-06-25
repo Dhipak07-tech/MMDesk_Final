@@ -1,21 +1,21 @@
-import React, { useEffect, useRef, useState } from"react";
-import { collection, addDoc, query, onSnapshot, updateDoc, doc, serverTimestamp, orderBy, where, deleteDoc } from"firebase/firestore";
-import { db, handleFirestoreError, OperationType } from"../lib/firebase";
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
+import React, { useEffect, useRef, useState } from "react";
+import { mapDbTicketToFrontend } from "../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
 import { Plus, Filter, MoreVertical, Search, Edit, Trash2, Users, Mic, ExternalLink } from"lucide-react";
 import { Button } from"@/components/ui/button";
 import { cn, formatDate } from"@/lib/utils";
 import { useServiceCatalog } from"../lib/serviceCatalog";
-import { calculateSLADeadline } from"../lib/slaUtils";
+import { calculateSLADeadline, getEffectiveSlaDelayState } from"../lib/slaEngine";
 import { createSpeechController } from"../lib/speechToEnglish";
-import { getEffectiveSlaDelayState } from"../lib/slaDelayUtils";
 
 import { Link, useSearchParams, useNavigate } from"react-router-dom";
 import { ContextMenu } from"../components/ContextMenu";
 import { CREATE_INCIDENT_FORM_DEFAULTS, DEFAULT_COMPANY_FEATURE_PERMISSION } from"../lib/createIncidentFeatures";
 
-function toMs(val: any): number {
+function toMs(val: SafeAny): number {
  if (!val) return NaN;
  if (typeof val === 'object' && val.seconds !== undefined) return val.seconds * 1000 + (val.nanoseconds || 0) / 1_000_000;
  if (typeof val === 'object' && typeof val.toDate === 'function') return val.toDate().getTime();
@@ -36,7 +36,7 @@ export function Tickets() {
  const action = searchParams.get("action");
  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, ticketId: string, ticketNumber: string } | null>(null);
 
- const handleContextMenu = (e: React.MouseEvent, ticket: any) => {
+ const handleContextMenu = (e: React.MouseEvent, ticket: SafeAny) => {
  e.preventDefault();
  setContextMenu({
  x: e.clientX,
@@ -91,42 +91,39 @@ export function Tickets() {
  }
  }, [action]);
 
- // Fetch active incident categories and options dynamically
- useEffect(() => {
- fetch("/api/incident-categories?active_only=true")
- .then(r => r.json())
- .then(async (data) => {
- if (Array.isArray(data)) {
- setIncidentCategories(data.map((c: any) => c.name));
- setDynamicFields(data);
+  // Fetch active incident categories and options dynamically
+  useEffect(() => {
+    api.get("/api/incident-categories?active_only=true")
+      .then(async (res) => {
+        const data = res.data;
+        if (Array.isArray(data)) {
+          setIncidentCategories(data.map((c: SafeAny) => c.name));
+          setDynamicFields(data);
 
- // Fetch options for each dynamic field
- const optionsMap: Record<string, any[]> = {};
- await Promise.all(
- data.map(async (cat: any) => {
- try {
- const res = await fetch(`/api/incident-categories/options?category_id=${cat.id}&active_only=true`);
- if (res.ok) {
- const opts = await res.json();
- optionsMap[cat.id] = opts;
- }
- } catch (e) {
- console.error("Error loading options for category", cat.id, e);
- }
- })
- );
- setDynamicOptions(optionsMap);
- }
- })
- .catch(() => {
- // Fallback to defaults if API unavailable
- setIncidentCategories([
-"Hardware Issue","Software Issue","Network Issue","System Access",
-"Security Issue","Login Problem","Email Issue","Performance Issue",
-"Service Request","Other"
- ]);
- });
- }, []);
+          // Fetch options for each dynamic field
+          const optionsMap: Record<string, any[]> = {};
+          await Promise.all(
+            data.map(async (cat: SafeAny) => {
+              try {
+                const optRes = await api.get(`/api/incident-categories/options?category_id=${cat.id}&active_only=true`);
+                optionsMap[cat.id] = optRes.data;
+              } catch (e) {
+                console.error("Error loading options for category", cat.id, e);
+              }
+            })
+          );
+          setDynamicOptions(optionsMap);
+        }
+      })
+      .catch(() => {
+        // Fallback to defaults if API unavailable
+        setIncidentCategories([
+          "Hardware Issue","Software Issue","Network Issue","System Access",
+          "Security Issue","Login Problem","Email Issue","Performance Issue",
+          "Service Request","Other"
+        ]);
+      });
+  }, []);
 
  useEffect(() => {
  const controller = createSpeechController({
@@ -177,95 +174,121 @@ export function Tickets() {
  const visibleGroups = groups;
  const displayGroups = visibleGroups;
 
- // DYNAMIC GROUP FILTERING (Requirement: Only users belonging to the selected group, or all agents if no group selected)
- const selectedGroupObj = groups.find(g => g.name === newTicket.assignmentGroup);
- const visibleMembers = selectedGroupObj?.memberIds
- ? allUsers.filter(u => selectedGroupObj.memberIds?.includes(u.id) || selectedGroupObj.memberIds?.includes(u.uid))
- : agents;
+  // DYNAMIC GROUP FILTERING (Requirement: Only users belonging to the selected group, or all agents if no group selected)
+  const selectedGroupObj = groups.find(g => g.name === newTicket.assignmentGroup);
+  const visibleMembers = selectedGroupObj?.memberIds && Array.isArray(allUsers)
+  ? allUsers.filter(u => selectedGroupObj.memberIds?.includes(u.id) || selectedGroupObj.memberIds?.includes(u.uid))
+  : agents;
 
  // Realistic Catalog initialization handled via state defaults
 
  // Removed auto-reset logic for subcategories/providers/groups to maintain independence
 
- useEffect(() => {
- const q = query(collection(db,"sla_policies"), where("isActive","==", true));
- const unsubscribe = onSnapshot(q, (snapshot) => {
- setSlaPolicies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
- }, (error) => {
- handleFirestoreError(error, OperationType.LIST,"sla_policies");
- });
- return unsubscribe;
- }, []);
+  useEffect(() => {
+    const fetchSla = async () => {
+      try {
+        const res = await api.get("/api/sla/policies");
+        setSlaPolicies(res.data.filter((p: SafeAny) => p.isActive));
+      } catch (err) {
+        console.error("Error fetching SLA policies:", err);
+      }
+    };
+    fetchSla();
+    const interval = setInterval(fetchSla, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
- const [companies, setCompanies] = useState<any[]>([]);
- const [companyFeaturePermissions, setCompanyFeaturePermissions] = useState<Record<string, any>>({});
- useEffect(() => {
- const q = query(collection(db,"companies"), orderBy("name"));
- const unsubscribe = onSnapshot(q, (snapshot) => {
- setCompanies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
- });
- return unsubscribe;
- }, []);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [companyFeaturePermissions, setCompanyFeaturePermissions] = useState<Record<string, any>>({});
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        const res = await api.get("/api/companies");
+        const sorted = res.data.sort((a: SafeAny, b: SafeAny) => a.name.localeCompare(b.name));
+        setCompanies(sorted);
+      } catch (err) {
+        console.error("Error fetching companies:", err);
+      }
+    };
+    fetchCompanies();
+    const interval = setInterval(fetchCompanies, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
- useEffect(() => {
- if (!newTicket.company) {
- setCompanyFeaturePermissions({});
- return;
- }
+  useEffect(() => {
+    if (!newTicket.company) {
+      setCompanyFeaturePermissions({});
+      return;
+    }
 
- const permissionsQuery = query(
- collection(db,"company_feature_permissions"),
- where("companyId","==", newTicket.company)
- );
+    const fetchPermissions = async () => {
+      try {
+        const res = await api.get(`/api/feature-permissions?company_id=${newTicket.company}`);
+        const nextPermissions = res.data.reduce((acc: SafeAny, data: SafeAny) => {
+          acc[data.featureId] = {
+            ...DEFAULT_COMPANY_FEATURE_PERMISSION,
+            ...data,
+          };
+          return acc;
+        }, {} as Record<string, any>);
+        setCompanyFeaturePermissions(nextPermissions);
+      } catch (err) {
+        console.error("Error fetching feature permissions:", err);
+      }
+    };
 
- const unsubscribe = onSnapshot(permissionsQuery, (snapshot) => {
- const nextPermissions = snapshot.docs.reduce((acc, permissionDoc) => {
- const data = permissionDoc.data() as any;
- acc[data.featureId] = {
- ...DEFAULT_COMPANY_FEATURE_PERMISSION,
- ...data,
- };
- return acc;
- }, {} as Record<string, any>);
+    fetchPermissions();
+    const interval = setInterval(fetchPermissions, 30000);
+    return () => clearInterval(interval);
+  }, [newTicket.company]);
 
- setCompanyFeaturePermissions(nextPermissions);
- });
+  useEffect(() => {
+    if (!user || !profile) return;
 
- return unsubscribe;
- }, [newTicket.company]);
+    const fetchTickets = async () => {
+      try {
+        const res = await api.get("/api/tickets/all");
+        if (res.status === 200 && Array.isArray(res.data)) {
+          const mapped = res.data.map(mapDbTicketToFrontend);
+          setTickets(mapped);
+        } else {
+          setTickets([]);
+        }
+      } catch (error) {
+        console.error("Error fetching tickets list:", error);
+        setTickets([]);
+      }
+    };
 
- useEffect(() => {
- if (!user || !profile) return;
+    fetchTickets();
+    const interval = setInterval(fetchTickets, 10000);
+    return () => clearInterval(interval);
+  }, [user, profile]);
 
- const ticketsRef = collection(db,"tickets");
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await api.get("/api/users");
+        const usersList = res.data;
+        if (res.status === 200 && Array.isArray(usersList)) {
+          setAllUsers(usersList);
+          setAgents(usersList.filter((u: SafeAny) => u.role === "agent" || u.role === "admin" || u.role === "super_admin" || u.role === "ultra_super_admin"));
+        } else {
+          setAllUsers([]);
+          setAgents([]);
+        }
+      } catch (error) {
+        console.error("Error fetching users list:", error);
+        setAllUsers([]);
+        setAgents([]);
+      }
+    };
+    fetchUsers();
+    const interval = setInterval(fetchUsers, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
- // All users (including regular users) see all open tickets
- let q = query(ticketsRef, orderBy("createdAt","desc"));
-
- const unsubscribe = onSnapshot(q, (snapshot) => {
- const ticketsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
- setTickets(ticketsData);
- }, (error) => {
- console.error("Firestore Error in Tickets List:", error);
- // We don't throw here to avoid crashing the UI, but we log the error
- });
-
- return unsubscribe;
- }, [user, profile]);
-
- useEffect(() => {
- const q = query(collection(db,"users"));
- const unsubscribe = onSnapshot(q, (snapshot) => {
- const usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
- setAllUsers(usersList);
- setAgents(usersList.filter((u: any) => u.role ==="agent" || u.role ==="admin" || u.role ==="super_admin" || u.role ==="ultra_super_admin"));
- }, (error) => {
- handleFirestoreError(error, OperationType.LIST,"users");
- });
- return unsubscribe;
- }, []);
-
- const formatDateTime = (date: any) => {
+ const formatDateTime = (date: SafeAny) => {
  if (!date) return"-";
  if (typeof date.toDate ==="function") {
  return date.toDate().toISOString();
@@ -296,7 +319,7 @@ export function Tickets() {
  const sevenDaysAgo = now - 7 * 24 * 3600 * 1000;
  const thirtyDaysAgo = now - 30 * 24 * 3600 * 1000;
 
- const getTs = (tick: any) => {
+ const getTs = (tick: SafeAny) => {
  const c = tick.createdAt;
  if (!c) return 0;
  if (c?.seconds) return c.seconds * 1000;
@@ -348,7 +371,7 @@ export function Tickets() {
  return"4 - Low";
  };
 
- const getTicketsBreachRisk = (ticket: any) => {
+ const getTicketsBreachRisk = (ticket: SafeAny) => {
  if (!ticket || ticket.status ==="Resolved" || ticket.status ==="Closed" || ticket.status ==="Canceled") return null;
 
  const deadlineStr = ticket.resolutionDeadline || ticket.resolution_deadline;
@@ -424,12 +447,12 @@ export function Tickets() {
  try {
  // Run classify + description generation in parallel using our server endpoints
  const [classifyRes, suggestRes] = await Promise.all([
- fetch('/api/ai/classify', {
+ api('/api/ai/classify', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ text: shortDesc }),
  }),
- fetch('/api/ai/suggest', {
+ api('/api/ai/suggest', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ text: shortDesc }),
@@ -549,8 +572,8 @@ export function Tickets() {
  priority,
  status: newTicket.assignedTo ?"Assigned" :"New",
  createdBy: user.uid,
- createdAt: serverTimestamp(),
- updatedAt: serverTimestamp(),
+ createdAt: new Date().toISOString(),
+ updatedAt: new Date().toISOString(),
  responseDeadline: responseDeadline.toISOString(),
  resolutionDeadline: null,
  responseSlaStartTime: now.toISOString(),
@@ -612,18 +635,9 @@ export function Tickets() {
 
  console.log("Sending ticket creation payload to API:", apiPayload);
 
- const res = await fetch("/api/tickets/create", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify(apiPayload)
- });
- 
- if (!res.ok) {
- throw new Error("Failed to create ticket via API:" + await res.text());
- }
- 
- const createdData = await res.json();
- const ticketId = createdData.id;
+    const res = await api.post("/api/tickets/create", apiPayload);
+    const createdData = res.data;
+    const ticketId = createdData.id;
  console.log("Ticket created successfully with ID:", ticketId);
 
  closeModal();
@@ -635,7 +649,7 @@ export function Tickets() {
  incidentCategory:""
  });
  setSpeechLiveText("");
- } catch (error: any) {
+ } catch (error: SafeAny) {
  console.error("CRITICAL: Error creating ticket:", error);
  alert(`Failed to create ticket: ${error.message ||"Unknown error"}. Please check your connection and try again.`);
  } finally {
@@ -643,113 +657,92 @@ export function Tickets() {
  }
  };
 
- const updateStatus = async (ticketId: string, newStatus: string) => {
- const ticketRef = doc(db,"tickets", ticketId);
- const ticket = tickets.find(t => t.id === ticketId);
- if (!ticket) return;
- await updateDoc(ticketRef, {
- status: newStatus,
- updatedAt: serverTimestamp(),
- history: [
- ...(ticket?.history || []),
- { action: `Status updated to ${newStatus}`, timestamp: new Date().toISOString(), user: profile?.name || user?.email }
- ]
- });
+  const updateStatus = async (ticketId: string, newStatus: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
 
- // Sync to MySQL via REST API
- try {
- await fetch(`/api/tickets/${ticketId}`, {
- method:"PUT",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({ status: newStatus })
- });
- } catch (e) {
- console.error("Failed to sync status update to API:", e);
- }
+    // Sync to MySQL via REST API
+    try {
+      await api.put(`/api/tickets/${ticketId}`, {
+        status: newStatus,
+        history: [
+          ...(ticket?.history || []),
+          { action: `Status updated to ${newStatus}`, timestamp: new Date().toISOString(), user: profile?.name || user?.email }
+        ]
+      });
+    } catch (e) {
+      console.error("Failed to sync status update to API:", e);
+    }
 
- // Dispatch real-time notification
- try {
- fetch("/api/notifications/dispatch", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({
- ticket: {
- id: ticketId,
- ticket_number: ticket.number,
- created_by: ticket.createdBy,
- created_by_name: ticket.createdByName || ticket.caller,
- assigned_to: ticket.assignedTo || null,
- assigned_to_name: ticket.assignedToName || null,
- status: newStatus,
- priority: ticket.priority
- },
- actorId: user?.uid ||"System",
- actorName: profile?.name || user?.email ||"System",
- type:"update",
- oldStatus: ticket.status,
- newStatus: newStatus
- })
- });
- } catch (e) {
- console.error("Failed to dispatch status notification:", e);
- }
- };
+    // Dispatch real-time notification
+    try {
+      api.post("/api/notifications/dispatch", {
+        ticket: {
+          id: ticketId,
+          ticket_number: ticket.number,
+          created_by: ticket.createdBy,
+          created_by_name: ticket.createdByName || ticket.caller,
+          assigned_to: ticket.assignedTo || null,
+          assigned_to_name: ticket.assignedToName || null,
+          status: newStatus,
+          priority: ticket.priority
+        },
+        actorId: user?.uid || "System",
+        actorName: profile?.name || user?.email || "System",
+        type: "update",
+        oldStatus: ticket.status,
+        newStatus: newStatus
+      });
+    } catch (e) {
+      console.error("Failed to dispatch status notification:", e);
+    }
+  };
 
- const updateAssignment = async (ticketId: string, agentId: string) => {
- const ticketRef = doc(db,"tickets", ticketId);
- const ticket = tickets.find(t => t.id === ticketId);
- if (!ticket) return;
- const agent = agents.find(a => a.id === agentId);
- const newStatus = agentId ?"Assigned" :"New";
- await updateDoc(ticketRef, {
- assignedTo: agentId,
- assignedToName: agent?.name ||"",
- status: newStatus,
- updatedAt: serverTimestamp(),
- history: [
- ...(ticket?.history || []),
- { action: `Assigned to ${agent?.name ||"None"}`, timestamp: new Date().toISOString(), user: profile?.name || user?.email }
- ]
- });
 
- // Sync to MySQL via REST API
- try {
- await fetch(`/api/tickets/${ticketId}`, {
- method:"PUT",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({ assignedTo: agentId, assignedToName: agent?.name ||"", status: newStatus })
- });
- } catch (e) {
- console.error("Failed to sync assignment update to API:", e);
- }
+  const updateAssignment = async (ticketId: string, agentId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    const agent = agents.find(a => a.id === agentId);
+    const newStatus = agentId ? "Assigned" : "New";
 
- // Dispatch real-time notification
- try {
- fetch("/api/notifications/dispatch", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({
- ticket: {
- id: ticketId,
- ticket_number: ticket.number,
- created_by: ticket.createdBy,
- created_by_name: ticket.createdByName || ticket.caller,
- assigned_to: agentId || null,
- assigned_to_name: agent?.name || null,
- status: newStatus,
- priority: ticket.priority
- },
- actorId: user?.uid ||"System",
- actorName: profile?.name || user?.email ||"System",
- type:"update",
- oldAssignee: ticket.assignedTo,
- newAssignee: agentId
- })
- });
- } catch (e) {
- console.error("Failed to dispatch assignment notification:", e);
- }
- };
+    // Sync to MySQL via REST API
+    try {
+      await api.put(`/api/tickets/${ticketId}`, {
+        assignedTo: agentId,
+        assignedToName: agent?.name || "",
+        status: newStatus,
+        history: [
+          ...(ticket?.history || []),
+          { action: `Assigned to ${agent?.name || "None"}`, timestamp: new Date().toISOString(), user: profile?.name || user?.email }
+        ]
+      });
+    } catch (e) {
+      console.error("Failed to sync assignment update to API:", e);
+    }
+
+    // Dispatch real-time notification
+    try {
+      api.post("/api/notifications/dispatch", {
+        ticket: {
+          id: ticketId,
+          ticket_number: ticket.number,
+          created_by: ticket.createdBy,
+          created_by_name: ticket.createdByName || ticket.caller,
+          assigned_to: agentId || null,
+          assigned_to_name: agent?.name || null,
+          status: newStatus,
+          priority: ticket.priority
+        },
+        actorId: user?.uid || "System",
+        actorName: profile?.name || user?.email || "System",
+        type: "update",
+        oldAssignee: ticket.assignedTo,
+        newAssignee: agentId
+      });
+    } catch (e) {
+      console.error("Failed to dispatch assignment notification:", e);
+    }
+  };
 
  return (
  <div className="standard-page-layout">
@@ -1018,7 +1011,7 @@ export function Tickets() {
  <button onClick={async (e) => {
  e.preventDefault();
  if (confirm(`Are you sure you want to delete ticket ${ticket.number}?`)) {
- await deleteDoc(doc(db,"tickets", ticket.id));
+ await api.delete(`/api/tickets/${ticket.id}`);
  }
  }} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors border border-transparent hover:border-red-500/20 cursor-pointer" title="Delete Ticket">
  <Trash2 className="w-3.5 h-3.5" />
@@ -1152,7 +1145,7 @@ export function Tickets() {
  </Link>
  <button onClick={async () => {
  if (confirm(`Are you sure you want to delete ticket ${ticket.number}?`)) {
- await deleteDoc(doc(db,"tickets", ticket.id));
+ await api.delete(`/api/tickets/${ticket.id}`);
  }
  }} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer" title="Delete Ticket">
  <Trash2 className="w-3.5 h-3.5" />
@@ -1192,7 +1185,7 @@ export function Tickets() {
  <Button
  size="sm"
  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-[0_0_12px_rgba(37,99,235,0.3)] transition-all cursor-pointer"
- onClick={(e: any) => handleCreateTicket(e)}
+ onClick={(e: SafeAny) => handleCreateTicket(e)}
  disabled={isSubmitting || isFeatureDisabled("button.submit")}
  >
  {isSubmitting ?"Orchestrating..." :"Submit Incident"}
@@ -1253,7 +1246,7 @@ export function Tickets() {
  </div>
  {showCallerResults && callerSearch && !isFeatureDisabled("button.searchCaller") && (
  <div className="absolute z-50 w-full mt-1 bg-white border border-border rounded-md shadow-lg max-h-40 overflow-y-auto custom-scrollbar">
- {allUsers.filter(u =>
+ {(Array.isArray(allUsers) ? allUsers : []).filter(u =>
  u.name?.toLowerCase().includes(callerSearch.toLowerCase()) ||
  u.email?.toLowerCase().includes(callerSearch.toLowerCase())
  ).map(u => (
@@ -1951,7 +1944,7 @@ export function Tickets() {
  disabled: profile?.role !=="admin" && profile?.role !=="super_admin",
  onClick: async () => {
  if (confirm(`Are you sure you want to delete ticket ${contextMenu.ticketNumber}?`)) {
- await deleteDoc(doc(db,"tickets", contextMenu.ticketId));
+ await api.delete(`/api/tickets/${contextMenu.ticketId}`);
  }
  }
  }
@@ -1961,3 +1954,6 @@ export function Tickets() {
  </div>
  );
 }
+
+
+

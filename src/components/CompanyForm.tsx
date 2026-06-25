@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useRef } from"react";
 import { Input } from"@/components/ui/input";
 import { Button } from"@/components/ui/button";
@@ -6,9 +8,9 @@ import { Building2, Mail, Phone, Globe, MapPin, Palette, Check, Save, FileSignat
 import { cn } from"@/lib/utils";
 
 interface CompanyFormProps {
- initialData?: any;
+ initialData?: SafeAny;
  isEditing?: boolean;
- onSave: (data: any) => Promise<void>;
+ onSave: (data: SafeAny) => Promise<void>;
  onCancel: () => void;
 }
 
@@ -46,11 +48,11 @@ export function CompanyForm({ initialData, isEditing = false, onSave, onCancel }
 
  // Load email configs
  useEffect(() => {
- fetch("/api/email-configs")
+ api("/api/email-configs")
  .then(res => res.ok ? res.json() : [])
  .then(data => {
  // filter for active config integrations supporting both camelCase and snake_case
- setEmailConfigs(data.filter((c: any) => c.is_active || c.isActive || c.active));
+ setEmailConfigs(data.filter((c: SafeAny) => c.is_active || c.isActive || c.active));
  })
  .catch(() => setEmailConfigs([]));
  }, []);
@@ -87,7 +89,7 @@ export function CompanyForm({ initialData, isEditing = false, onSave, onCancel }
  }, [isEditing, initialData]);
 
  // Handle auto-save draft for Create mode
- const handleFieldChange = (field: string, value: any) => {
+ const handleFieldChange = (field: string, value: SafeAny) => {
  setFormData(prev => {
  const updated = { ...prev, [field]: value };
  
@@ -151,7 +153,7 @@ export function CompanyForm({ initialData, isEditing = false, onSave, onCancel }
  setTimeout(() => {
  setSuccessMsg("");
  }, 4000);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.error("Error submitting company form:", err);
  setErrors({ form: err.message ||"An error occurred while saving. Please check your inputs." });
  } finally {
@@ -614,3 +616,5 @@ export function CompanyForm({ initialData, isEditing = false, onSave, onCancel }
 }
 
 export default CompanyForm;
+
+

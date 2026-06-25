@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect } from"react";
 import { useNavigate } from"react-router-dom";
 import { useAuth } from"../../contexts/AuthContext";
@@ -51,10 +53,10 @@ export function CreateCall() {
  // Fetch agents
  useEffect(() => {
  setLoadingAgents(true);
- fetch("/api/users")
+ api("/api/users")
  .then((r) => r.json())
- .then((usersList: any[]) => {
- const filteredAgents = usersList.filter((u: any) =>
+ .then((usersList: SafeAny[]) => {
+ const filteredAgents = usersList.filter((u: SafeAny) =>
  ["agent","admin","sub_admin","super_admin","ultra_super_admin"].includes(u.role)
  );
  setAgents(filteredAgents);
@@ -128,7 +130,7 @@ export function CreateCall() {
  createTicket,
  };
 
- const res = await fetch("/api/calls", {
+ const res = await api("/api/calls", {
  method:"POST",
  headers: {
 "Content-Type":"application/json",
@@ -449,3 +451,5 @@ export function CreateCall() {
  </div>
  );
 }
+
+

@@ -1,6 +1,7 @@
+import { SafeAny } from '@/types';
 import React, { useEffect, useState } from"react";
-import { collection, query, orderBy, onSnapshot, limit } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, query, orderBy, onSnapshot, limit } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { History, Ticket, User, Clock } from"lucide-react";
 import { Link } from"react-router-dom";
 
@@ -12,11 +13,11 @@ export function GlobalHistory() {
  // For a real production app, we would have a separate 'activity' collection
  const q = query(collection(db,"tickets"), orderBy("updatedAt","desc"), limit(50));
  const unsubscribe = onSnapshot(q, (snapshot) => {
- const allHistory: any[] = [];
+ const allHistory: SafeAny[] = [];
  snapshot.docs.forEach(doc => {
  const data = doc.data();
  if (data.history) {
- data.history.forEach((h: any) => {
+ data.history.forEach((h: SafeAny) => {
  allHistory.push({
  ...h,
  ticketId: doc.id,
@@ -99,3 +100,7 @@ export function GlobalHistory() {
  </div>
  );
 }
+
+
+
+

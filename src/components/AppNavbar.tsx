@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React from"react";
 import {
  Bell, Search, User, Sun, Moon, Monitor, Play, Square,
@@ -104,7 +106,7 @@ export function AppNavbar() {
  hasAttachment: false
  });
 
- const handleAdvFilterChange = (key: string, value: any) => {
+ const handleAdvFilterChange = (key: string, value: SafeAny) => {
  setAdvFilters(prev => ({ ...prev, [key]: value }));
  };
 
@@ -165,14 +167,14 @@ export function AppNavbar() {
  const loadData = async () => {
  try {
  // Count
- const countRes = await fetch(`/api/notifications/unread-count?user_id=${encodeURIComponent(uid)}`);
+ const countRes = await api(`/api/notifications/unread-count?user_id=${encodeURIComponent(uid)}`);
  if (countRes.ok) {
  const countData = await countRes.json();
  if (!disposed) setNotificationCount(Number(countData.count || 0));
  }
 
  // List
- const listRes = await fetch(`/api/notifications/list?user_id=${encodeURIComponent(uid)}`);
+ const listRes = await api(`/api/notifications/list?user_id=${encodeURIComponent(uid)}`);
  if (listRes.ok) {
  const listData = await listRes.json();
  if (!disposed) setNotifications(listData);
@@ -223,7 +225,7 @@ export function AppNavbar() {
  const delayDebounce = setTimeout(async () => {
  setLoadingSuggestions(true);
  try {
- const res = await fetch("/api/global-search", {
+ const res = await api("/api/global-search", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -277,7 +279,7 @@ export function AppNavbar() {
  }
  };
 
- const getPath = (item: any, type: string) => {
+ const getPath = (item: SafeAny, type: string) => {
  switch (type) {
  case"incident":
  case"serviceRequest":
@@ -299,7 +301,7 @@ export function AppNavbar() {
  }
  };
 
- const handleItemClick = (item: any, type: string) => {
+ const handleItemClick = (item: SafeAny, type: string) => {
  setShowSuggestions(false);
 
  // Add query or title to recent searches
@@ -354,7 +356,7 @@ export function AppNavbar() {
 
  // Mark all as read
  try {
- await fetch("/api/notifications/mark-read", {
+ await api("/api/notifications/mark-read", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ user_id: uid })
@@ -730,7 +732,7 @@ export function AppNavbar() {
  {suggestions.tasks.length}
  </span>
  </div>
- {suggestions.tasks.map((item: any) => (
+ {suggestions.tasks.map((item: SafeAny) => (
  <div
  key={item.id}
  onClick={() => handleItemClick(item,"task")}
@@ -761,7 +763,7 @@ export function AppNavbar() {
  {suggestions.incidents.length}
  </span>
  </div>
- {suggestions.incidents.map((item: any) => (
+ {suggestions.incidents.map((item: SafeAny) => (
  <div
  key={item.id}
  onClick={() => handleItemClick(item,"incident")}
@@ -794,7 +796,7 @@ export function AppNavbar() {
  {suggestions.serviceRequests.length}
  </span>
  </div>
- {suggestions.serviceRequests.map((item: any) => (
+ {suggestions.serviceRequests.map((item: SafeAny) => (
  <div
  key={item.id}
  onClick={() => handleItemClick(item,"serviceRequest")}
@@ -827,7 +829,7 @@ export function AppNavbar() {
  {suggestions.problems.length}
  </span>
  </div>
- {suggestions.problems.map((item: any) => (
+ {suggestions.problems.map((item: SafeAny) => (
  <div
  key={item.id}
  onClick={() => handleItemClick(item,"problem")}
@@ -858,7 +860,7 @@ export function AppNavbar() {
  {suggestions.changes.length}
  </span>
  </div>
- {suggestions.changes.map((item: any) => (
+ {suggestions.changes.map((item: SafeAny) => (
  <div
  key={item.id}
  onClick={() => handleItemClick(item,"change")}
@@ -889,7 +891,7 @@ export function AppNavbar() {
  {suggestions.kbArticles.length}
  </span>
  </div>
- {suggestions.kbArticles.map((item: any) => (
+ {suggestions.kbArticles.map((item: SafeAny) => (
  <div
  key={item.id}
  onClick={() => handleItemClick(item,"kbArticle")}
@@ -916,7 +918,7 @@ export function AppNavbar() {
  {suggestions.assets.length}
  </span>
  </div>
- {suggestions.assets.map((item: any) => (
+ {suggestions.assets.map((item: SafeAny) => (
  <div
  key={item.id}
  onClick={() => handleItemClick(item,"asset")}
@@ -947,7 +949,7 @@ export function AppNavbar() {
  {suggestions.users.length}
  </span>
  </div>
- {suggestions.users.map((item: any) => (
+ {suggestions.users.map((item: SafeAny) => (
  <div
  key={item.id}
  onClick={() => handleItemClick(item,"user")}
@@ -1166,3 +1168,5 @@ export function AppNavbar() {
  </header>
  );
 }
+
+

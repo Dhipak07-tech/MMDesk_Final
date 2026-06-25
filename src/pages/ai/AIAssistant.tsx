@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useCallback } from"react";
 import {
  Brain,
@@ -34,8 +36,7 @@ import {
  type TrendData,
  type ResponseTemplate,
 } from"../../lib/aiEngine";
-import { collection, onSnapshot, query, orderBy } from"../../lib/api";
-import { db } from"../../lib/firebase";
+import { collection, onSnapshot, query, orderBy, db } from "../../lib/firebase-stubs";
 import { cn } from"@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ function StatCard({
  sub,
  color ="#6366f1",
 }: {
- icon: any;
+ icon: SafeAny;
  label: string;
  value: string | number;
  sub?: string;
@@ -129,7 +130,7 @@ function KeywordBadge({ word }: { word: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB 1 — Ticket Analyzer
 // ─────────────────────────────────────────────────────────────────────────────
-function TicketAnalyzer({ kbArticles }: { kbArticles: any[] }) {
+function TicketAnalyzer({ kbArticles }: { kbArticles: SafeAny[] }) {
  const [ticketText, setTicketText] = useState("");
  const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
  const [analyzing, setAnalyzing] = useState(false);
@@ -446,9 +447,9 @@ function TrendAnalysis({
  serverStats,
  onRefresh,
 }: {
- tickets: any[];
+ tickets: SafeAny[];
  loading: boolean;
- serverStats: any;
+ serverStats: SafeAny;
  onRefresh: () => void;
 }) {
  const trends = analyzeTrends(tickets);
@@ -624,7 +625,7 @@ function TrendAnalysis({
  <h4 className="text-sm font-bold text-slate-900 dark:text-white">Avg Resolution Time by Priority</h4>
  </div>
  <div className="space-y-3">
- {serverStats.avgResolutionByPriority.map((item: any) => (
+ {serverStats.avgResolutionByPriority.map((item: SafeAny) => (
  <div key={item.priority} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5">
  <div className="flex items-center gap-2">
  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getPriorityColor(item.priority ||"") }} />
@@ -650,9 +651,9 @@ function AIDashboard({
  serverStats,
  kbArticles,
 }: {
- tickets: any[];
- serverStats: any;
- kbArticles: any[];
+ tickets: SafeAny[];
+ serverStats: SafeAny;
+ kbArticles: SafeAny[];
 }) {
  const trends = analyzeTrends(tickets);
 
@@ -850,7 +851,7 @@ export function AIAssistant() {
  // Fetch tickets
  const fetchTickets = useCallback(async () => {
  try {
- const res = await fetch("/api/tickets/all");
+ const res = await api("/api/tickets/all");
  if (res.ok) {
  const data = await res.json();
  setTickets(data);
@@ -863,7 +864,7 @@ export function AIAssistant() {
  // Fetch server stats
  const fetchServerStats = useCallback(async () => {
  try {
- const res = await fetch("/api/ai/assistant/stats");
+ const res = await api("/api/ai/assistant/stats");
  if (res.ok) {
  const data = await res.json();
  setServerStats(data);
@@ -878,8 +879,8 @@ export function AIAssistant() {
  let unsubscribe: (() => void) | undefined;
  try {
  const q = query(collection(db,"kb_articles"), orderBy("views","desc"));
- unsubscribe = onSnapshot(q, (snap: any) => {
- const articles = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+ unsubscribe = onSnapshot(q, (snap: SafeAny) => {
+ const articles = snap.docs.map((d: SafeAny) => ({ id: d.id, ...d.data() }));
  setKbArticles(articles);
  });
  } catch (e) {
@@ -980,3 +981,6 @@ export function AIAssistant() {
  </div>
  );
 }
+
+
+

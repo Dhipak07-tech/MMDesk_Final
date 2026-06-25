@@ -1,7 +1,71 @@
+import { SafeAny } from '@/types';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import api from './lib/api';
+
+// Request interceptor to adapt fetch-like options to Axios options
+api.interceptors.request.use((config) => {
+  if ((config as any).body !== undefined) {
+    config.data = (config as any).body;
+  }
+  if (config.headers && typeof (config.headers as any).forEach === 'function') {
+    const plainHeaders: Record<string, string> = {};
+    (config.headers as any).forEach((value: string, key: string) => {
+      plainHeaders[key] = value;
+    });
+    config.headers = plainHeaders as any;
+  }
+  return config;
+});
+
+// Response interceptor to adapt Axios responses to fetch-like Response objects
+api.interceptors.response.use(
+  (response) => {
+    (response as any).ok = response.status >= 200 && response.status < 300;
+    (response as any).json = async () => {
+      if (typeof response.data === 'string') {
+        try {
+          return JSON.parse(response.data);
+        } catch {
+          return response.data;
+        }
+      }
+      return response.data;
+    };
+    (response as any).text = async () => {
+      if (typeof response.data === 'string') {
+        return response.data;
+      }
+      return JSON.stringify(response.data);
+    };
+    return response;
+  },
+  (error) => {
+    if (error.response) {
+      error.response.ok = false;
+      error.response.json = async () => {
+        if (typeof error.response.data === 'string') {
+          try {
+            return JSON.parse(error.response.data);
+          } catch {
+            return error.response.data;
+          }
+        }
+        return error.response.data;
+      };
+      error.response.text = async () => {
+        if (typeof error.response.data === 'string') {
+          return error.response.data;
+        }
+        return JSON.stringify(error.response.data);
+      };
+      return Promise.resolve(error.response);
+    }
+    return Promise.reject(error);
+  }
+);
 
 const rootElement = document.getElementById('root');
 
@@ -14,7 +78,7 @@ if (!rootElement) {
  <App />
  </StrictMode>,
  );
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.error('[main.tsx] React render failed:', err);
  rootElement.innerHTML = `
  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0B141A;font-family:sans-serif;">
@@ -35,3 +99,4 @@ if (!rootElement) {
  `;
  }
 }
+

@@ -1,17 +1,17 @@
+import { SafeAny } from '@/types';
 /**
  * src/contexts/AuthContext.tsx
  *
  * Pure localStorage + Spring Boot REST API authentication.
  * Firebase Auth has been fully removed.
  */
-import React, { createContext, useContext, useEffect, useState } from"react";
-import { ROLE_HIERARCHY, ROLE_LABELS, Role } from"../lib/roles";
-import { doc, onSnapshot } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { ROLE_HIERARCHY, ROLE_LABELS, Role } from "../lib/roles";
+import api from "../lib/api";
 
 interface AuthContextType {
- user: any | null;
- profile: any | null;
+ user: SafeAny | null;
+ profile: SafeAny | null;
  loading: boolean;
  demoLogin: (role: Role) => Promise<void>;
  signOut: () => Promise<void>;
@@ -30,46 +30,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
  const [profile, setProfile] = useState<any | null>(null);
  const [loading, setLoading] = useState(true);
 
- // Sync user profile from Firestore/DB in real time
- useEffect(() => {
- if (!user?.uid) {
- setProfile(null);
- return;
- }
+  // Sync user profile from Spring Boot API in real time via polling
+  useEffect(() => {
+    if (!user?.uid) {
+      setProfile(null);
+      return;
+    }
 
- const unsubscribe = onSnapshot(
- doc(db,"users", user.uid),
- (docSnap) => {
- if (docSnap.exists()) {
- const data = docSnap.data();
- const merged = {
- uid: user.uid,
- name: data.name || user.displayName || user.email?.split("@")[0] ||"User",
- email: data.email || user.email,
- role: data.role ||"user",
- restrictedModules: data.restrictedModules || [],
- disabled: data.disabled || false,
- phone: data.phone ||"",
- };
- setProfile(merged);
- localStorage.setItem("demo_user", JSON.stringify(merged));
- } else {
- setProfile((prev: any) => prev || {
- uid: user.uid,
- name: user.displayName || user.email?.split("@")[0] ||"User",
- email: user.email,
- role:"user",
- restrictedModules: [],
- });
- }
- },
- (error) => {
- console.error("Error syncing user profile:", error);
- }
- );
+    const fetchProfile = async () => {
+      try {
+        const res = await api.get(`/api/users/${user.uid}`);
+        const data = res.data;
+        if (data) {
+          const merged = {
+            uid: user.uid,
+            name: data.name || user.displayName || user.email?.split("@")[0] || "User",
+            email: data.email || user.email,
+            role: data.role || "user",
+            restrictedModules: data.restrictedModules || [],
+            disabled: data.disabled || false,
+            phone: data.phone || "",
+          };
+          setProfile(merged);
+          localStorage.setItem("demo_user", JSON.stringify(merged));
+        }
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        setProfile((prev: SafeAny) => prev || {
+          uid: user.uid,
+          name: user.displayName || user.email?.split("@")[0] || "User",
+          email: user.email,
+          role: "user",
+          restrictedModules: [],
+        });
+      }
+    };
 
- return unsubscribe;
- }, [user?.uid]);
+    fetchProfile();
+    const interval = setInterval(fetchProfile, 10000); // Poll every 10 seconds for profile updates
+    return () => clearInterval(interval);
+  }, [user?.uid]);
 
  // Sync auth state to localStorage so standalone pages (timesheet) can read it
  useEffect(() => {
@@ -118,25 +118,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
  setProfile(sessionUser);
  resolveLoading();
 
- // Optionally refresh user profile from the API in background
- if (sessionUser.uid) {
- fetch(`/api/users/${sessionUser.uid}`)
- .then((r) => (r.ok ? r.json() : null))
- .then((freshData) => {
- if (freshData && freshData.uid) {
- const merged = {
- uid: freshData.uid || sessionUser.uid,
- name: freshData.name || sessionUser.name,
- email: freshData.email || sessionUser.email,
- role: freshData.role || sessionUser.role ||"user",
- phone: freshData.phone ||"",
- };
- setProfile(merged);
- localStorage.setItem("demo_user", JSON.stringify(merged));
- }
- })
- .catch(() => {});
- }
+          // Optionally refresh user profile from the API in background
+          if (sessionUser.uid) {
+            api.get(`/api/users/${sessionUser.uid}`)
+              .then((res) => {
+                const freshData = res.data;
+                if (freshData && freshData.uid) {
+                  const merged = {
+                    uid: freshData.uid || sessionUser.uid,
+                    name: freshData.name || sessionUser.name,
+                    email: freshData.email || sessionUser.email,
+                    role: freshData.role || sessionUser.role || "user",
+                    phone: freshData.phone || "",
+                  };
+                  setProfile(merged);
+                  localStorage.setItem("demo_user", JSON.stringify(merged));
+                }
+              })
+              .catch(() => {});
+          }
 
  return () => {
  clearTimeout(safetyTimeout);
@@ -169,29 +169,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
  const email = emailMap[role] || `demo-${role}@connectit.local`;
  const password = passwordMap[role] ||"Password123!";
 
- try {
- const res = await fetch("/api/auth/login", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({ email, password }),
- });
- if (res.ok) {
- const userData = await res.json();
- const sessionUser = {
- uid: userData.uid,
- name: userData.name,
- email: userData.email,
- role: userData.role || role,
- phone: userData.phone ||"",
- };
- localStorage.setItem("demo_user", JSON.stringify(sessionUser));
- setUser({ uid: sessionUser.uid, email: sessionUser.email, displayName: sessionUser.name });
- setProfile(sessionUser);
- return;
- }
- } catch (err) {
- console.warn("[AuthContext] demoLogin API failed:", err);
- }
+    try {
+      const res = await api.post("/api/auth/login", { email, password });
+      const userData = res.data;
+      if (userData && userData.token) {
+        localStorage.setItem("token", userData.token);
+      }
+      const sessionUser = {
+        uid: userData.uid,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role || role,
+        phone: userData.phone || "",
+      };
+      localStorage.setItem("demo_user", JSON.stringify(sessionUser));
+      setUser({ uid: sessionUser.uid, email: sessionUser.email, displayName: sessionUser.name });
+      setProfile(sessionUser);
+      return;
+    } catch (err) {
+      console.warn("[AuthContext] demoLogin API failed:", err);
+    }
 
  // Local fallback — create a mock session
  const mockUid ="demo_" + role +"_" + Date.now();
@@ -207,12 +204,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
  setProfile(mockUser);
  };
 
- const signOut = async () => {
- localStorage.removeItem("demo_user");
- localStorage.removeItem("timesheet_user");
- setUser(null);
- setProfile(null);
- };
+  const signOut = async () => {
+    localStorage.removeItem("demo_user");
+    localStorage.removeItem("timesheet_user");
+    localStorage.removeItem("token");
+    setUser(null);
+    setProfile(null);
+  };
 
  return (
  <AuthContext.Provider value={{ user, profile, loading, demoLogin, signOut }}>
@@ -222,3 +220,5 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useAuth = () => useContext(AuthContext);
+
+

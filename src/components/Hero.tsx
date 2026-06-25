@@ -1,6 +1,6 @@
 import { Button } from"@/components/ui/button";
 import { motion } from"motion/react";
-import { GetStartedModal } from"@/src/components/GetStartedModal";
+import { GetStartedModal } from "@/components/GetStartedModal";
 
 export function Hero() {
  return (

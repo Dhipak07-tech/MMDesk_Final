@@ -1,7 +1,7 @@
 import React from"react";
 import { AlertCircle, Clock, ShieldAlert } from"lucide-react";
 import { Button } from"@/components/ui/button";
-import type { SlaDelayResponseType } from"../lib/slaDelayUtils";
+import type { SlaDelayResponseType } from "../lib/slaEngine";
 
 type Props = {
  open: boolean;

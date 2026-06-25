@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from"react";
-import { collection, onSnapshot, updateDoc, doc, serverTimestamp } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { SafeAny } from '@/types';
+import React, { useEffect, useState } from "react";
+import api from "../lib/api";
 import { useAuth } from"../contexts/AuthContext";
 import { Role, ROLE_HIERARCHY, ROLE_LABELS, ROLE_COLORS, assignableRoles, canManage } from"../lib/roles";
 import {
@@ -40,17 +40,17 @@ export function Users() {
  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
  const [newUser, setNewUser] = useState({ name:"", email:"", role:"user" as Role });
 
- const fetchUsers = async () => {
- try {
- const res = await fetch("/api/users");
- const data = await res.json();
- if (Array.isArray(data)) {
- setUsers(data);
- } else {
- setUsers([]);
- }
- } catch (e) { console.error(e); }
- };
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get("/api/users");
+      const data = res.data;
+      if (Array.isArray(data)) {
+        setUsers(data);
+      } else {
+        setUsers([]);
+      }
+    } catch (e) { console.error(e); }
+  };
 
  useEffect(() => {
  fetchUsers();
@@ -68,77 +68,61 @@ export function Users() {
  );
  }
 
- const handleRoleChange = async (userId: string, newRole: Role, currentRole: Role) => {
- // Can only assign roles strictly below your own
- if (!canManage(myRole, newRole) || !canManage(myRole, currentRole)) {
- alert("You cannot assign or modify roles at or above your own level.");
- return;
- }
- setUpdating(userId);
- try {
- await fetch(`/api/users/${userId}`, {
- method:"PUT",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({ role: newRole })
- });
- fetchUsers();
- } catch (e) { console.error(e); }
- setUpdating(null);
- };
+  const handleRoleChange = async (userId: string, newRole: Role, currentRole: Role) => {
+    // Can only assign roles strictly below your own
+    if (!canManage(myRole, newRole) || !canManage(myRole, currentRole)) {
+      alert("You cannot assign or modify roles at or above your own level.");
+      return;
+    }
+    setUpdating(userId);
+    try {
+      await api.put(`/api/users/${userId}`, { role: newRole });
+      fetchUsers();
+    } catch (e) { console.error(e); }
+    setUpdating(null);
+  };
 
- const handleToggleAccess = async (userId: string, currentRole: Role, disabled: boolean) => {
- if (!canManage(myRole, currentRole)) {
- alert("You cannot modify access for users at or above your level.");
- return;
- }
- setUpdating(userId);
- try {
- await fetch(`/api/users/${userId}`, {
- method:"PUT",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({ disabled: !disabled ? 1 : 0 })
- });
- fetchUsers();
- } catch (e) { console.error(e); }
- setUpdating(null);
- };
+  const handleToggleAccess = async (userId: string, currentRole: Role, disabled: boolean) => {
+    if (!canManage(myRole, currentRole)) {
+      alert("You cannot modify access for users at or above your level.");
+      return;
+    }
+    setUpdating(userId);
+    try {
+      await api.put(`/api/users/${userId}`, { disabled: !disabled ? 1 : 0 });
+      fetchUsers();
+    } catch (e) { console.error(e); }
+    setUpdating(null);
+  };
 
- const handleCreateUser = async () => {
- if (!newUser.name || !newUser.email) {
- alert("Name and email are required");
- return;
- }
- if (!canManage(myRole, newUser.role)) {
- alert("Cannot create a user with this role");
- return;
- }
- setUpdating("new");
- try {
- const res = await fetch("/api/users", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({
- uid:"usr_" + Date.now().toString(36) + Math.random().toString(36).substring(2),
- name: newUser.name,
- email: newUser.email,
- role: newUser.role,
- disabled: 0
- })
- });
- if (res.ok) {
- fetchUsers();
- setIsCreateModalOpen(false);
- setNewUser({ name:"", email:"", role:"user" as Role });
- } else {
- const data = await res.json();
- alert(data.error ||"Failed to create user");
- }
- } catch (e) {
- console.error(e);
- alert("Error creating user");
- }
- setUpdating(null);
- };
+  const handleCreateUser = async () => {
+    if (!newUser.name || !newUser.email) {
+      alert("Name and email are required");
+      return;
+    }
+    if (!canManage(myRole, newUser.role)) {
+      alert("Cannot create a user with this role");
+      return;
+    }
+    setUpdating("new");
+    try {
+      await api.post("/api/users", {
+        uid: "usr_" + Date.now().toString(36) + Math.random().toString(36).substring(2),
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        disabled: 0
+      });
+      fetchUsers();
+      setIsCreateModalOpen(false);
+      setNewUser({ name: "", email: "", role: "user" as Role });
+    } catch (e: SafeAny) {
+      console.error(e);
+      const errMsg = e.response?.data?.error || "Error creating user";
+      alert(errMsg);
+    }
+    setUpdating(null);
+  };
 
  const filtered = users.filter(u => {
  const matchSearch = !search ||
@@ -345,7 +329,7 @@ export function Users() {
  onClick={async () => {
  if (confirm(`Are you sure you want to delete user ${u.email}?`)) {
  try {
- await fetch(`/api/users/${u.id}`, { method:"DELETE" });
+ await api.delete(`/api/users/${u.id}`);
  fetchUsers();
  } catch (e) {
  console.error(e);
@@ -468,3 +452,5 @@ export function Users() {
  </div>
  );
 }
+
+

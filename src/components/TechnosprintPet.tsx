@@ -1,10 +1,10 @@
+import { SafeAny } from '@/types';
 import React, { useState, useEffect, useRef, useCallback } from"react";
 import { useLocation, Link } from"react-router-dom";
 import { X, Minus, Sparkles, CheckSquare, List, PlusCircle, ArrowRight, ShieldAlert } from"lucide-react";
 import { useAuth } from"../contexts/AuthContext";
 import { useTheme } from"../contexts/ThemeContext";
-import { firebaseAvailable, db } from"../lib/firebase";
-import { collection, onSnapshot, query, where, orderBy, limit } from"firebase/firestore";
+import { firebaseAvailable, db, collection, onSnapshot, query, where, orderBy, limit } from "../lib/firebase-stubs";
 
 import { useActivityTracker } from"../contexts/ActivityTrackerContext";
 
@@ -39,7 +39,7 @@ interface TicketData {
  priority: string;
  assignedTo?: string;
  createdBy?: string;
- updatedAt?: any;
+ updatedAt?: SafeAny;
 }
 
 export function TechnosprintPet() {
@@ -907,3 +907,6 @@ export function TechnosprintPet() {
  </div>
  );
 }
+
+
+

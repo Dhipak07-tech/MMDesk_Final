@@ -1,3 +1,4 @@
+import { SafeAny } from '@/types';
 /**
  * AI Engine — Rule-Based Intelligence
  * =====================================
@@ -550,7 +551,7 @@ export function analyzeTicket(
 /**
  * Analyze a collection of tickets to extract trends
  */
-export function analyzeTrends(tickets: any[]): TrendData {
+export function analyzeTrends(tickets: SafeAny[]): TrendData {
  if (!tickets || tickets.length === 0) {
  return {
  topCategories: [],
@@ -687,3 +688,4 @@ const CATEGORY_COLORS = [
 export function getCategoryColor(index: number): string {
  return CATEGORY_COLORS[index % CATEGORY_COLORS.length];
 }
+

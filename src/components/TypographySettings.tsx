@@ -1,3 +1,4 @@
+import api from '@/lib/api';
 import React, { useState, useEffect } from"react";
 import { Sparkles, Upload, FileText, CheckCircle2 } from"lucide-react";
 import { Button } from"@/components/ui/button";
@@ -35,7 +36,7 @@ export function TypographySettings() {
  const fontOptions = ["Inter","Roboto","Outfit","Open Sans","Poppins","Montserrat","Lato"];
 
  useEffect(() => {
- fetch("/api/settings/typography")
+ api("/api/settings/typography")
  .then(res => res.json())
  .then(data => {
  if (data && !data.error) {
@@ -48,7 +49,7 @@ export function TypographySettings() {
  const handleSave = async () => {
  setLoading(true);
  try {
- const res = await fetch("/api/settings/typography", {
+ const res = await api("/api/settings/typography", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(settings)
@@ -74,7 +75,7 @@ export function TypographySettings() {
  formData.append("fontFile", file);
 
  try {
- const res = await fetch("/api/settings/upload-font", {
+ const res = await api("/api/settings/upload-font", {
  method:"POST",
  body: formData
  });
@@ -278,3 +279,4 @@ export function TypographySettings() {
  </div>
  );
 }
+

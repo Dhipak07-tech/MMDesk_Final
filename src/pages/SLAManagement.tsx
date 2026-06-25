@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from"react";
-import { collection, query, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimestamp } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, query, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimestamp } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { Plus, Trash2, ShieldAlert, Clock, Save, X, Edit } from"lucide-react";
 import { Button } from"@/components/ui/button";
@@ -277,3 +277,6 @@ export function SLAManagement() {
  </div>
  );
 }
+
+
+

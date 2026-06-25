@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useMemo } from"react";
 import { useSearchParams, useNavigate } from"react-router-dom";
 import { 
@@ -162,7 +164,7 @@ export function GlobalSearch() {
  const startTime = performance.now();
 
  try {
- const res = await fetch("/api/global-search", {
+ const res = await api("/api/global-search", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -274,7 +276,7 @@ export function GlobalSearch() {
  }
  };
 
- const handleFilterChange = (key: string, value: any) => {
+ const handleFilterChange = (key: string, value: SafeAny) => {
  const nextFilters = { ...filters, [key]: value };
  setFilters(nextFilters);
  if (searchQuery.trim()) {
@@ -305,29 +307,29 @@ export function GlobalSearch() {
  const getSelectedTabItems = () => {
  if (!results) return [];
  switch (activeTab) {
- case"incidents": return (results.incidents || []).map((x: any) => ({ ...x, _type:"incident" }));
- case"requests": return (results.serviceRequests || []).map((x: any) => ({ ...x, _type:"serviceRequest" }));
- case"problems": return (results.problems || []).map((x: any) => ({ ...x, _type:"problem" }));
- case"changes": return (results.changes || []).map((x: any) => ({ ...x, _type:"change" }));
- case"kb": return (results.kbArticles || []).map((x: any) => ({ ...x, _type:"kbArticle" }));
- case"assets": return (results.assets || []).map((x: any) => ({ ...x, _type:"asset" }));
- case"users": return (results.users || []).map((x: any) => ({ ...x, _type:"user" }));
- case"tasks": return (results.tasks || []).map((x: any) => ({ ...x, _type:"task" }));
+ case"incidents": return (results.incidents || []).map((x: SafeAny) => ({ ...x, _type:"incident" }));
+ case"requests": return (results.serviceRequests || []).map((x: SafeAny) => ({ ...x, _type:"serviceRequest" }));
+ case"problems": return (results.problems || []).map((x: SafeAny) => ({ ...x, _type:"problem" }));
+ case"changes": return (results.changes || []).map((x: SafeAny) => ({ ...x, _type:"change" }));
+ case"kb": return (results.kbArticles || []).map((x: SafeAny) => ({ ...x, _type:"kbArticle" }));
+ case"assets": return (results.assets || []).map((x: SafeAny) => ({ ...x, _type:"asset" }));
+ case"users": return (results.users || []).map((x: SafeAny) => ({ ...x, _type:"user" }));
+ case"tasks": return (results.tasks || []).map((x: SafeAny) => ({ ...x, _type:"task" }));
  default:
  return [
- ...(results.incidents || []).map((x: any) => ({ ...x, _type:"incident" })),
- ...(results.serviceRequests || []).map((x: any) => ({ ...x, _type:"serviceRequest" })),
- ...(results.problems || []).map((x: any) => ({ ...x, _type:"problem" })),
- ...(results.changes || []).map((x: any) => ({ ...x, _type:"change" })),
- ...(results.kbArticles || []).map((x: any) => ({ ...x, _type:"kbArticle" })),
- ...(results.assets || []).map((x: any) => ({ ...x, _type:"asset" })),
- ...(results.users || []).map((x: any) => ({ ...x, _type:"user" })),
- ...(results.tasks || []).map((x: any) => ({ ...x, _type:"task" }))
+ ...(results.incidents || []).map((x: SafeAny) => ({ ...x, _type:"incident" })),
+ ...(results.serviceRequests || []).map((x: SafeAny) => ({ ...x, _type:"serviceRequest" })),
+ ...(results.problems || []).map((x: SafeAny) => ({ ...x, _type:"problem" })),
+ ...(results.changes || []).map((x: SafeAny) => ({ ...x, _type:"change" })),
+ ...(results.kbArticles || []).map((x: SafeAny) => ({ ...x, _type:"kbArticle" })),
+ ...(results.assets || []).map((x: SafeAny) => ({ ...x, _type:"asset" })),
+ ...(results.users || []).map((x: SafeAny) => ({ ...x, _type:"user" })),
+ ...(results.tasks || []).map((x: SafeAny) => ({ ...x, _type:"task" }))
  ];
  }
  };
 
- const getPath = (item: any, type: string) => {
+ const getPath = (item: SafeAny, type: string) => {
  switch (type) {
  case"incident":
  case"serviceRequest":
@@ -348,7 +350,7 @@ export function GlobalSearch() {
  }
  };
 
- const handleItemClick = (item: any, type: string) => {
+ const handleItemClick = (item: SafeAny, type: string) => {
  // Save to frequent records
  try {
  const freq = JSON.parse(localStorage.getItem("sn-frequent-records") ||"[]");
@@ -358,7 +360,7 @@ export function GlobalSearch() {
  type, 
  path: getPath(item, type) 
  };
- const updated = [record, ...freq.filter((r: any) => r.id !== item.id || r.type !== type)].slice(0, 5);
+ const updated = [record, ...freq.filter((r: SafeAny) => r.id !== item.id || r.type !== type)].slice(0, 5);
  localStorage.setItem("sn-frequent-records", JSON.stringify(updated));
  } catch {}
  
@@ -406,7 +408,7 @@ export function GlobalSearch() {
  { id:"tasks", label:"My Tasks", count: results?.tasks?.length || 0 }
  ];
 
- const renderResultItem = (item: any) => {
+ const renderResultItem = (item: SafeAny) => {
  const type = item._type;
  let icon = <FileText className="w-5 h-5 text-blue-500" />;
  let typeLabel ="Incident";
@@ -963,3 +965,5 @@ export function GlobalSearch() {
  </div>
  );
 }
+
+

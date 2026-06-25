@@ -1,3 +1,4 @@
+import { SafeAny } from '@/types';
 import React, { useEffect, useState, useRef } from"react";
 import { cn } from"@/lib/utils";
 import { motion } from"motion/react";
@@ -18,7 +19,7 @@ interface SLATimerProps {
  * Safely parse any date value (ISO string, Firestore timestamp object, or Date)
  * into milliseconds. Returns NaN if unparseable.
  */
-function toMs(val: any): number {
+function toMs(val: SafeAny): number {
  if (!val) return NaN;
  // Firestore Timestamp object: { seconds: number, nanoseconds: number }
  if (typeof val === 'object' && val.seconds !== undefined) {
@@ -292,3 +293,4 @@ export function SLATimer({
  </div>
  );
 }
+

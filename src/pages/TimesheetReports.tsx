@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useCallback } from"react";
 import { BarChart2, ArrowLeft, Bot, Zap } from"lucide-react";
 import { Link } from"react-router-dom";
@@ -15,9 +17,9 @@ export function TimesheetReports() {
  setLoading(true);
  try {
  // Fetch timesheets
- const tsRes = await fetch(`/api/timesheets?user_id=${user.uid}`);
+ const tsRes = await api(`/api/timesheets?user_id=${user.uid}`);
  const tsList = await tsRes.json();
- tsList.sort((a: any, b: any) => (b.week_start ||"").localeCompare(a.week_start ||""));
+ tsList.sort((a: SafeAny, b: SafeAny) => (b.week_start ||"").localeCompare(a.week_start ||""));
  setTimesheets(tsList);
 
  if (tsList.length === 0) {
@@ -27,13 +29,13 @@ export function TimesheetReports() {
  }
 
  // Fetch all cards for the user
- const tcRes = await fetch(`/api/time-cards?user_id=${user.uid}`);
+ const tcRes = await api(`/api/time-cards?user_id=${user.uid}`);
  const cards = await tcRes.json();
  setAllCards(cards);
 
  // Fetch AI activity sessions
  try {
- const sessRes = await fetch(`/api/activity-sessions?user_id=${user.uid}&limit=20`);
+ const sessRes = await api(`/api/activity-sessions?user_id=${user.uid}&limit=20`);
  if (sessRes.ok) setActivitySessions(await sessRes.json());
  } catch { /* silent */ }
  } catch (e) {
@@ -149,7 +151,7 @@ export function TimesheetReports() {
  </tr>
  </thead>
  <tbody>
- {activitySessions.map((s: any) => {
+ {activitySessions.map((s: SafeAny) => {
  const dur = s.duration || 0;
  const h = Math.floor(dur / 3600);
  const m = Math.floor((dur % 3600) / 60);
@@ -183,8 +185,8 @@ export function TimesheetReports() {
  </div>
  {/* AI-tracked time cards summary */}
  {(() => {
- const aiCards = allCards.filter((c: any) => (c.short_description || '').startsWith('[AI Tracked]'));
- const aiMins = aiCards.reduce((s: number, c: any) => s + (parseFloat(c.hours_worked) || 0), 0);
+ const aiCards = allCards.filter((c: SafeAny) => (c.short_description || '').startsWith('[AI Tracked]'));
+ const aiMins = aiCards.reduce((s: number, c: SafeAny) => s + (parseFloat(c.hours_worked) || 0), 0);
  if (aiCards.length === 0) return null;
  return (
  <div className="p-3 bg-blue-50 border-t border-blue-100 flex items-center gap-2">
@@ -237,3 +239,5 @@ export function TimesheetReports() {
  </div>
  );
 }
+
+

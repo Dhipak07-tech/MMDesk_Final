@@ -26,14 +26,6 @@ NODE_ENV=development
 PORT=3000
 
 # ============================================
-# Firebase Configuration (Legacy - for migration only)
-# ============================================
-# These are only needed for running the migration script
-# After migration is complete, these can be removed
-FIREBASE_PROJECT_ID=your_firebase_project_id
-FIREBASE_DATABASE_ID=your_firestore_database_id
-
-# ============================================
 # Email Configuration (Optional - for notifications)
 # ============================================
 SMTP_HOST=smtp.office365.com
@@ -41,19 +33,8 @@ SMTP_PORT=587
 SMTP_USER=support@technosprint.net
 SMTP_PASS=Poland@01
 
-
 # ============================================
 # Session/JWT Configuration
 # ============================================
 JWT_SECRET=ConnectIT_2026_Secure_JWT_Key_987654321
 SESSION_TIMEOUT=86400
-
-# ============================================
-# PHP Backend Configuration (for timesheet module)
-# ============================================
-# Timesheet uses its own database configuration
-# Set these for MySQL or leave empty for SQLite fallback
-DB_HOST=localhost
-DB_NAME=timesheet_db
-DB_USER=root
-DB_PASS=your_mysql_password

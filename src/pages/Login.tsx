@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState } from"react";
 import { Link, useNavigate } from"react-router-dom";
 import { type Role } from"../lib/roles";
@@ -44,7 +46,7 @@ export function Login() {
  setIsLoading(true);
 
  try {
- const response = await fetch("/api/auth/login", {
+ const response = await api("/api/auth/login", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ email, password })
@@ -65,7 +67,7 @@ export function Login() {
 
  const errorData = await response.json().catch(() => ({}));
  setError(errorData.error ||"Invalid email or password.");
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setError("Login failed: Check your connection and try again.");
  } finally {
  setIsLoading(false);
@@ -146,3 +148,5 @@ export function Login() {
  </div>
  );
 }
+
+

@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 /**
  * Activity Capture Engine
  * Combines DOM observation + optional screen capture for the AI Activity Tracker.
@@ -350,7 +352,7 @@ async function captureTabScreenshot(): Promise<{ dataUrl: string; blob: Blob; fi
  const result = await electronAPI.captureScreen();
  if (result?.dataUrl && !result.error) {
  // Convert base64 dataUrl to Blob
- const res = await fetch(result.dataUrl);
+ const res = await api(result.dataUrl);
  const blob = await res.blob();
  return { dataUrl: result.dataUrl, blob, filename };
  }
@@ -516,7 +518,7 @@ export class ActivityWatcher {
  // Actually TEST if server-side capture works (don't assume localhost is OK)
  let serverCaptureWorks = false;
  try {
- const test = await fetch('/api/capture-screen', { signal: AbortSignal.timeout(12000) });
+ const test = await api('/api/capture-screen', { signal: AbortSignal.timeout(12000) });
  if (test.ok) {
  const testData = await test.json();
  // Validate: a real screenshot data_url is > 1000 chars (a mock/blank would be tiny)
@@ -552,7 +554,7 @@ export class ActivityWatcher {
 
  this.screenTrack = this.screenStream.getVideoTracks()[0];
  this.screenTrack.addEventListener('ended', () => this.stop());
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.warn('[ActivityWatcher] Screen permission denied:', err.message);
  this.screenStream = null;
  this.screenTrack = null;
@@ -607,7 +609,7 @@ export class ActivityWatcher {
  try {
  const result = await electronAPI.captureScreen();
  if (result?.dataUrl && !result.error) {
- const res = await fetch(result.dataUrl);
+ const res = await api(result.dataUrl);
  const blob = await res.blob();
  return { dataUrl: result.dataUrl, blob, filename };
  }
@@ -618,13 +620,13 @@ export class ActivityWatcher {
  // The backend uses PowerShell + .NET (or java.awt.Robot) to capture the
  // entire screen silently at OS level — no browser permission dialog needed.
  try {
- const res = await fetch('/api/capture-screen');
+ const res = await api('/api/capture-screen');
  if (res.ok) {
  const data = await res.json();
  // Validate: real screenshot data_url must be > 1000 chars (reject mock/blank)
  if (data.data_url && data.image_url && data.data_url.length > 1000) {
  // Convert base64 dataUrl to Blob
- const fetchRes = await fetch(data.data_url);
+ const fetchRes = await api(data.data_url);
  const blob = await fetchRes.blob();
  return {
  dataUrl: data.data_url,
@@ -706,7 +708,7 @@ export class ActivityWatcher {
  let globalKeysDelta = 0;
  let globalClicksDelta = 0;
  try {
- const statsRes = await fetch('/api/input-stats');
+ const statsRes = await api('/api/input-stats');
  if (statsRes.ok) {
  const stats = await statsRes.json();
  if (!this.hasBaseline) {
@@ -773,3 +775,5 @@ export class ActivityWatcher {
  this.opts.onSnapshot(snap);
  }
 }
+
+

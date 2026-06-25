@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 /**
  * AI Activity Tracker — Full Agentic System
  * App detection + icons + screenshots + continuous monitoring + timesheet integration
@@ -255,7 +257,7 @@ export function ActivityTracker() {
  selectedIncident, setSelectedIncident
  } = useActivityTracker();
 
- const isValUnassigned = (val: any) => {
+ const isValUnassigned = (val: SafeAny) => {
  const v = (val || '').trim().toLowerCase();
  return !v || v === 'unassigned' || v === 'undefined' || v === 'null' || v === 'none';
  };
@@ -317,7 +319,7 @@ export function ActivityTracker() {
  if (!userId) return;
 
  // 1. Get current timesheet
- const tsRes = await fetch('/api/timesheets/get-or-create', {
+ const tsRes = await api('/api/timesheets/get-or-create', {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ user_id: userId, week_start: getWeekMonday(today), week_end: getWeekSunday(today) }),
  });
@@ -325,7 +327,7 @@ export function ActivityTracker() {
  if (tsRes.ok) {
  const ts = await tsRes.json();
  // 2. Submit timesheet to trigger the admin notifications
- const submitRes = await fetch(`/api/timesheets/${ts.id}`, {
+ const submitRes = await api(`/api/timesheets/${ts.id}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ status:"Submitted" })
@@ -337,7 +339,7 @@ export function ActivityTracker() {
  throw new Error("Failed to submit.");
  }
  }
- } catch (e: any) {
+ } catch (e: SafeAny) {
  window.alert("Error submitting for approval:" + e.message);
  }
  }, [user]);
@@ -452,7 +454,7 @@ export function ActivityTracker() {
  const sun = new Date(mon.getTime() + 6 * 86400000);
  const sunStr = sun.toISOString().split("T")[0];
 
- const tsRes = await fetch("/api/timesheets/get-or-create", {
+ const tsRes = await api("/api/timesheets/get-or-create", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -463,7 +465,7 @@ export function ActivityTracker() {
  });
  const ts = await tsRes.json();
 
- const response = await fetch("/api/time-cards", {
+ const response = await api("/api/time-cards", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -1101,3 +1103,5 @@ export function ActivityTracker() {
  </>
  );
 }
+
+

@@ -516,10 +516,10 @@ public class DatabaseSeeder implements CommandLineRunner {
             user.setEmail(email);
             user.setName(name);
             user.setRole(role);
-            user.setPasswordHash(passwordHash);
+            // Do NOT overwrite passwordHash — preserve user's reset password
             user.setIsActive(true);
             userRepository.save(user);
-            log.info("[DatabaseSeeder] Updated existing user (by uid={}): {}", uid, email);
+            log.info("[DatabaseSeeder] Updated existing user (by uid={}): {} (password preserved)", uid, email);
             return;
         }
 
@@ -529,10 +529,10 @@ public class DatabaseSeeder implements CommandLineRunner {
             user.setUid(uid);
             user.setName(name);
             user.setRole(role);
-            user.setPasswordHash(passwordHash);
+            // Do NOT overwrite passwordHash — preserve user's reset password
             user.setIsActive(true);
             userRepository.save(user);
-            log.info("[DatabaseSeeder] Updated existing user (by email={}): uid={}", email, uid);
+            log.info("[DatabaseSeeder] Updated existing user (by email={}): uid={} (password preserved)", email, uid);
         } else {
             userRepository.save(User.builder()
                 .uid(uid)

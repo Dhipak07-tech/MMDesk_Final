@@ -1,87 +1,92 @@
 # Ticklora - ITSM Ticketing System
 
-A comprehensive IT Service Management (ITSM) ticketing system built with React, TypeScript, Spring Boot, Node.js microservices, and MySQL.
-
-## 🚀 Target Architecture & Features
-
-- **Target Distribution:**
-  - **Frontend (35%):** React 18 + TypeScript + Vite. Styling with Tailwind CSS and Lucide Icons.
-  - **Backend (50%):** Spring Boot (Java 17) + Node.js/TypeScript microservices.
-  - **Database (15%):** MySQL.
-- **Complete Ticket Management** - Create, assign, track, and resolve tickets.
-- **User Management** - Role-based access control with user creation.
-- **Group Management** - Team and group organization.
-- **AI-Powered Assistance** - Kiru AI chatbot and ticket classification via Google Gemini.
-- **SLA Management** - Service Level Agreement monitoring and escalation.
-- **Knowledge Base & Service Catalog** - IT service catalog and self-service knowledge base.
-- **Timesheet System** - Time tracking and approval workflow.
-- **Change & Problem Management** - ITIL-compliant controls and root cause analysis (RCA).
+A premium, production-grade IT Service Management (ITSM) ticketing platform built using a modern, scalable, and balanced architecture.
 
 ---
 
-## 🛠️ Tech Stack
+## 🏛️ System Architecture
 
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS + Recharts
-- **Backend:** 
-  - **Spring Boot 3.4.2** (Java 17, Spring Data JPA, Hibernate)
-  - **Node.js + Express + TypeScript** (microservices architecture)
-- **Database:** MySQL 8+ (SQLite for local cached tables)
-- **AI Integration:** Google Gemini API
-- **Email Integrations:** Microsoft Graph API + SMTP (M365)
-
----
-
-## 📦 Installation & Setup
-
-### Prerequisites
-- Node.js 18+
-- Java 17+ (JDK)
-- Maven 3.8+
-- MySQL Server 8+
-
-### Database Configuration
-1. Create a MySQL database (e.g. `connectit_db_ticket`).
-2. Run `mysql-schema.sql` to initialize the database tables, relationships, and index configurations:
-   ```bash
-   mysql -u root -p connectit_db_ticket < mysql-schema.sql
-   ```
-
-### Configuration
-Create a `.env` file in the root and in the subdirectories:
-```env
-MYSQL_HOST=127.0.0.1
-MYSQL_PORT=3307
-MYSQL_USER=root
-MYSQL_PASSWORD=
-MYSQL_DATABASE=connectit_db_ticket
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### Starting the Microservices Stack
-Navigate to the `microservices` folder and run the start script:
-```powershell
-cd microservices
-.\start-all.ps1
-```
-This script starts:
-- **Core Service** (Port 3001)
-- **Integration Service** (Port 3002)
-- **Activity Service** (Port 3003)
-- **Main React Frontend & Gateway** (Port 3000)
+- **Backend:** Spring Boot 3.4.2 (Java 17, Spring Data JPA, Spring Security, Hibernate)
+- **Database:** MySQL 8.0+
+- **AI Integration:** Google Gemini AI (for Kiru chatbot, classification, and sentiment suggestions)
+- **Email System:** IMAP/SMTP mail integration for automated notifications
 
 ---
 
 ## 🏗️ Project Structure
+
 ```
-Nexus_Project_Ticket/
-├── src/                      # React frontend components and pages
-├── microservices/            # Backend services
-│   ├── core-service-springboot/ # Java Spring Boot backend service
-│   ├── gateway/              # Reverse proxy gateway
-│   ├── core-service/         # Node.js core service
-│   ├── activity-service/     # AI activity tracker
-│   └── integration-service/  # Email and Gemini AI integration
-├── mysql-schema.sql          # MySQL database schema setup
-├── server.ts                 # Express gateway / monolith backup
-└── package.json              # Main Node.js configuration
+Ticklora/
+├── src/                               ← React TypeScript frontend only
+│   ├── main.tsx
+│   ├── App.tsx
+│   ├── index.css
+│   ├── pages/                         ← unique route pages
+│   ├── components/                    ← shared UI & layouts
+│   ├── contexts/                      ← global state contexts
+│   ├── hooks/                         ← custom hooks
+│   ├── types/                         ← TypeScript interfaces
+│   └── lib/                           ← API clients & logic engines
+├── microservices/
+│   └── core-service-springboot/       ← Spring Boot Java backend only
+│       ├── pom.xml
+│       ├── Dockerfile
+│       └── src/                       ← Backend Java sources & properties
+├── mysql-schema.sql                   ← MySQL schema
+├── package.json                       ← Node.json frontend config
+├── vite.config.ts                     ← Vite configuration
+├── tsconfig.json                      ← TypeScript rules
+├── .env                               ← Environment configurations
+├── .gitignore                         ← Git exclusion list
+└── README.md                          ← Main documentation
 ```
+
+---
+
+## 📦 Local Installation & Setup
+
+### Prerequisites
+- **Node.js** (v18+)
+- **Java Development Kit (JDK)** (v17+)
+- **Maven** (v3.8+)
+- **MySQL Server** (v8.0+)
+
+### 1. Database Setup
+1. Create a MySQL database (e.g. `connectit_db`).
+2. Run `mysql-schema.sql` to initialize all ITIL compliant tables (users, tickets, SLA policies, approvals, etc.):
+   ```bash
+   mysql -u root -p connectit_db < mysql-schema.sql
+   ```
+
+### 2. Environment Configuration
+Create a `.env` file in the root directory:
+```env
+# Spring Boot Port/API Base URL
+VITE_API_BASE_URL=http://localhost:3000
+
+# Optional Google Gemini Key
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+In the backend `microservices/core-service-springboot/src/main/resources/application.properties`, configure the database credentials:
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/connectit_db?useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=your_mysql_password
+```
+
+### 3. Build & Run
+- **Start Backend**:
+  Navigate to the Spring Boot backend directory and run:
+  ```bash
+  cd microservices/core-service-springboot
+  mvn spring-boot:run
+  ```
+- **Start Frontend**:
+  In the project root directory, install npm packages and start the Vite dev server:
+  ```bash
+  npm install
+  npm run dev
+  ```
+  Open the frontend portal in your browser at `http://localhost:5173`.

@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useRef } from"react";
 import { useNavigate } from"react-router-dom";
 import { useAuth } from"../contexts/AuthContext";
@@ -130,7 +132,7 @@ function genMeetingUrl(roomId: string): string {
  return `${window.location.origin}/meet/${roomId.toLowerCase()}`;
 }
 
-const mapDBToMeeting = (r: any): Meeting => {
+const mapDBToMeeting = (r: SafeAny): Meeting => {
  const isTs = r.tsm_id ? r.tsm_id.startsWith('TSM-') : false;
  return {
  id: r.tsm_id,
@@ -188,7 +190,7 @@ export function CreateMeeting() {
 
  const fetchTSMeetings = async () => {
  try {
- const res = await fetch("/api/ts-meetings");
+ const res = await api("/api/ts-meetings");
  if (res.ok) {
  const data = await res.json();
  setMeetings(data.map(mapDBToMeeting));
@@ -206,8 +208,8 @@ export function CreateMeeting() {
  if (detailTab ==="tsmeeting" && selectedMeeting?.tsmId) {
  setLoadingTsData(true);
  Promise.all([
- fetch(`/api/ts-meetings/${selectedMeeting.tsmId}/attendance`).then(r => r.json()),
- fetch(`/api/ts-meetings/${selectedMeeting.tsmId}/chat`).then(r => r.json())
+ api(`/api/ts-meetings/${selectedMeeting.tsmId}/attendance`).then(r => r.json()),
+ api(`/api/ts-meetings/${selectedMeeting.tsmId}/chat`).then(r => r.json())
  ]).then(([attData, chatData]) => {
  if (attData.success) setTsAttendance(attData.attendance || []);
  if (chatData.success) setTsChat(chatData.chat || []);
@@ -309,7 +311,7 @@ export function CreateMeeting() {
  ticket_id: null
  };
 
- const res = await fetch("/api/ts-meetings", {
+ const res = await api("/api/ts-meetings", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(reqBody)
@@ -321,7 +323,7 @@ export function CreateMeeting() {
 
  await fetchTSMeetings();
  navigate(`/ts-meeting/${tsm_id}/lobby`);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  alert(err.message ||"Failed to start instant meeting");
  }
  };
@@ -375,7 +377,7 @@ export function CreateMeeting() {
 
  const updateTSMeetingOnBackend = async (updated: Meeting) => {
  try {
- const res = await fetch(`/api/ts-meetings`, {
+ const res = await api(`/api/ts-meetings`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -448,7 +450,7 @@ export function CreateMeeting() {
  ticket_id: form.ticketId
  };
 
- const res = await fetch("/api/ts-meetings", {
+ const res = await api("/api/ts-meetings", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(reqBody)
@@ -461,7 +463,7 @@ export function CreateMeeting() {
 
  await fetchTSMeetings();
  setView("list");
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setFormError(err.message ||"Failed to save meeting.");
  } finally {
  setSubmitting(false);
@@ -471,7 +473,7 @@ export function CreateMeeting() {
  const handleCancelMeeting = async (m: Meeting) => {
  if (!window.confirm(`Cancel meeting"${m.title}"?`)) return;
  try {
- const res = await fetch(`/api/ts-meetings/${m.tsmId}`, {
+ const res = await api(`/api/ts-meetings/${m.tsmId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ status:"Cancelled" })
@@ -490,7 +492,7 @@ export function CreateMeeting() {
  const handleCompleteMeeting = async (m: Meeting) => {
  if (!window.confirm(`Mark meeting"${m.title}" as Completed?`)) return;
  try {
- const res = await fetch(`/api/ts-meetings/${m.tsmId}`, {
+ const res = await api(`/api/ts-meetings/${m.tsmId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ status:"Completed" })
@@ -509,7 +511,7 @@ export function CreateMeeting() {
  const handleDeleteMeeting = async (m: Meeting) => {
  if (!window.confirm(`Permanently delete meeting"${m.title}"? This cannot be undone.`)) return;
  try {
- const res = await fetch(`/api/ts-meetings/${m.tsmId}`, {
+ const res = await api(`/api/ts-meetings/${m.tsmId}`, {
  method:"DELETE"
  });
  if (res.ok) {
@@ -1035,7 +1037,7 @@ export function CreateMeeting() {
  <p className="text-center text-text-dim text-xs py-8">No participants have joined yet.</p>
  ) : (
  <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
- {tsAttendance.map((record: any) => (
+ {tsAttendance.map((record: SafeAny) => (
  <div key={record.id} className="flex items-center justify-between p-2.5 bg-white/3 rounded-xl border border-white/5 text-xs">
  <div>
  <p className="font-semibold text-white">{record.name}</p>
@@ -1062,7 +1064,7 @@ export function CreateMeeting() {
  <p className="text-center text-text-dim text-xs py-8">No chat messages archived for this meeting.</p>
  ) : (
  <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1 flex flex-col">
- {tsChat.map((msg: any) => (
+ {tsChat.map((msg: SafeAny) => (
  <div key={msg.id} className="p-2.5 bg-white/3 rounded-xl border border-white/5 text-xs">
  <div className="flex items-center justify-between text-text-dim text-[9px] mb-1">
  <span className="font-bold text-slate-300">{msg.sender_name}</span>
@@ -1387,3 +1389,5 @@ export function CreateMeeting() {
  </div>
  );
 }
+
+

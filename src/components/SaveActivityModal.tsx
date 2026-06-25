@@ -1,3 +1,4 @@
+import { SafeAny } from '@/types';
 import React, { useEffect } from"react";
 import { Bot, Save } from"lucide-react";
 
@@ -48,7 +49,7 @@ export function SaveActivityModal({
  const endMinutes = et.h * 60 + et.m;
  let diff = endMinutes - startMinutes;
  if (diff < 0) diff += 24 * 60;
- setSessionForm((f: any) => ({ ...f, minutesWorked: diff }));
+ setSessionForm((f: SafeAny) => ({ ...f, minutesWorked: diff }));
  }
  };
 
@@ -188,3 +189,4 @@ export function SaveActivityModal({
  </div>
  );
 }
+

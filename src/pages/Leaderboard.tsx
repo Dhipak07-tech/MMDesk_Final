@@ -1,8 +1,10 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect } from"react";
 import { Trophy, Medal, Star, Target, RefreshCw, ShieldCheck, Clock, Zap, AlertCircle } from"lucide-react";
 import { motion, AnimatePresence } from"motion/react";
-import { collection, query, where, getDocs, onSnapshot } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, query, where, getDocs, onSnapshot } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { cn } from"../lib/utils";
 
 // Module-level helpers (accessible to all sub-components in this file)
@@ -11,7 +13,7 @@ function getInitial(value: string) {
  return text ? text.charAt(0).toUpperCase() :"?";
 }
 
-function getDisplayName(value: any, fallback ="Unassigned") {
+function getDisplayName(value: SafeAny, fallback ="Unassigned") {
  const text = String(value ||"").trim();
  return text || fallback;
 }
@@ -62,16 +64,16 @@ export function Leaderboard() {
  useEffect(() => {
  const fetchAllTicketsAndBreaches = async () => {
  try {
- const res = await fetch("/api/tickets/all");
+ const res = await api("/api/tickets/all");
  if (!res.ok) throw new Error("Failed to fetch tickets");
  const tickets = await res.json();
  
  // Group by user
- const userBreaches: Record<string, { id: string; name: string; count: number; details: any[] }> = {};
+ const userBreaches: Record<string, { id: string; name: string; count: number; details: SafeAny[] }> = {};
  
- tickets.forEach((ticket: any) => {
+ tickets.forEach((ticket: SafeAny) => {
  // Parse SLA Delay Meta
- let meta: any = {};
+ let meta: SafeAny = {};
  if (ticket.sla_delay_meta_json) {
  try {
  meta = JSON.parse(ticket.sla_delay_meta_json);
@@ -128,7 +130,7 @@ export function Leaderboard() {
  return () => clearInterval(interval);
  }, []);
 
- const parseDate = (value: any): Date | null => {
+ const parseDate = (value: SafeAny): Date | null => {
  if (!value) return null;
  if (typeof value.toDate ==="function") return value.toDate();
  if (value instanceof Date) return value;
@@ -284,7 +286,7 @@ export function Leaderboard() {
 
  setLeaderboard(sorted);
  setLastUpdated(new Date());
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.error("Leaderboard error:", err);
  setError("Could not load leaderboard. Please try again.");
  } finally {
@@ -507,7 +509,7 @@ export function Leaderboard() {
  <div className="px-6 pb-6 pt-2 bg-slate-50/50 border-t border-border/50 space-y-4">
  <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Breached Tickets Details</h4>
  <div className="space-y-3">
- {user.details?.map((ticket: any) => (
+ {user.details?.map((ticket: SafeAny) => (
  <div key={ticket.id} className="bg-white border border-border rounded-xl p-4 shadow-sm">
  <div className="flex justify-between items-start mb-2">
  <div>
@@ -597,9 +599,9 @@ export function Leaderboard() {
 function PodiumCard({
  user, rankIndex, styles, delay, isLarge = false, isBreaches = false
 }: {
- user: any;
+ user: SafeAny;
  rankIndex: number;
- styles: any;
+ styles: SafeAny;
  delay: number;
  isLarge?: boolean;
  isBreaches?: boolean;
@@ -698,3 +700,8 @@ function StatSummary({ icon, label, value, subvalue }: { icon: React.ReactNode; 
  </div>
  );
 }
+
+
+
+
+

@@ -1,6 +1,7 @@
+import { SafeAny } from '@/types';
 import React, { useEffect, useState, useMemo, useCallback } from"react";
-import { collection, query, onSnapshot } from"firebase/firestore";
-import { db, handleFirestoreError, OperationType } from"../lib/firebase";
+import { collection, query, onSnapshot } from "@/lib/firebase-stubs";
+import { db, handleFirestoreError, OperationType } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, ROLE_LABELS, Role } from"../lib/roles";
 import {
@@ -22,7 +23,7 @@ import { Link } from"react-router-dom";
  HELPERS
  ═══════════════════════════════════════════════════════════ */
 
-function toMs(val: any): number {
+function toMs(val: SafeAny): number {
  if (!val) return NaN;
  if (typeof val ==="object" && val.seconds !== undefined) return val.seconds * 1000 + (val.nanoseconds || 0) / 1_000_000;
  if (typeof val ==="object" && typeof val.toDate ==="function") return val.toDate().getTime();
@@ -30,7 +31,7 @@ function toMs(val: any): number {
  return new Date(val).getTime();
 }
 
-function normalizeText(val: any): string {
+function normalizeText(val: SafeAny): string {
  return String(val ||"").trim().toLowerCase();
 }
 
@@ -84,12 +85,12 @@ const CARD_CONFIGS = [
  CUSTOM TOOLTIP
  ═══════════════════════════════════════════════════════════ */
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: SafeAny) {
  if (!active || !payload?.length) return null;
  return (
  <div className="bg-white dark:bg-gray-900 border border-border rounded-xl shadow-2xl px-4 py-3 min-w-[160px]">
  <p className="text-xs font-bold text-muted-foreground mb-2">{label}</p>
- {payload.map((entry: any, i: number) => (
+ {payload.map((entry: SafeAny, i: number) => (
  <div key={i} className="flex items-center justify-between gap-4 py-0.5">
  <div className="flex items-center gap-2">
  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
@@ -352,7 +353,7 @@ export function DataAnalytics() {
  const tickets = filteredTickets;
  const prev = previousPeriodTickets;
 
- const isBreached = (t: any) => {
+ const isBreached = (t: SafeAny) => {
  if (t.responseSlaStatus ==="Breached" || t.resolutionSlaStatus ==="Breached") return true;
  const respDeadline = toMs(t.responseDeadline);
  const resDeadline = toMs(t.resolutionDeadline);
@@ -361,13 +362,13 @@ export function DataAnalytics() {
  return false;
  };
 
- const isOverdue = (t: any) => {
+ const isOverdue = (t: SafeAny) => {
  const deadline = toMs(t.resolutionDeadline) || toMs(t.responseDeadline);
  if (isNaN(deadline)) return false;
  return now > deadline && !["Resolved","Closed","Canceled"].includes(t.status ||"");
  };
 
- const calc = (arr: any[]) => ({
+ const calc = (arr: SafeAny[]) => ({
  created: arr.length,
  open: arr.filter((t) => ["New","Open","In Progress"].includes(t.status ||"")).length,
  pending: arr.filter((t) => ["Pending","Pending Approval","On Hold","Waiting for Customer","Awaiting User","Awaiting Vendor"].includes(t.status ||"")).length,
@@ -1440,3 +1441,7 @@ export function DataAnalytics() {
 }
 
 export default DataAnalytics;
+
+
+
+

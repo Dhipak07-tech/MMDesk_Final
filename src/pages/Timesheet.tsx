@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useRef, useCallback } from"react";
 import {
  ChevronUp, ChevronDown, Clock, Calendar as CalendarIcon, Plus, Save,
@@ -6,11 +8,10 @@ import {
  MessageCircle, ChevronRight, FileText, Copy, Printer, RefreshCw, Ticket
 } from"lucide-react";
 import { useAuth } from"../contexts/AuthContext";
-import { db } from"../lib/firebase";
 import {
- collection, query, where, getDocs, addDoc, updateDoc, deleteDoc,
+ db, collection, query, where, getDocs, addDoc, updateDoc, deleteDoc,
  doc, serverTimestamp, orderBy, onSnapshot, onSnapshot as listenToDoc
-} from"firebase/firestore";
+} from "@/lib/firebase-stubs";
 import { Link, useParams, useNavigate } from"react-router-dom";
 import { createSpeechController } from"../lib/speechToEnglish";
 
@@ -187,7 +188,7 @@ function RichTextToolbar({
  );
 }
 
-const NotesEditor = React.memo(({ canEdit, editorRef, onInput, onBlur }: any) => {
+const NotesEditor = React.memo(({ canEdit, editorRef, onInput, onBlur }: SafeAny) => {
  return (
  <div
  ref={editorRef}
@@ -389,7 +390,7 @@ export function Timesheet() {
 
  const unsubscribe = onSnapshot(q, (snapshot) => {
  console.log("[Timesheet] Got tickets snapshot:", snapshot.docs.length);
- let tickets: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+ let tickets: SafeAny[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
  // Filter: not resolved/closed (all open tickets)
  tickets = tickets.filter(t =>
  t.status !=="Resolved" && t.status !=="Closed" && t.status !=="Canceled"
@@ -415,7 +416,7 @@ export function Timesheet() {
  setLoading(true);
  try {
  // Get or create timesheet via MySQL API
- const tsRes = await fetch("/api/timesheets/get-or-create", {
+ const tsRes = await api("/api/timesheets/get-or-create", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -429,11 +430,11 @@ export function Timesheet() {
  setTimesheet(ts);
 
  // Fetch time cards via MySQL API
- const tcRes = await fetch(`/api/time-cards?timesheet_id=${ts.id}`);
+ const tcRes = await api(`/api/time-cards?timesheet_id=${ts.id}`);
  if (!tcRes.ok) throw new Error(`Time cards fetch failed: ${tcRes.status}`);
  const cards = await tcRes.json();
  setTimeCards(Array.isArray(cards) ? cards : []);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  console.error("[Timesheet] Error loading data:", e);
  alert(`Failed to load timesheet: ${e.message}`);
  } finally {
@@ -482,13 +483,13 @@ export function Timesheet() {
 
  let res;
  if (editingCard) {
- res = await fetch(`/api/time-cards/${editingCard.id}`, {
+ res = await api(`/api/time-cards/${editingCard.id}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify(data)
  });
  } else {
- res = await fetch("/api/time-cards", {
+ res = await api("/api/time-cards", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify(data)
@@ -502,7 +503,7 @@ export function Timesheet() {
  await loadData();
  alert("Time entry saved successfully!");
  navigate(-1);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  console.error("[Timesheet] Save failed:", e);
  alert(`Failed to save time entry: ${e.message}`);
  }
@@ -513,7 +514,7 @@ export function Timesheet() {
  if (!timesheet) return;
  if (!confirm("Save this timesheet as Draft?")) return;
  try {
- const res = await fetch(`/api/timesheets/${timesheet.id}`, {
+ const res = await api(`/api/timesheets/${timesheet.id}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ status:"Draft" })
@@ -521,7 +522,7 @@ export function Timesheet() {
  if (!res.ok) throw new Error(`Save as Draft failed: ${res.status}`);
  alert("Timesheet saved as Draft!");
  await loadData();
- } catch (e: any) {
+ } catch (e: SafeAny) {
  console.error("[Timesheet] Draft save failed:", e);
  alert(`Failed to save as draft: ${e.message}`);
  }
@@ -565,7 +566,7 @@ export function Timesheet() {
  if (editorRef.current) editorRef.current.innerHTML ="";
  }
 
- function loadCardForEdit(card: any) {
+ function loadCardForEdit(card: SafeAny) {
  setEditingCard(card);
  setEntryDate(card.entry_date || formatDate(new Date()));
  setStartTime(card.start_time ||"");
@@ -582,11 +583,11 @@ export function Timesheet() {
  async function deleteEntry(cardId: string) {
  if (!confirm("Delete this entry?")) return;
  try {
- const res = await fetch(`/api/time-cards/${cardId}`, { method: 'DELETE' });
+ const res = await api(`/api/time-cards/${cardId}`, { method: 'DELETE' });
  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
  await loadData();
  alert("Entry deleted successfully!");
- } catch (e: any) {
+ } catch (e: SafeAny) {
  console.error("[Timesheet] Delete failed:", e);
  alert(`Failed to delete entry: ${e.message}`);
  }
@@ -596,7 +597,7 @@ export function Timesheet() {
  if (!confirm("Submit this timesheet, including AI-captured screenshots and activity logs, to the Admin, Super Admin, and Ultra Super Admin for approval?")) return;
  if (timeCards.length === 0) { alert("Cannot submit empty timesheet."); return; }
  try {
- const res = await fetch(`/api/timesheets/${timesheet.id}`, {
+ const res = await api(`/api/timesheets/${timesheet.id}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ status:"Submitted" })
@@ -604,7 +605,7 @@ export function Timesheet() {
  if (!res.ok) throw new Error(`Submit failed: ${res.status}`);
  alert("Timesheet submitted successfully!");
  await loadData();
- } catch (e: any) {
+ } catch (e: SafeAny) {
  console.error("[Timesheet] Submit failed:", e);
  alert(`Failed to submit timesheet: ${e.message}`);
  }
@@ -628,7 +629,7 @@ export function Timesheet() {
  async function saveMessageHistory(type:"email" |"whatsapp", recipient: string, content: string) {
  if (!user) return;
  try {
- await fetch("/api/message-history", {
+ await api("/api/message-history", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -649,7 +650,7 @@ export function Timesheet() {
  if (!user) return;
  setMsgHistoryLoading(true);
  try {
- const res = await fetch(`/api/message-history?user_id=${user.uid}&limit=50`);
+ const res = await api(`/api/message-history?user_id=${user.uid}&limit=50`);
  if (res.ok) setMsgHistory(await res.json());
  } catch { /* silent */ } finally {
  setMsgHistoryLoading(false);
@@ -726,7 +727,7 @@ export function Timesheet() {
  } else {
  alert("Clipboard is empty or contains unsupported content.");
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  if (err.name ==="NotAllowedError") {
  alert("Clipboard access denied. Please allow clipboard permissions or use Ctrl+V.");
  } else {
@@ -1388,3 +1389,7 @@ export function Timesheet() {
  </div>
  );
 }
+
+
+
+

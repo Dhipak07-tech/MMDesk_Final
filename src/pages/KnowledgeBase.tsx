@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from"react";
-import { collection, onSnapshot, addDoc, serverTimestamp, query, orderBy, updateDoc, doc, increment } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, onSnapshot, addDoc, serverTimestamp, query, orderBy, updateDoc, doc, increment } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { BookOpen, Search, Plus, ThumbsUp, Eye, Clock, User, Star, ChevronRight, X, Edit, Trash2 } from"lucide-react";
 import { Button } from"@/components/ui/button";
@@ -159,7 +159,7 @@ export function KnowledgeBase() {
  <button onClick={async e => {
  e.stopPropagation();
  if (confirm(`Delete article: ${article.title}?`)) {
- const { deleteDoc, doc } = await import("firebase/firestore");
+ const { deleteDoc, doc } = await import("@/lib/firebase-stubs");
  await deleteDoc(doc(db,"kb_articles", article.id));
  }
  }} className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors" title="Delete Article">
@@ -219,3 +219,6 @@ export function KnowledgeBase() {
  </div>
  );
 }
+
+
+

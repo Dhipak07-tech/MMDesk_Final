@@ -1,6 +1,7 @@
+import { SafeAny } from '@/types';
 import React, { useState } from"react";
-import { collection, getDocs, deleteDoc, doc } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, getDocs, deleteDoc, doc } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { Trash2, AlertTriangle, CheckCircle } from"lucide-react";
 import { Button } from"@/components/ui/button";
 import { useAuth } from"../contexts/AuthContext";
@@ -44,7 +45,7 @@ export function ClearUsers() {
  message: `Successfully deleted ${deletedCount} users from the database.`,
  count: deletedCount
  });
- } catch (error: any) {
+ } catch (error: SafeAny) {
  setResult({
  success: false,
  message: `Error clearing users: ${error.message}`
@@ -145,3 +146,7 @@ export function ClearUsers() {
  </div>
  );
 }
+
+
+
+

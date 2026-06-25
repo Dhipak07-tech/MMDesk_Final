@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useCallback } from"react";
 import { Clock, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, CheckCircle, AlertCircle, BarChart2, Bot, Zap } from"lucide-react";
 import { useAuth } from"../contexts/AuthContext";
@@ -63,7 +65,7 @@ export function TimesheetWeekly() {
  setLoading(true);
  try {
  // Get or create timesheet via API
- const tsRes = await fetch("/api/timesheets/get-or-create", {
+ const tsRes = await api("/api/timesheets/get-or-create", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -76,7 +78,7 @@ export function TimesheetWeekly() {
  setTimesheet(ts);
 
  // Load time cards for this timesheet
- const tcRes = await fetch(`/api/time-cards?timesheet_id=${ts.id}`);
+ const tcRes = await api(`/api/time-cards?timesheet_id=${ts.id}`);
  const cards = await tcRes.json();
  setTimeCards(Array.isArray(cards) ? cards : []);
  } catch (e) {
@@ -116,13 +118,13 @@ export function TimesheetWeekly() {
  };
 
  if (editEntry) {
- await fetch(`/api/time-cards/${editEntry.id}`, {
+ await api(`/api/time-cards/${editEntry.id}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify(data)
  });
  } else {
- await fetch("/api/time-cards", {
+ await api("/api/time-cards", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify(data)
@@ -141,7 +143,7 @@ export function TimesheetWeekly() {
  async function deleteEntry(cardId: string) {
  if (!confirm("Delete this entry?")) return;
  try {
- await fetch(`/api/time-cards/${cardId}`, { method: 'DELETE' });
+ await api(`/api/time-cards/${cardId}`, { method: 'DELETE' });
  loadWeek();
  } catch (e) { console.error(e); }
  }
@@ -157,7 +159,7 @@ export function TimesheetWeekly() {
  screenshotUrl = canvas.toDataURL("image/jpeg", 0.7);
  }
 
- await fetch(`/api/timesheets/${timesheet.id}`, {
+ await api(`/api/timesheets/${timesheet.id}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -178,7 +180,7 @@ export function TimesheetWeekly() {
  setShowModal(true);
  }
 
- function openEdit(card: any) {
+ function openEdit(card: SafeAny) {
  setSelectedDate(card.entry_date);
  setEditEntry(card);
  setForm({ task: card.task ||"", hours: String(card.hours_worked ||""), description: card.description ||"" });
@@ -248,7 +250,7 @@ export function TimesheetWeekly() {
  {/* AI Tracker Banner */}
  {(() => {
  const aiEntries = timeCards.filter(c => (c.short_description || '').startsWith('[AI Tracked]'));
- const aiMins = aiEntries.reduce((s: number, c: any) => s + (parseFloat(c.hours_worked) || 0), 0);
+ const aiMins = aiEntries.reduce((s: number, c: SafeAny) => s + (parseFloat(c.hours_worked) || 0), 0);
  if (aiEntries.length === 0) return null;
  return (
  <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -401,3 +403,5 @@ export function TimesheetWeekly() {
  </div>
  );
 }
+
+

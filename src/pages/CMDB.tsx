@@ -15,8 +15,8 @@ import {
 } from"lucide-react";
 import { Button } from"@/components/ui/button";
 import { cn } from"@/lib/utils";
-import { collection, query, onSnapshot } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, query, onSnapshot } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 
 const MOCK_ASSETS = [
  { id:"CI001", name:"PROD-WEB-01", type:"Server", status:"Operational", owner:"IT Ops", location:"Data Center A" },
@@ -192,3 +192,6 @@ export function CMDB() {
  </div>
  );
 }
+
+
+

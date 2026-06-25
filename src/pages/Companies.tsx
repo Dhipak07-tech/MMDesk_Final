@@ -1,3 +1,4 @@
+import api from '@/lib/api';
 import React, { useState, useEffect } from"react";
 import { useNavigate, useParams, useLocation } from"react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from"@/components/ui/card";
@@ -88,7 +89,7 @@ export function Companies() {
  setIsDeleting(true);
  setDeleteError(null);
  try {
- const res = await fetch(`/api/companies/${deleteCompany.id}`, {
+ const res = await api(`/api/companies/${deleteCompany.id}`, {
  method:"DELETE"
  });
  if (res.ok) {
@@ -111,7 +112,7 @@ export function Companies() {
 
  useEffect(() => {
  fetchCompanies();
- fetch("/api/email-configs")
+ api("/api/email-configs")
  .then(res => res.ok ? res.json() : [])
  .then(data => setEmailConfigs(data))
  .catch(() => setEmailConfigs([]));
@@ -129,7 +130,7 @@ export function Companies() {
 
  const fetchCompanies = async () => {
  try {
- const res = await fetch("/api/companies");
+ const res = await api("/api/companies");
  if (res.ok) {
  const data = await res.json();
  setCompanies(data);
@@ -145,7 +146,7 @@ export function Companies() {
 
  const fetchCompanyDetails = async (companyId: string) => {
  try {
- const detailRes = await fetch(`/api/companies/${companyId}`);
+ const detailRes = await api(`/api/companies/${companyId}`);
  if (detailRes.ok) {
  const company = await detailRes.json();
  setSelectedCompany(company);
@@ -154,13 +155,13 @@ export function Companies() {
  if (company) setSelectedCompany(company);
  }
 
- const ticketsRes = await fetch(`/api/companies/${companyId}/tickets`);
+ const ticketsRes = await api(`/api/companies/${companyId}/tickets`);
  if (ticketsRes.ok) {
  const ticketsData = await ticketsRes.json();
  setCompanyTickets(ticketsData);
  }
 
- const historyRes = await fetch(`/api/companies/${companyId}/history`);
+ const historyRes = await api(`/api/companies/${companyId}/history`);
  if (historyRes.ok) {
  const historyData = await historyRes.json();
  setCompanyHistory(historyData);
@@ -223,7 +224,7 @@ export function Companies() {
 
  <CompanyForm
  onSave={async (data) => {
- const res = await fetch("/api/companies", {
+ const res = await api("/api/companies", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -270,7 +271,7 @@ export function Companies() {
  initialData={selectedCompany}
  isEditing={true}
  onSave={async (data) => {
- const res = await fetch(`/api/companies/${selectedCompany.id}`, {
+ const res = await api(`/api/companies/${selectedCompany.id}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -822,3 +823,4 @@ export function Companies() {
 }
 
 export default Companies;
+

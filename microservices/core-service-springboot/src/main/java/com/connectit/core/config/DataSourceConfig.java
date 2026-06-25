@@ -49,15 +49,8 @@ public class DataSourceConfig {
                 return new HikariDataSource(config);
             }
         } catch (Exception e) {
-            log.warn("[DataSourceConfig] MySQL is unavailable ({}). Falling back to H2 in-memory database.", e.getMessage());
-            HikariConfig config = new HikariConfig();
-            config.setJdbcUrl("jdbc:h2:mem:connectit_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL");
-            config.setUsername("sa");
-            config.setPassword("");
-            config.setDriverClassName("org.h2.Driver");
-            config.setMaximumPoolSize(10);
-            config.setMinimumIdle(2);
-            return new HikariDataSource(config);
+            log.error("[DataSourceConfig] Database connection check failed: {}", e.getMessage());
+            throw new RuntimeException("Database connection check failed", e);
         }
     }
 }

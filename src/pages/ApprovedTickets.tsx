@@ -1,6 +1,6 @@
+import { SafeAny } from '@/types';
 import React, { useEffect, useState } from"react";
-import { collection, query, onSnapshot, where, orderBy, getDocs } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { db, collection, query, onSnapshot, where, orderBy, getDocs } from "@/lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { CheckCircle2, Search, Eye, Clock, User, Tag, Download, X } from"lucide-react";
 import { Link } from"react-router-dom";
@@ -34,7 +34,7 @@ export function ApprovedTickets() {
  const [appliedEndDate, setAppliedEndDate] = useState(() => localStorage.getItem("sn-approved-tickets-end-date") ||"");
  const [dateError, setDateError] = useState("");
 
- const getRecordTime = (val: any): number => {
+ const getRecordTime = (val: SafeAny): number => {
  if (!val) return 0;
  if (typeof val === 'object' && val.seconds !== undefined) {
  return val.seconds * 1000;
@@ -244,7 +244,7 @@ export function ApprovedTickets() {
  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
  <XAxis type="number" fontSize={10} allowDecimals={false} />
  <YAxis type="category" dataKey="label" fontSize={10} width={70} />
- <Tooltip formatter={(v: any) => [v,"Tickets"]} contentStyle={{ fontSize: 10, borderRadius: 8, border: 'none' }} />
+ <Tooltip formatter={(v: SafeAny) => [v,"Tickets"]} contentStyle={{ fontSize: 10, borderRadius: 8, border: 'none' }} />
  <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={16}>
  {priorityGroups.map((entry, i) => (
  <Cell key={i} fill={priorityBarColors[entry.fullName] ||"#64748b"} />
@@ -423,3 +423,6 @@ export function ApprovedTickets() {
  </div>
  );
 }
+
+
+

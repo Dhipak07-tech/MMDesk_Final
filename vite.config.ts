@@ -12,12 +12,12 @@ export default defineConfig(({mode}) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
         // Firebase has been fully removed — all aliases point to local stubs/API client
-        'firebase/firestore': path.resolve(__dirname, './src/lib/firestore-fallback.ts'),
-        'firebase/auth': path.resolve(__dirname, './src/lib/firebase-auth-stub.ts'),
-        'firebase/app': path.resolve(__dirname, './src/lib/firebase-app-stub.ts'),
-        '@firebase/firestore': path.resolve(__dirname, './src/lib/firestore-fallback.ts'),
+        'firebase/firestore': path.resolve(__dirname, './src/lib/firebase-stubs.ts'),
+        'firebase/auth': path.resolve(__dirname, './src/lib/firebase-stubs.ts'),
+        'firebase/app': path.resolve(__dirname, './src/lib/firebase-stubs.ts'),
+        '@firebase/firestore': path.resolve(__dirname, './src/lib/firebase-stubs.ts'),
       },
     },
     build: {

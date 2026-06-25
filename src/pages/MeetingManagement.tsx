@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useRef } from"react";
 import { useAuth } from"../contexts/AuthContext";
 import { 
@@ -220,7 +222,7 @@ export function MeetingManagement() {
  if (dateFilter) params.append("date", dateFilter);
  if (searchQuery) params.append("search", searchQuery);
 
- const res = await fetch(`/api/meetings?${params.toString()}`);
+ const res = await api(`/api/meetings?${params.toString()}`);
  if (res.ok) {
  const data = await res.json();
  setMeetings(data);
@@ -241,7 +243,7 @@ export function MeetingManagement() {
  const fetchMeetingDetails = async (id: number) => {
  setLoadingDetails(true);
  try {
- const res = await fetch(`/api/meetings/${id}`);
+ const res = await api(`/api/meetings/${id}`);
  if (res.ok) {
  const data = await res.json();
  setSelectedMeeting(data);
@@ -262,7 +264,7 @@ export function MeetingManagement() {
  }, [selectedMeetingId]);
 
  // ── NEW: Load/Save virtual meeting data from Database ─────────────────
- const parseJsonField = (val: any, defaultVal: any) => {
+ const parseJsonField = (val: SafeAny, defaultVal: SafeAny) => {
  if (!val) return defaultVal;
  if (typeof val === 'object') return val;
  try {
@@ -296,10 +298,10 @@ export function MeetingManagement() {
  selectedMeeting?.created_at
  ]);
 
- const saveMeetingMetadata = async (updates: any) => {
+ const saveMeetingMetadata = async (updates: SafeAny) => {
  if (!selectedMeeting) return;
  try {
- const res = await fetch(`/api/meetings/${selectedMeeting.id}`, {
+ const res = await api(`/api/meetings/${selectedMeeting.id}`, {
  method:"PUT",
  headers: {
 "Content-Type":"application/json"
@@ -452,7 +454,7 @@ export function MeetingManagement() {
 
  if (tempMeetingId) {
  // Update draft
- const res = await fetch(`/api/meetings/${tempMeetingId}`, {
+ const res = await api(`/api/meetings/${tempMeetingId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -467,7 +469,7 @@ export function MeetingManagement() {
  }
  } else {
  // Create draft
- const res = await fetch("/api/meetings", {
+ const res = await api("/api/meetings", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(payload),
@@ -531,7 +533,7 @@ export function MeetingManagement() {
  updatedByName: profile?.name || user?.email ||"System",
  };
 
- fetch(`/api/meetings/${editingMeetingId}`, {
+ api(`/api/meetings/${editingMeetingId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(payload),
@@ -568,7 +570,7 @@ export function MeetingManagement() {
  uploadData.append("file", file);
 
  try {
- const res = await fetch("/api/moms/upload", {
+ const res = await api("/api/moms/upload", {
  method:"POST",
  body: uploadData,
  });
@@ -586,7 +588,7 @@ export function MeetingManagement() {
  const errorData = await res.json();
  setFormError(errorData.error ||"File upload failed.");
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setFormError("File upload failed:" + err.message);
  } finally {
  setUploading(false);
@@ -688,7 +690,7 @@ export function MeetingManagement() {
  finalMethod ="PUT";
  }
 
- const res = await fetch(finalUrl, {
+ const res = await api(finalUrl, {
  method: finalMethod,
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(payload),
@@ -708,7 +710,7 @@ export function MeetingManagement() {
  const errorData = await res.json();
  setFormError(errorData.error ||"Failed to save MOM.");
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setFormError("Failed to save MOM:" + err.message);
  } finally {
  setIsSubmitting(false);
@@ -750,7 +752,7 @@ export function MeetingManagement() {
  return;
  }
  try {
- const res = await fetch(`/api/meetings/${meetingId}`, {
+ const res = await api(`/api/meetings/${meetingId}`, {
  method:"DELETE",
  });
  if (res.ok) {
@@ -764,7 +766,7 @@ export function MeetingManagement() {
 
  const handleUpdateStatus = async (meeting: Meeting, newStatus:"Draft" |"Submitted" |"Approved" |"Closed") => {
  try {
- const res = await fetch(`/api/meetings/${meeting.id}`, {
+ const res = await api(`/api/meetings/${meeting.id}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -791,7 +793,7 @@ export function MeetingManagement() {
  }
 
  try {
- let payload: any = {
+ let payload: SafeAny = {
  title: version.title,
  meetingDate: version.meeting_date,
  status: version.status,
@@ -827,7 +829,7 @@ export function MeetingManagement() {
  }
  }
 
- const res = await fetch(`/api/meetings/${selectedMeeting.id}`, {
+ const res = await api(`/api/meetings/${selectedMeeting.id}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(payload),
@@ -2971,3 +2973,5 @@ export function MeetingManagement() {
  </div>
  );
 }
+
+

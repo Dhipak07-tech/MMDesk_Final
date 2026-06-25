@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState } from"react";
 import { Link } from"react-router-dom";
 import { useAuth } from"../../contexts/AuthContext";
@@ -77,7 +79,7 @@ export function CallLogs() {
  if (filterType) params.append("callType", filterType);
  if (filterPriority) params.append("priority", filterPriority);
 
- const res = await fetch(`/api/calls?${params.toString()}`);
+ const res = await api(`/api/calls?${params.toString()}`);
  if (res.ok) {
  const data = await res.json();
  setCalls(data);
@@ -91,7 +93,7 @@ export function CallLogs() {
 
  const fetchReports = async () => {
  try {
- const res = await fetch("/api/calls/reports");
+ const res = await api("/api/calls/reports");
  if (res.ok) {
  const data = await res.json();
  setReportsData(data);
@@ -109,7 +111,7 @@ export function CallLogs() {
  const handleDelete = async (id: number) => {
  if (!window.confirm("Are you sure you want to delete this call log?")) return;
  try {
- const res = await fetch(`/api/calls/${id}`, { method:"DELETE" });
+ const res = await api(`/api/calls/${id}`, { method:"DELETE" });
  if (res.ok) {
  fetchCalls();
  fetchReports();
@@ -527,7 +529,7 @@ export function CallLogs() {
  <Cell key={`cell-${index}`} fill={entry.color} />
  ))}
  </Pie>
- <Tooltip formatter={(v: any) => [v,"Calls"]} contentStyle={{ fontSize: 11, borderRadius: 8, border:"none" }} />
+ <Tooltip formatter={(v: SafeAny) => [v,"Calls"]} contentStyle={{ fontSize: 11, borderRadius: 8, border:"none" }} />
  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 11 }} />
  </PieChart>
  </ResponsiveContainer>
@@ -559,7 +561,7 @@ export function CallLogs() {
  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
  ))}
  </Pie>
- <Tooltip formatter={(v: any) => [v,"Calls"]} contentStyle={{ fontSize: 11, borderRadius: 8, border:"none" }} />
+ <Tooltip formatter={(v: SafeAny) => [v,"Calls"]} contentStyle={{ fontSize: 11, borderRadius: 8, border:"none" }} />
  </PieChart>
  </ResponsiveContainer>
  ) : (
@@ -580,7 +582,7 @@ export function CallLogs() {
  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
  <XAxis dataKey="name" fontSize={10} tickLine={false} />
  <YAxis fontSize={10} allowDecimals={false} tickLine={false} />
- <Tooltip formatter={(v: any) => [v,"Calls Logged"]} contentStyle={{ fontSize: 11, borderRadius: 8, border:"none" }} />
+ <Tooltip formatter={(v: SafeAny) => [v,"Calls Logged"]} contentStyle={{ fontSize: 11, borderRadius: 8, border:"none" }} />
  <Bar dataKey="calls" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={32} />
  </BarChart>
  </ResponsiveContainer>
@@ -596,3 +598,5 @@ export function CallLogs() {
  </div>
  );
 }
+
+

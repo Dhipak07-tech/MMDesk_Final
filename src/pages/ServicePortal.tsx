@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState } from"react";
 import {
  Search,
@@ -19,8 +21,8 @@ import {
 import { Link, useNavigate } from"react-router-dom";
 import { Button } from"@/components/ui/button";
 import { useAuth } from"../contexts/AuthContext";
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, setDoc } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, setDoc } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 
 export function ServicePortal() {
  const { user, profile } = useAuth();
@@ -76,7 +78,7 @@ export function ServicePortal() {
   // Fetch Portal general general settings (Preferences fallback)
   useEffect(() => {
     if (!user) return;
-    fetch("/api/settings_global/general")
+    api("/api/settings_global/general")
       .then(res => res.json())
       .then(data => {
         if (data) {
@@ -92,7 +94,7 @@ export function ServicePortal() {
   const handleSavePreferences = async () => {
     setSavingComment(true);
     try {
-      const res = await fetch("/api/settings_global/general", {
+      const res = await api("/api/settings_global/general", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -438,7 +440,7 @@ export function ServicePortal() {
  {(!selectedTicket.history || selectedTicket.history.length === 0) ? (
  <div className="text-center py-6 text-xs text-muted-foreground">No updates logged.</div>
  ) : (
- selectedTicket.history.map((hist: any, idx: number) => (
+ selectedTicket.history.map((hist: SafeAny, idx: number) => (
  <div key={idx} className="p-3 bg-black/10 rounded-xl border border-white/5 space-y-1">
  <div className="flex justify-between text-[9px] font-semibold uppercase text-sn-green">
  <span>{hist.user ||"System"}</span>
@@ -479,3 +481,8 @@ export function ServicePortal() {
  </div>
  );
 }
+
+
+
+
+

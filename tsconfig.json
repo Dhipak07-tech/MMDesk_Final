@@ -17,19 +17,19 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": [
-        "./*"
+        "./src/*"
       ],
       "firebase/firestore": [
-        "./src/lib/firestore-fallback.ts"
+        "./src/lib/firebase-stubs.ts"
       ],
       "firebase/auth": [
-        "./src/lib/firebase-auth-stub.ts"
+        "./src/lib/firebase-stubs.ts"
       ],
       "firebase/app": [
-        "./src/lib/firebase-app-stub.ts"
+        "./src/lib/firebase-stubs.ts"
       ],
       "@firebase/firestore": [
-        "./src/lib/firestore-fallback.ts"
+        "./src/lib/firebase-stubs.ts"
       ]
     },
     "allowImportingTsExtensions": true,

@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState } from"react";
 // Firebase removed — registration uses the REST API
 import { Link, useNavigate } from"react-router-dom";
@@ -69,10 +71,10 @@ export function Register() {
 
  // Check if email already exists via API
  try {
- const checkRes = await fetch("/api/users");
+ const checkRes = await api("/api/users");
  if (checkRes.ok) {
  const existingUsers = await checkRes.json();
- const emailExists = existingUsers.some((u: any) =>
+ const emailExists = existingUsers.some((u: SafeAny) =>
  u.email?.toLowerCase() === email.toLowerCase().trim()
  );
  if (emailExists) {
@@ -86,7 +88,7 @@ export function Register() {
  }
 
  // Create user via backend API
- const res = await fetch("/api/users", {
+ const res = await api("/api/users", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -118,7 +120,7 @@ export function Register() {
 
  setSuccess("Account created successfully! Redirecting...");
  setTimeout(() => { window.location.href ="/"; }, 1000);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.error("Registration error:", err);
  setError("Registration failed. Please try again." + (err.message ||""));
  } finally {
@@ -287,3 +289,5 @@ export function Register() {
  </div>
  );
 }
+
+

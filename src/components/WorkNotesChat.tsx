@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 /**
  * WorkNotesChat — Private Work Notes Chat Stream
  *
@@ -288,10 +290,10 @@ export function WorkNotesChat({
  try {
  const p = new URLSearchParams({ user_id: user!.uid, limit: '50' });
  if (ticketId) p.append('ticket_id', ticketId);
- const res = await fetch(`/api/work-notes?${p}`);
+ const res = await api(`/api/work-notes?${p}`);
  if (!res.ok) return;
  const rows = await res.json();
- setMessages((rows || []).map((n: any): WorkNoteMessage => ({
+ setMessages((rows || []).map((n: SafeAny): WorkNoteMessage => ({
  id: String(n.id),
  type: n.note_type,
  timestamp: n.created_at,
@@ -343,7 +345,7 @@ export function WorkNotesChat({
  // ── Step 2: Upload ──
  setStep(`⬆️ Uploading ${capture.format.toUpperCase()} (${capture.sizeKB}KB)...`);
  screenshotUrl = await uploadScreenshot(capture, userId);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.warn('[WorkNotes] Screenshot/upload failed:', err.message);
  setError(`📸 Screenshot unavailable: ${err.message}. Continuing with AI note only.`);
  setTimeout(() => setError(null), 6000);
@@ -353,7 +355,7 @@ export function WorkNotesChat({
  setStep('🤖 Generating AI work note...');
  let aiNote = context === 'start' ? 'Work session in progress.' : 'Work session completed.';
  try {
- const aiRes = await fetch('/api/ai/generate-notes', {
+ const aiRes = await api('/api/ai/generate-notes', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -378,7 +380,7 @@ export function WorkNotesChat({
  let savedId = `local_${Date.now()}`;
  let savedSessionId = sessionId;
  try {
- const saveRes = await fetch('/api/work-notes', {
+ const saveRes = await api('/api/work-notes', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -439,7 +441,7 @@ export function WorkNotesChat({
  if (msg.sessionId) setSessionId(msg.sessionId);
  onSessionStart?.(msg.sessionId || tempId, startTime);
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setError(`Start failed: ${err.message}`);
  } finally {
  setStep(null);
@@ -461,7 +463,7 @@ export function WorkNotesChat({
  setMessages(prev => [...prev, msg]);
  onSessionStop?.(activeSessionId || '', finalDuration);
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setError(`Stop failed: ${err.message}`);
  } finally {
  setStep(null);
@@ -612,3 +614,5 @@ export function WorkNotesChat({
  </>
  );
 }
+
+

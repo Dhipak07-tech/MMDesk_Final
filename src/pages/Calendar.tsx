@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useMemo, useCallback } from"react";
 import {
  ChevronLeft, ChevronRight, Plus, Copy, RefreshCw, HelpCircle,
@@ -203,7 +205,7 @@ export function Calendar() {
  const role = profile?.role || 'user';
  const hasAdminAccess = role === 'admin' || role === 'sub_admin' || role === 'super_admin' || role === 'ultra_super_admin';
  if (hasAdminAccess) {
- fetch("/api/users")
+ api("/api/users")
  .then(r => r.json())
  .then(list => setUsers(Array.isArray(list) ? list : []))
  .catch(e => console.error("Error loading users list:", e));
@@ -222,7 +224,7 @@ export function Calendar() {
  try {
  const targetUserId = selectedUserId || user.uid;
  // Fetch timesheets for user
- const tsRes = await fetch(`/api/timesheets?user_id=${targetUserId}`);
+ const tsRes = await api(`/api/timesheets?user_id=${targetUserId}`);
  const tsList = await tsRes.json();
  setTimesheets(tsList);
 
@@ -233,7 +235,7 @@ export function Calendar() {
  }
 
  // Get all time cards for the current range
- const tcRes = await fetch(`/api/time-cards?user_id=${targetUserId}&start_date=${weekStart}&end_date=${weekEnd}`);
+ const tcRes = await api(`/api/time-cards?user_id=${targetUserId}&start_date=${weekStart}&end_date=${weekEnd}`);
  const allCards = await tcRes.json();
  setTimeCards(Array.isArray(allCards) ? allCards : []);
  } catch (e) {
@@ -276,7 +278,7 @@ export function Calendar() {
 
  /* ── Per-day stats ── */
  const dayStats = useMemo(() => {
- const stats: Record<string, { logged: number; cards: any[] }> = {};
+ const stats: Record<string, { logged: number; cards: SafeAny[] }> = {};
  weekDays.forEach(day => { stats[day.date] = { logged: 0, cards: [] }; });
  weekCards.forEach(card => {
  if (stats[card.entry_date]) {
@@ -306,7 +308,7 @@ export function Calendar() {
  }
 
  /* ── Position events on grid ── */
- function getEventStyle(card: any): React.CSSProperties | null {
+ function getEventStyle(card: SafeAny): React.CSSProperties | null {
  const startH = parseTimeToHour(card.start_time);
  if (startH === null) return null;
  const endH = parseTimeToHour(card.end_time);
@@ -318,10 +320,10 @@ export function Calendar() {
  }
 
  /* ── Group overlapping events in sub-columns ── */
- function layoutEventsForDay(cards: any[]): { card: any; col: number; totalCols: number; style: React.CSSProperties }[] {
+ function layoutEventsForDay(cards: SafeAny[]): { card: SafeAny; col: number; totalCols: number; style: React.CSSProperties }[] {
  const timed = cards
  .map(c => ({ card: c, style: getEventStyle(c) }))
- .filter(e => e.style !== null) as { card: any; style: React.CSSProperties }[];
+ .filter(e => e.style !== null) as { card: SafeAny; style: React.CSSProperties }[];
 
  if (timed.length === 0) return [];
 
@@ -329,7 +331,7 @@ export function Calendar() {
  timed.sort((a, b) => parseFloat(a.style.top as string) - parseFloat(b.style.top as string));
 
  // Assign columns
- const result: { card: any; col: number; totalCols: number; style: React.CSSProperties }[] = [];
+ const result: { card: SafeAny; col: number; totalCols: number; style: React.CSSProperties }[] = [];
  const columns: { end: number }[] = [];
 
  timed.forEach(({ card, style }) => {
@@ -352,13 +354,13 @@ export function Calendar() {
  }
 
  /* ── To-do entries (no time assigned) ── */
- function getTodoEntries(dayDate: string): any[] {
+ function getTodoEntries(dayDate: string): SafeAny[] {
  const cards = dayStats[dayDate]?.cards || [];
  return cards.filter(c => !c.start_time || parseTimeToHour(c.start_time) === null);
  }
 
  /* ── Edit panel ── */
- function openEditPanel(card: any) {
+ function openEditPanel(card: SafeAny) {
  setEditPanel(card);
  setEditForm({
  startTime: card.start_time ||"",
@@ -379,7 +381,7 @@ export function Calendar() {
  try {
  const targetUserId = selectedUserId || user.uid;
  if (editPanel.id) {
- await fetch(`/api/time-cards/${editPanel.id}`, {
+ await api(`/api/time-cards/${editPanel.id}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -403,7 +405,7 @@ export function Calendar() {
  const entrySun = new Date(entryMon.getTime() + 6 * 86400000);
  const entrySunStr = formatDate(entrySun);
 
- const tsRes = await fetch("/api/timesheets/get-or-create", {
+ const tsRes = await api("/api/timesheets/get-or-create", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -415,7 +417,7 @@ export function Calendar() {
  const ts = await tsRes.json();
 
  // 2. Post new card
- await fetch("/api/time-cards", {
+ await api("/api/time-cards", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -444,7 +446,7 @@ export function Calendar() {
  async function deleteFromPanel() {
  if (!editPanel || !confirm("Delete this entry?")) return;
  try {
- await fetch(`/api/time-cards/${editPanel.id}`, { method: 'DELETE' });
+ await api(`/api/time-cards/${editPanel.id}`, { method: 'DELETE' });
  setEditPanel(null);
  loadData();
  } catch (e) { console.error(e); }
@@ -981,3 +983,5 @@ export function Calendar() {
  </div>
  );
 }
+
+

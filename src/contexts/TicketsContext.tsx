@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 /**
  * src/contexts/TicketsContext.tsx
  *
@@ -15,8 +17,8 @@ interface Ticket {
  assignedTo?: string;
  assignedToName?: string;
  createdBy: string;
- createdAt: any;
- updatedAt: any;
+ createdAt: SafeAny;
+ updatedAt: SafeAny;
 }
 
 interface TicketsContextType {
@@ -52,10 +54,10 @@ export function TicketsProvider({ children }: { children: React.ReactNode }) {
 
  const fetchOpenTickets = async () => {
  try {
- const res = await fetch("/api/tickets/open");
+ const res = await api("/api/tickets/open");
  if (!res.ok) throw new Error(`HTTP ${res.status}`);
  const data = await res.json();
- const mapped: Ticket[] = data.map((t: any) => ({
+ const mapped: Ticket[] = data.map((t: SafeAny) => ({
  id: String(t.id || t.ticket_number ||""),
  number: t.ticket_number || t.number ||"",
  title: t.title ||"",
@@ -68,7 +70,7 @@ export function TicketsProvider({ children }: { children: React.ReactNode }) {
  updatedAt: t.updated_at || t.updatedAt || null,
  }));
  setTickets(mapped);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.warn("[TicketsContext] Fetch error (non-fatal):", err.message);
  setError(null);
  } finally {
@@ -97,3 +99,5 @@ export function TicketsProvider({ children }: { children: React.ReactNode }) {
 
  return <TicketsContext.Provider value={value}>{children}</TicketsContext.Provider>;
 }
+
+

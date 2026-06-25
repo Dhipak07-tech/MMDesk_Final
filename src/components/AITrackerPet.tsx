@@ -11,7 +11,6 @@
 import React, { useState, useEffect, useRef, useCallback } from"react";
 import { useActivityTracker } from"../contexts/ActivityTrackerContext";
 import { useAuth } from"../contexts/AuthContext";
-import"../styles/ai-tracker-pet.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type PetMood =

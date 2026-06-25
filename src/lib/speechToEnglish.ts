@@ -1,6 +1,7 @@
+import { SafeAny } from '@/types';
 type SpeechLike = typeof window & {
- webkitSpeechRecognition?: any;
- SpeechRecognition?: any;
+ webkitSpeechRecognition?: SafeAny;
+ SpeechRecognition?: SafeAny;
 };
 
 export type SpeechControllerOptions = {
@@ -162,7 +163,7 @@ export function createSpeechController(options: SpeechControllerOptions) {
  armSilenceStop();
  };
 
- recognition.onresult = (event: any) => {
+ recognition.onresult = (event: SafeAny) => {
  let liveFinal = '';
  let interim = '';
 
@@ -181,7 +182,7 @@ export function createSpeechController(options: SpeechControllerOptions) {
  armSilenceStop();
  };
 
- recognition.onerror = (event: any) => {
+ recognition.onerror = (event: SafeAny) => {
  console.error('Speech recognition error:', event?.error, event?.message);
  active = false;
  options.onStateChange?.(false);
@@ -234,7 +235,7 @@ export function createSpeechController(options: SpeechControllerOptions) {
  try {
  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
  stream.getTracks().forEach((track) => track.stop());
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.error("Microphone permission check failed:", err);
  options.onError?.("Microphone access denied. Please allow microphone permissions in your browser settings.");
  return;
@@ -242,7 +243,7 @@ export function createSpeechController(options: SpeechControllerOptions) {
 
  recognition.start();
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.error("Speech recognition toggle error:", err);
  if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
  options.onError?.('Microphone access denied. Please allow microphone permissions.');
@@ -258,3 +259,4 @@ export function createSpeechController(options: SpeechControllerOptions) {
  },
  };
 }
+

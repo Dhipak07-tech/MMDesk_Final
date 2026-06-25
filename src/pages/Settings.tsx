@@ -1,6 +1,8 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useMemo, useState } from"react";
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, getDocs, where, setDoc } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, getDocs, where, setDoc } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
 import {
@@ -46,7 +48,7 @@ export function Settings() {
  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
  // Modal / Form states
- const [editingItem, setEditingItem] = useState<{ type: string, data: any } | null>(null);
+ const [editingItem, setEditingItem] = useState<{ type: string, data: SafeAny } | null>(null);
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [allUsers, setAllUsers] = useState<any[]>([]);
  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -71,7 +73,7 @@ export function Settings() {
  setWorkflows(snap.docs.map(d => ({ id: d.id, ...d.data() })));
  });
   // Fetch system settings via API
-  fetch("/api/settings_global/general")
+  api("/api/settings_global/general")
     .then(res => res.json())
     .then(data => {
       if (data) setSystemSettings(data);
@@ -96,14 +98,14 @@ export function Settings() {
  updatedAt: serverTimestamp()
  });
  setMessage({ text:"Workflow file uploaded successfully!", type:"success" });
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setMessage({ text: err.message, type:"error" });
  } finally {
  setIsUploading(false);
  }
  };
 
- const createAuditLog = async (moduleId: string, moduleName: string, action: AuditLog['action'], oldVal: any, newVal: any) => {
+ const createAuditLog = async (moduleId: string, moduleName: string, action: AuditLog['action'], oldVal: SafeAny, newVal: SafeAny) => {
  await addDoc(collection(db,"settings_audit_logs"), {
  moduleId,
  moduleName,
@@ -116,7 +118,7 @@ export function Settings() {
  });
  };
 
- const handleMutation = async (type: string, action: 'create' | 'update' | 'delete', data?: any) => {
+ const handleMutation = async (type: string, action: 'create' | 'update' | 'delete', data?: SafeAny) => {
  if (!isAdmin) return;
  setLoading(true);
  try {
@@ -141,7 +143,7 @@ export function Settings() {
  } else {
  // Only check for duplicates against CURRENTLY VISIBLE (active) items in UI
  if (action === 'create') {
- const visibleItems: any[] =
+ const visibleItems: SafeAny[] =
  type === 'Category' ? activeCategories :
  type === 'Subcategory' ? activeSubcategories :
  type === 'Service Provider' ? activeProviders :
@@ -151,7 +153,7 @@ export function Settings() {
  const nameToCheck = (data.name ||"").trim().toLowerCase();
  const userIdToCheck = data.userId;
 
- const duplicate = visibleItems.find((item: any) => {
+ const duplicate = visibleItems.find((item: SafeAny) => {
  if (type === 'Group Member') return item.userId === userIdToCheck;
  return (item.name ||"").trim().toLowerCase() === nameToCheck;
  });
@@ -177,7 +179,7 @@ export function Settings() {
  setMessage({ text: `${type} saved successfully!`, type: 'success' });
  setIsModalOpen(false);
  setEditingItem(null);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setMessage({ text: err.message, type: 'error' });
  }
  setLoading(false);
@@ -215,7 +217,7 @@ export function Settings() {
  });
  }
  setMessage({ text:"Demo data seeded successfully!", type:"success" });
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setMessage({ text: err.message, type:"error" });
  } finally {
  setLoading(false);
@@ -304,7 +306,7 @@ export function Settings() {
  <MasterColumn
  title="Sub-Categories"
  icon={Radio}
- items={activeSubcategories.filter((s: any) => s.categoryId === selectedCatId)}
+ items={activeSubcategories.filter((s: SafeAny) => s.categoryId === selectedCatId)}
  selectedId={selectedSubId}
  disabled={!selectedCatId}
  parentId={selectedCatId}
@@ -318,7 +320,7 @@ export function Settings() {
  <MasterColumn
  title="Providers"
  icon={Box}
- items={activeProviders.filter((p: any) => p.subcategoryId === selectedSubId)}
+ items={activeProviders.filter((p: SafeAny) => p.subcategoryId === selectedSubId)}
  selectedId={selectedSrvId}
  disabled={!selectedSubId}
  parentId={selectedSubId}
@@ -348,7 +350,7 @@ export function Settings() {
  <MasterColumn
  title="Group Members"
  icon={UserPlus}
- items={activeMembers.filter((m: any) => m.groupId === selectedGroupId).map(m => ({ ...m, name: m.userName }))}
+ items={activeMembers.filter((m: SafeAny) => m.groupId === selectedGroupId).map(m => ({ ...m, name: m.userName }))}
  selectedId={null}
  disabled={!selectedGroupId}
  parentId={selectedGroupId}
@@ -524,7 +526,7 @@ export function Settings() {
   onClick={async () => {
   setLoading(true);
   try {
-  const res = await fetch("/api/settings_global/general", {
+  const res = await api("/api/settings_global/general", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -537,7 +539,7 @@ export function Settings() {
   } else {
     throw new Error("Failed to save system settings via API");
   }
-  } catch (err: any) {
+  } catch (err: SafeAny) {
   setMessage({ text: err.message, type:"error" });
   }
   setLoading(false);
@@ -604,7 +606,7 @@ export function Settings() {
  <form onSubmit={(e) => {
  e.preventDefault();
  const formData = new FormData(e.currentTarget);
- const data: any = {};
+ const data: SafeAny = {};
  formData.forEach((val, key) => data[key] = val);
 
  if (editingItem.type === 'Group Member') {
@@ -751,14 +753,14 @@ export function Settings() {
  );
 }
 
-function MasterColumn({ title, icon: Icon, items, selectedId, onSelect, onAdd, onEdit, onDelete, disabled, isAdmin, parentId, parentLabel }: any) {
+function MasterColumn({ title, icon: Icon, items, selectedId, onSelect, onAdd, onEdit, onDelete, disabled, isAdmin, parentId, parentLabel }: SafeAny) {
  const [searchTerm, setSearchTerm] = useState("");
  // true when this column requires a parent selection before adding
  const needsParent = !!parentLabel;
  const parentSelected = !needsParent || !!parentId;
 
  const filteredItems = useMemo(() => {
- return items.filter((item: any) =>
+ return items.filter((item: SafeAny) =>
  (item.name ||"").toLowerCase().includes(searchTerm.toLowerCase()) ||
  (item.userName ||"").toLowerCase().includes(searchTerm.toLowerCase())
  );
@@ -811,7 +813,7 @@ function MasterColumn({ title, icon: Icon, items, selectedId, onSelect, onAdd, o
  </div>
  ) : (
  <>
- {filteredItems.map((item: any) => (
+ {filteredItems.map((item: SafeAny) => (
  <motion.div
  layout
  key={item.id}
@@ -887,7 +889,7 @@ function MasterColumn({ title, icon: Icon, items, selectedId, onSelect, onAdd, o
  );
 }
 
-function Input({ label, ...props }: any) {
+function Input({ label, ...props }: SafeAny) {
  return (
  <div className="space-y-2">
  <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">{label}</label>
@@ -896,7 +898,7 @@ function Input({ label, ...props }: any) {
  );
 }
 
-function Textarea({ label, ...props }: any) {
+function Textarea({ label, ...props }: SafeAny) {
  return (
  <div className="space-y-2">
  <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">{label}</label>
@@ -905,7 +907,7 @@ function Textarea({ label, ...props }: any) {
  );
 }
 
-function Select({ label, children, ...props }: any) {
+function Select({ label, children, ...props }: SafeAny) {
  return (
  <div className="space-y-2">
  <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">{label}</label>
@@ -915,3 +917,8 @@ function Select({ label, children, ...props }: any) {
  </div>
  );
 }
+
+
+
+
+

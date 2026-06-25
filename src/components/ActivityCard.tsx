@@ -1,16 +1,17 @@
+import { SafeAny } from '@/types';
 import React from"react";
 import { MessageSquare, Lock, Globe, Clock, Paperclip, Shield } from"lucide-react";
 import { cn } from"@/lib/utils";
 
 export interface ActivityCardProps {
- activity: any;
- formatDate: (date: any) => string;
+ activity: SafeAny;
+ formatDate: (date: SafeAny) => string;
 }
 
 export function ActivityCard({ activity, formatDate }: ActivityCardProps) {
  const isInternal = activity.visibility_type === 'internal' || activity.activity_type === 'work_note';
  
- let metadata: any = {};
+ let metadata: SafeAny = {};
  try {
  metadata = typeof activity.metadata_json === 'string' ? JSON.parse(activity.metadata_json) : (activity.metadata_json || {});
  } catch (e) { }
@@ -98,7 +99,7 @@ export function ActivityCard({ activity, formatDate }: ActivityCardProps) {
  {/* Attachments */}
  {metadata.attachments && metadata.attachments.length > 0 && (
  <div className="flex flex-wrap gap-2 mt-1">
- {metadata.attachments.map((att: any, i: number) => (
+ {metadata.attachments.map((att: SafeAny, i: number) => (
  <a
  key={i}
  href={att.url ||"#"}
@@ -125,3 +126,4 @@ export function ActivityCard({ activity, formatDate }: ActivityCardProps) {
  </div>
  );
 }
+

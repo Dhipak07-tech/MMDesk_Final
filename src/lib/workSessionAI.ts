@@ -1,3 +1,4 @@
+import api from '@/lib/api';
 /**
  * AI-Powered Work Session Manager
  * Handles screenshot capture, AI analysis, and auto work notes generation
@@ -114,7 +115,7 @@ export async function analyzeWorkContext(
  elapsedTime?: number
 ): Promise<WorkAnalysis> {
  try {
- const response = await fetch('/api/ai/analyze-work', {
+ const response = await api('/api/ai/analyze-work', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -181,7 +182,7 @@ export interface WorkAnalysis {
 // Save a work session record
 export async function saveWorkSession(session: WorkSessionData): Promise<any> {
  try {
- const response = await fetch('/api/work-sessions', {
+ const response = await api('/api/work-sessions', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify(session)
@@ -212,3 +213,4 @@ export interface WorkSessionData {
  ai_notes_stop?: string;
  status: 'active' | 'completed';
 }
+

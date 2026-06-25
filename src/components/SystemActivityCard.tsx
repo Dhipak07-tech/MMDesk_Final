@@ -1,10 +1,11 @@
+import { SafeAny } from '@/types';
 import React from"react";
 import { Clock, History, ArrowRightLeft, AlertTriangle, UserCheck, Shield, Zap, CheckCircle2, Info } from"lucide-react";
 import { cn } from"@/lib/utils";
 
 export interface SystemActivityCardProps {
- activity: any;
- formatDate: (date: any) => string;
+ activity: SafeAny;
+ formatDate: (date: SafeAny) => string;
 }
 
 const ACTIVITY_ICONS: Record<string, { icon: React.ReactNode; color: string; bg: string; borderColor: string }> = {
@@ -17,7 +18,7 @@ const ACTIVITY_ICONS: Record<string, { icon: React.ReactNode; color: string; bg:
 };
 
 export function SystemActivityCard({ activity, formatDate }: SystemActivityCardProps) {
- let metadata: any = {};
+ let metadata: SafeAny = {};
  try {
  metadata = typeof activity.metadata_json === 'string' ? JSON.parse(activity.metadata_json) : (activity.metadata_json || {});
  } catch (e) { }
@@ -138,3 +139,4 @@ export function SystemActivityCard({ activity, formatDate }: SystemActivityCardP
  </div>
  );
 }
+

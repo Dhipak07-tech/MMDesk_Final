@@ -11,7 +11,7 @@ import {
 } from"@/components/ui/navigation-menu";
 import { cn } from"@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from"@/components/ui/sheet";
-import { GetStartedModal } from"@/src/components/GetStartedModal";
+import { GetStartedModal } from "@/components/GetStartedModal";
 
 const components: { title: string; href: string; description: string }[] = [
  {

@@ -11,7 +11,10 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
 
+import org.springframework.transaction.annotation.Transactional;
+
 @Service
+@Transactional(readOnly = true)
 public class GeminiService {
 
     @Value("${gemini.api.key:}")

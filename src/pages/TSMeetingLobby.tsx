@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useState, useEffect, useRef } from"react";
 import { useParams, useNavigate, useLocation } from"react-router-dom";
 import { useAuth } from"../contexts/AuthContext";
@@ -116,7 +118,7 @@ export function TSMeetingLobby() {
  const fetchMeeting = async () => {
  try {
  setLoading(true);
- const res = await fetch(`/api/ts-meetings/${tsmId}`);
+ const res = await api(`/api/ts-meetings/${tsmId}`);
  if (!res.ok) {
  throw new Error("Failed to load meeting details. Ensure the meeting room exists.");
  }
@@ -126,7 +128,7 @@ export function TSMeetingLobby() {
  } else if (active) {
  throw new Error(data.error ||"Could not retrieve meeting.");
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  if (active) setError(err.message ||"An error occurred.");
  } finally {
  if (active) setLoading(false);
@@ -249,7 +251,7 @@ export function TSMeetingLobby() {
  selectedMicrophoneId,
  });
  let stream: MediaStream | null = null;
- let lastError: any = null;
+ let lastError: SafeAny = null;
 
  for (const attempt of attempts) {
  try {
@@ -290,7 +292,7 @@ export function TSMeetingLobby() {
  } else {
  stream.getTracks().forEach(track => track.stop());
  }
- } catch (err: any) {
+ } catch (err: SafeAny) {
  console.error("Error accessing camera preview:", err);
  if (active) {
  setPermissionStatus(
@@ -598,3 +600,5 @@ export function TSMeetingLobby() {
  </div>
  );
 }
+
+

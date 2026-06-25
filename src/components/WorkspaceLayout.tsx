@@ -267,14 +267,14 @@ export function TabWorkspaceProvider({ children }: { children: React.ReactNode }
  setIsTabsEnabled(prev => !prev);
  };
 
- const programNavigate = (targetPath: string, targetTabId: string) => {
- const currentPath = location.pathname + location.search;
- if (targetPath !== currentPath) {
- isSwitchingTabRef.current = true;
- }
- setActiveTabId(targetTabId);
- navigate(targetPath);
- };
+  const programNavigate = (targetPath: string, targetTabId: string) => {
+    const currentPath = location.pathname + location.search;
+    setActiveTabId(targetTabId);
+    if (targetPath !== currentPath) {
+      isSwitchingTabRef.current = true;
+      navigate(targetPath);
+    }
+  };
 
  const openTab = (path: string, options?: { title?: string; focus?: boolean; forceNew?: boolean }) => {
  if (!isTabsEnabled) {

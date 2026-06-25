@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState } from"react";
 import { useAuth } from"../contexts/AuthContext";
 import {
@@ -91,14 +93,14 @@ export function IncidentCategoryManagement() {
  async function fetchCategories() {
  setLoading(true);
  try {
- const res = await fetch(
+ const res = await api(
  `/api/incident-categories?uid=${encodeURIComponent(user?.uid ||"")}&email=${encodeURIComponent(myEmail)}`,
  { headers: getHeaders() }
  );
  if (!res.ok) throw new Error("Failed to load categories");
  const data = await res.json();
  setCategories(data);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  showToast(err.message ||"Error loading categories","error");
  } finally {
  setLoading(false);
@@ -114,13 +116,13 @@ export function IncidentCategoryManagement() {
  setLoadingOptions(true);
  setOptionError("");
  try {
- const res = await fetch(`/api/incident-categories/options?category_id=${catId}`, {
+ const res = await api(`/api/incident-categories/options?category_id=${catId}`, {
  headers: getHeaders()
  });
  if (!res.ok) throw new Error("Failed to load dropdown values");
  const data = await res.json();
  setOptions(data);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setOptionError(err.message ||"Failed to load dropdown values");
  } finally {
  setLoadingOptions(false);
@@ -164,7 +166,7 @@ export function IncidentCategoryManagement() {
  ? `/api/incident-categories/${editingId}`
  :"/api/incident-categories";
  const method = editingId ?"PUT" :"POST";
- const res = await fetch(url, {
+ const res = await api(url, {
  method,
  headers: getHeaders(),
  body: JSON.stringify({
@@ -186,7 +188,7 @@ export function IncidentCategoryManagement() {
  setShowForm(false);
  setEditingId(null);
  await fetchCategories();
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setFormError(err.message ||"Network error");
  } finally {
  setFormSubmitting(false);
@@ -198,7 +200,7 @@ export function IncidentCategoryManagement() {
  setDeleteSubmitting(true);
  setDeleteError("");
  try {
- const res = await fetch(
+ const res = await api(
  `/api/incident-categories/${deleteTarget.id}?uid=${encodeURIComponent(user?.uid ||"")}&email=${encodeURIComponent(myEmail)}`,
  { method:"DELETE", headers: getHeaders() }
  );
@@ -210,7 +212,7 @@ export function IncidentCategoryManagement() {
  showToast("Category deleted successfully");
  setDeleteTarget(null);
  await fetchCategories();
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setDeleteError(err.message ||"Network error");
  } finally {
  setDeleteSubmitting(false);
@@ -236,7 +238,7 @@ export function IncidentCategoryManagement() {
  setOptionSubmitting(true);
  setOptionError("");
  try {
- const res = await fetch("/api/incident-categories/options", {
+ const res = await api("/api/incident-categories/options", {
  method:"POST",
  headers: getHeaders(),
  body: JSON.stringify({
@@ -256,7 +258,7 @@ export function IncidentCategoryManagement() {
  showToast("Dropdown value added successfully");
  setNewOptionText("");
  fetchOptions(activeCategoryForOptions.id);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setOptionError(err.message ||"Network error");
  } finally {
  setOptionSubmitting(false);
@@ -267,7 +269,7 @@ export function IncidentCategoryManagement() {
  if (!activeCategoryForOptions) return;
  const newStatus = opt.status ==="Active" ?"Inactive" :"Active";
  try {
- const res = await fetch(`/api/incident-categories/options/${opt.id}`, {
+ const res = await api(`/api/incident-categories/options/${opt.id}`, {
  method:"PUT",
  headers: getHeaders(),
  body: JSON.stringify({
@@ -285,7 +287,7 @@ export function IncidentCategoryManagement() {
  }
  showToast(`Value is now ${newStatus}`);
  fetchOptions(activeCategoryForOptions.id);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  showToast(err.message ||"Network error","error");
  }
  }
@@ -294,7 +296,7 @@ export function IncidentCategoryManagement() {
  if (!activeCategoryForOptions) return;
  if (!editingOptionText.trim()) return;
  try {
- const res = await fetch(`/api/incident-categories/options/${opt.id}`, {
+ const res = await api(`/api/incident-categories/options/${opt.id}`, {
  method:"PUT",
  headers: getHeaders(),
  body: JSON.stringify({
@@ -313,7 +315,7 @@ export function IncidentCategoryManagement() {
  showToast("Dropdown value updated");
  setEditingOptionId(null);
  fetchOptions(activeCategoryForOptions.id);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  setOptionError(err.message ||"Network error");
  }
  }
@@ -322,7 +324,7 @@ export function IncidentCategoryManagement() {
  if (!activeCategoryForOptions) return;
  if (!confirm("Are you sure you want to delete this dropdown value?")) return;
  try {
- const res = await fetch(`/api/incident-categories/options/${optId}?uid=${encodeURIComponent(user?.uid ||"")}&email=${encodeURIComponent(myEmail)}`, {
+ const res = await api(`/api/incident-categories/options/${optId}?uid=${encodeURIComponent(user?.uid ||"")}&email=${encodeURIComponent(myEmail)}`, {
  method:"DELETE",
  headers: getHeaders()
  });
@@ -333,7 +335,7 @@ export function IncidentCategoryManagement() {
  }
  showToast("Dropdown value deleted");
  fetchOptions(activeCategoryForOptions.id);
- } catch (err: any) {
+ } catch (err: SafeAny) {
  showToast(err.message ||"Network error","error");
  }
  }
@@ -875,3 +877,5 @@ export function IncidentCategoryManagement() {
  </div>
  );
 }
+
+

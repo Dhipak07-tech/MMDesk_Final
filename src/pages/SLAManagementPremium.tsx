@@ -1,3 +1,4 @@
+import { SafeAny } from '@/types';
 import React, { useEffect, useState } from"react";
 import { useSearchParams } from"react-router-dom";
 import { useAuth } from"../contexts/AuthContext";
@@ -10,7 +11,7 @@ import {
  deleteDoc,
  doc,
  updateDoc
-} from"../lib/api";
+} from"../lib/firebase-stubs";
 import {
  Plus,
  Trash2,
@@ -154,17 +155,17 @@ export function SLAManagementPremium() {
  }, [isAdmin]);
 
  // Handle local storage updates
- const saveBusinessHours = (updated: any) => {
+ const saveBusinessHours = (updated: SafeAny) => {
  setBusinessHours(updated);
  localStorage.setItem("sn_sla_business_hours", JSON.stringify(updated));
  };
 
- const saveHolidays = (updated: any[]) => {
+ const saveHolidays = (updated: SafeAny[]) => {
  setHolidays(updated);
  localStorage.setItem("sn_sla_holidays", JSON.stringify(updated));
  };
 
- const saveEscalations = (updated: any[]) => {
+ const saveEscalations = (updated: SafeAny[]) => {
  setEscalations(updated);
  localStorage.setItem("sn_sla_escalation_rules", JSON.stringify(updated));
  };
@@ -501,7 +502,7 @@ export function SLAManagementPremium() {
  </div>
 
  <div className="space-y-3">
- {businessHours.days.map((item: any, idx: number) => (
+ {businessHours.days.map((item: SafeAny, idx: number) => (
  <div key={item.day} className="flex items-center justify-between p-3.5 bg-white/5 border border-white/5 rounded-xl hover:bg-white/10 transition-colors">
  <div className="flex items-center gap-3">
  <input
@@ -1011,3 +1012,5 @@ export function SLAManagementPremium() {
  </div>
  );
 }
+
+

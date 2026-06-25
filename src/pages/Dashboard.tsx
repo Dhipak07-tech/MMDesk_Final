@@ -1,13 +1,14 @@
+import { SafeAny } from '@/types';
 import React, { useEffect, useState } from"react";
-import { collection, onSnapshot, query } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { collection, onSnapshot, query } from "@/lib/firebase-stubs";
+import { db } from"../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from"recharts";
 import { RefreshCw, LayoutGrid, Clock, AlertCircle, ShieldAlert, CheckCircle2 } from"lucide-react";
 import { Link } from"react-router-dom";
 import { cn, formatDate } from"../lib/utils";
 
-function toMs(val: any): number {
+function toMs(val: SafeAny): number {
  if (!val) return NaN;
  if (typeof val === 'object' && val.seconds !== undefined) return val.seconds * 1000 + (val.nanoseconds || 0) / 1_000_000;
  if (typeof val === 'object' && typeof val.toDate === 'function') return val.toDate().getTime();
@@ -16,8 +17,7 @@ function toMs(val: any): number {
 }
 
 import { SLATimer } from"../components/SLATimer";
-import { getEffectiveSlaDelayState } from"../lib/slaDelayUtils";
-import { calculateSLADeadline } from"../lib/slaUtils";
+import { getEffectiveSlaDelayState, calculateSLADeadline } from"../lib/slaEngine";
 
 const PRIORITY_COLORS: Record<string, string> = {
 "1 - Critical":"#ef4444", // Neon Red
@@ -50,7 +50,7 @@ export function Dashboard() {
  const thirtyDaysAgo = now - 30 * 24 * 3600 * 1000;
  const sevenDaysAgo = now - 7 * 24 * 3600 * 1000;
 
- const getTs = (t: any) => {
+ const getTs = (t: SafeAny) => {
  const c = t.createdAt;
  if (!c) return 0;
  if (c?.seconds) return c.seconds * 1000;
@@ -220,7 +220,7 @@ export function Dashboard() {
  <XAxis type="number" fontSize={9} allowDecimals={false} stroke="#94a3b8" style={{ fontFamily:"Orbitron, sans-serif" }} />
  <YAxis type="category" dataKey="label" fontSize={9} width={90} stroke="#94a3b8" style={{ fontFamily:"Outfit, sans-serif" }} />
  <Tooltip 
- formatter={(v: any) => [v,"Tickets"]}
+ formatter={(v: SafeAny) => [v,"Tickets"]}
  contentStyle={{
  backgroundColor:"rgba(9, 10, 21, 0.85)",
  backdropFilter:"blur(12px)",
@@ -252,7 +252,7 @@ export function Dashboard() {
  <XAxis type="number" fontSize={9} allowDecimals={false} stroke="#94a3b8" style={{ fontFamily:"Orbitron, sans-serif" }} />
  <YAxis type="category" dataKey="label" fontSize={9} width={90} stroke="#94a3b8" style={{ fontFamily:"Outfit, sans-serif" }} />
  <Tooltip 
- formatter={(v: any) => [v,"Tickets"]}
+ formatter={(v: SafeAny) => [v,"Tickets"]}
  contentStyle={{
  backgroundColor:"rgba(9, 10, 21, 0.85)",
  backdropFilter:"blur(12px)",
@@ -401,3 +401,7 @@ export function Dashboard() {
  </div>
  );
 }
+
+
+
+

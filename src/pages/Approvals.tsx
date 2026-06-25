@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from"react";
-import { collection, query, onSnapshot, updateDoc, doc, serverTimestamp, where } from"firebase/firestore";
-import { db } from"../lib/firebase";
+import { db, collection, query, onSnapshot, updateDoc, doc, serverTimestamp, where } from "@/lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { CheckCircle, XCircle, Clock, ShieldAlert } from"lucide-react";
 import { Button } from"@/components/ui/button";
@@ -121,3 +120,5 @@ export function Approvals() {
  </div>
  );
 }
+
+

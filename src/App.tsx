@@ -15,7 +15,6 @@ import { seedInitialData } from"./lib/seed";
 import { useEffect } from"react";
 import { ROLE_HIERARCHY, Role } from"./lib/roles";
 import { DynamicTypography } from"./components/DynamicTypography";
-import"./styles/codex-pet.css";
 import { TabWorkspaceProvider, WorkspaceLayout } from"./components/WorkspaceLayout";
 
 // Lazy loaded components

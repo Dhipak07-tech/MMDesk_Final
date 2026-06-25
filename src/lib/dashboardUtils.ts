@@ -1,3 +1,4 @@
+import { SafeAny } from '@/types';
 /**
  * src/lib/dashboardUtils.ts
  *
@@ -6,7 +7,7 @@
  */
 
 /** Helper to convert date string / number / Timestamp-like object to Date */
-export const toDate = (val: any): Date | null => {
+export const toDate = (val: SafeAny): Date | null => {
  if (!val) return null;
  // Handle Firestore Timestamp-like objects (seconds + nanoseconds)
  if (typeof val ==="object" && val.seconds !== undefined) return new Date(val.seconds * 1000);
@@ -18,7 +19,7 @@ export const toDate = (val: any): Date | null => {
 
 /** Validate a ticket record. Returns true if valid */
 export const validateTicket = (
- t: any,
+ t: SafeAny,
  userUid: string
 ): { valid: boolean; errors: string[] } => {
  const errors: string[] = [];
@@ -44,7 +45,7 @@ export const validateTicket = (
 
 /** Compute SLA and overdue values */
 export const computeSla = (
- t: any
+ t: SafeAny
 ): {
  responseSla: string | null;
  resolutionSla: string | null;
@@ -86,7 +87,7 @@ export const computeSla = (
 };
 
 /** Remove duplicate tickets based on incident number + id, keep latest by updatedAt */
-export const dedupeTickets = (tickets: any[]): any[] => {
+export const dedupeTickets = (tickets: SafeAny[]): SafeAny[] => {
  const map = new Map<string, any>();
  tickets.forEach((t) => {
  const key = `${t.number ||""}-${t.id}`;
@@ -101,7 +102,7 @@ export const dedupeTickets = (tickets: any[]): any[] => {
 };
 
 /** Simple audit logger */
-export const auditLog = (userUid: string, ticket: any, issue: string, resolution: string) => {
+export const auditLog = (userUid: string, ticket: SafeAny, issue: string, resolution: string) => {
  const ts = new Date().toISOString();
  console.warn(
  `[AUDIT] ${ts} | User:${userUid} | Ticket:${ticket.id || ticket.number} | Issue:${issue} | Resolution:${resolution}`
@@ -109,9 +110,10 @@ export const auditLog = (userUid: string, ticket: any, issue: string, resolution
 };
 
 /** Detect placeholder/test tickets */
-export const isBleachedTicket = (t: any): boolean => {
+export const isBleachedTicket = (t: SafeAny): boolean => {
  const title = (t.title ||"").toString().toLowerCase();
  const desc = (t.description || t.body ||"").toString().toLowerCase();
  const bleachedKeywords = ["bleached","placeholder","test ticket","dummy"];
  return bleachedKeywords.some((kw) => title.includes(kw) || desc.includes(kw));
 };
+

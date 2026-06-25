@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState, useRef, useCallback } from"react";
 import { useSearchParams } from"react-router-dom";
 import { useAuth } from"../contexts/AuthContext";
@@ -15,7 +17,7 @@ import {
 } from"recharts";
 
 // Reuse standard custom button
-const Button = ({ className, ...props }: any) => (
+const Button = ({ className, ...props }: SafeAny) => (
  <button
  className={`px-4 py-2 rounded font-bold hover:opacity-90 active:scale-95 transition disabled:opacity-50 ${className}`}
  {...props}
@@ -168,17 +170,17 @@ export function Groups() {
 
  const refreshGroupsAndUsers = useCallback(async () => {
  try {
- const resGroups = await fetch("/api/settings_groups");
+ const resGroups = await api("/api/settings_groups");
  if (resGroups.ok) {
  const data = await resGroups.json();
  setGroups(data);
  }
- const resUsers = await fetch("/api/users");
+ const resUsers = await api("/api/users");
  if (resUsers.ok) {
  const data = await resUsers.json();
  setUsers(data);
  }
- const resMembers = await fetch("/api/settings_group_members");
+ const resMembers = await api("/api/settings_group_members");
  if (resMembers.ok) {
  const data = await resMembers.json();
  setGroupMembers(data);
@@ -192,7 +194,7 @@ export function Groups() {
  if (!groupId) return;
  try {
  const fetchJson = async (url: string) => {
- const res = await fetch(url);
+ const res = await api(url);
  return res.ok ? res.json() : [];
  };
 
@@ -238,8 +240,8 @@ export function Groups() {
  useEffect(() => {
  if (groups.length > 0 && !selectedGroupId) {
  const userGroup = groups.find(g => {
- const members = groupMembers.filter((m: any) => m.groupId === g.id);
- const memberIds = members.map((m: any) => m.userId);
+ const members = groupMembers.filter((m: SafeAny) => m.groupId === g.id);
+ const memberIds = members.map((m: SafeAny) => m.userId);
  return memberIds.includes(user?.uid) ||
  g.managerId === user?.uid ||
  g.leaderId === user?.uid;
@@ -266,8 +268,8 @@ export function Groups() {
  }
  }, [selectedGroupId, tasks.length, events.length, groups]);
 
- const activeGroupMembers = groupMembers.filter((m: any) => m.groupId === selectedGroupId);
- const activeGroupMemberIds = activeGroupMembers.map((m: any) => m.userId);
+ const activeGroupMembers = groupMembers.filter((m: SafeAny) => m.groupId === selectedGroupId);
+ const activeGroupMemberIds = activeGroupMembers.map((m: SafeAny) => m.userId);
 
  const activeGroup = groups.find(g => g.id === selectedGroupId) ? {
  ...groups.find(g => g.id === selectedGroupId),
@@ -287,8 +289,8 @@ export function Groups() {
  // Seed default data for Groups
  const seedGroupData = async (groupId: string) => {
  try {
- const postData = async (url: string, payload: any) => {
- await fetch(url, {
+ const postData = async (url: string, payload: SafeAny) => {
+ await api(url, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(payload)
@@ -401,7 +403,7 @@ export function Groups() {
 
  const method = selectedGroup ?"PUT" :"POST";
  const url = selectedGroup ? `/api/settings_groups/${selectedGroup.id}` :"/api/settings_groups";
- const res = await fetch(url, {
+ const res = await api(url, {
  method,
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -420,19 +422,19 @@ export function Groups() {
  }
  setIsGroupModalOpen(false);
  refreshGroupsAndUsers();
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error saving group:" + e.message);
  }
  };
 
- const handleDeleteGroup = async (group: any) => {
+ const handleDeleteGroup = async (group: SafeAny) => {
  if (!confirm(`Delete group ${group.name}?`)) return;
  try {
- const res = await fetch(`/api/settings_groups/${group.id}`, { method:"DELETE" });
+ const res = await api(`/api/settings_groups/${group.id}`, { method:"DELETE" });
  if (!res.ok) throw new Error("HTTP error" + res.status);
  setSelectedGroupId("");
  refreshGroupsAndUsers();
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error deleting group:" + e.message);
  }
  };
@@ -441,7 +443,7 @@ export function Groups() {
  if (!selectedGroupId) return;
  try {
  const u = users.find(usr => usr.id === userId || usr.uid === userId);
- const res = await fetch("/api/settings_group_members", {
+ const res = await api("/api/settings_group_members", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -460,7 +462,7 @@ export function Groups() {
  });
  if (!res.ok) throw new Error("HTTP error" + res.status);
  refreshGroupsAndUsers();
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Failed to add member:" + e.message);
  }
  };
@@ -468,15 +470,15 @@ export function Groups() {
  const handleRemoveMember = async (userId: string) => {
  if (!selectedGroupId) return;
  try {
- const memRecord = groupMembers.find((m: any) => m.groupId === selectedGroupId && (m.userId === userId || m.user_id === userId));
+ const memRecord = groupMembers.find((m: SafeAny) => m.groupId === selectedGroupId && (m.userId === userId || m.user_id === userId));
  if (!memRecord) {
  alert("Member record not found in this group.");
  return;
  }
- const res = await fetch(`/api/settings_group_members/${memRecord.id}`, { method:"DELETE" });
+ const res = await api(`/api/settings_group_members/${memRecord.id}`, { method:"DELETE" });
  if (!res.ok) throw new Error("HTTP error" + res.status);
  refreshGroupsAndUsers();
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Failed to remove member:" + e.message);
  }
  };
@@ -505,7 +507,7 @@ export function Groups() {
  ? `/api/settings/groups/${selectedGroupId}/tasks/${selectedTask.id}`
  : `/api/settings/groups/${selectedGroupId}/tasks`;
 
- const res = await fetch(url, {
+ const res = await api(url, {
  method,
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -515,7 +517,7 @@ export function Groups() {
  setIsTaskModalOpen(false);
  setSelectedTask(null);
  refreshGroupDetails(selectedGroupId);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error saving task:" + e.message);
  }
  };
@@ -523,14 +525,14 @@ export function Groups() {
  // Drag and drop or simple movement simulation for Kanban board
  const moveTaskStatus = async (taskId: string, newStatus: string) => {
  try {
- const res = await fetch(`/api/settings/groups/${selectedGroupId}/tasks/${taskId}`, {
+ const res = await api(`/api/settings/groups/${selectedGroupId}/tasks/${taskId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ status: newStatus })
  });
  if (!res.ok) throw new Error("HTTP error" + res.status);
  refreshGroupDetails(selectedGroupId);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  console.error("Failed to move task:", e.message);
  }
  };
@@ -550,7 +552,7 @@ export function Groups() {
  ? `/api/settings/groups/${selectedGroupId}/events/${selectedEvent.id}`
  : `/api/settings/groups/${selectedGroupId}/events`;
 
- const res = await fetch(url, {
+ const res = await api(url, {
  method,
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -560,7 +562,7 @@ export function Groups() {
  setIsEventModalOpen(false);
  setSelectedEvent(null);
  refreshGroupDetails(selectedGroupId);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error saving calendar event:" + e.message);
  }
  };
@@ -579,7 +581,7 @@ export function Groups() {
  groupId: selectedGroupId
  };
 
- const res = await fetch(`/api/settings/groups/${selectedGroupId}/plans`, {
+ const res = await api(`/api/settings/groups/${selectedGroupId}/plans`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -588,7 +590,7 @@ export function Groups() {
 
  setIsPlanModalOpen(false);
  refreshGroupDetails(selectedGroupId);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error saving plan:" + e.message);
  }
  };
@@ -605,7 +607,7 @@ export function Groups() {
  groupId: selectedGroupId
  };
 
- const res = await fetch(`/api/settings/groups/${selectedGroupId}/standups`, {
+ const res = await api(`/api/settings/groups/${selectedGroupId}/standups`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -615,7 +617,7 @@ export function Groups() {
  setStandupForm({ yesterday:"", today:"", blockers:"" });
  setIsStandupModalOpen(false);
  refreshGroupDetails(selectedGroupId);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error submitting standup:" + e.message);
  }
  };
@@ -636,7 +638,7 @@ export function Groups() {
  groupId: selectedGroupId
  };
 
- const res = await fetch(`/api/settings/groups/${selectedGroupId}/ratings`, {
+ const res = await api(`/api/settings/groups/${selectedGroupId}/ratings`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -645,7 +647,7 @@ export function Groups() {
 
  setIsRatingModalOpen(false);
  refreshGroupDetails(selectedGroupId);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error saving rating:" + e.message);
  }
  };
@@ -666,7 +668,7 @@ export function Groups() {
  ? `/api/settings/groups/${selectedGroupId}/kb/${selectedArticle.id}`
  : `/api/settings/groups/${selectedGroupId}/kb`;
 
- const res = await fetch(url, {
+ const res = await api(url, {
  method,
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -676,7 +678,7 @@ export function Groups() {
  setIsKBModalOpen(false);
  setSelectedArticle(null);
  refreshGroupDetails(selectedGroupId);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error saving KB article:" + e.message);
  }
  };
@@ -692,7 +694,7 @@ export function Groups() {
  createdAt: new Date().toISOString()
  };
 
- const res = await fetch(`/api/settings/groups/${selectedGroupId}/discussions`, {
+ const res = await api(`/api/settings/groups/${selectedGroupId}/discussions`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify(data)
@@ -702,13 +704,13 @@ export function Groups() {
  setIsDiscModalOpen(false);
  setDiscForm({ type:"discussion", title:"", content:"" });
  refreshGroupDetails(selectedGroupId);
- } catch (e: any) {
+ } catch (e: SafeAny) {
  alert("Error posting discussion:" + e.message);
  }
  };
 
  // CSV/Text Export Helper Simulation
- const handleExport = (reportName: string, data: any[]) => {
+ const handleExport = (reportName: string, data: SafeAny[]) => {
  const csvContent ="data:text/csv;charset=utf-8,"
  + ["Export Report:" + reportName].join("\n") +"\n\n"
  + data.map(e => Object.values(e).join(",")).join("\n");
@@ -1626,7 +1628,7 @@ export function Groups() {
 
  const renderPerformance = () => {
  // Rank members by overall score
- const ratedMembers = ratings.reduce((acc: any[], r) => {
+ const ratedMembers = ratings.reduce((acc: SafeAny[], r) => {
  const match = acc.find(m => m.userName === r.userName);
  if (match) {
  match.score = Number(((match.score + r.score) / 2).toFixed(1));
@@ -2593,3 +2595,5 @@ export function Groups() {
  </div>
  );
 }
+
+

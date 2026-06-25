@@ -4,10 +4,12 @@ import { ActivityCard } from"./ActivityCard";
 import { EmailActivityCard } from"./EmailActivityCard";
 import { SystemActivityCard } from"./SystemActivityCard";
 import { cn } from"@/lib/utils";
+import api from "@/lib/api";
+import { SafeAny } from "@/types";
 
 export interface ActivityTimelineProps {
  ticketId: string;
- createdAt?: any;
+ createdAt?: SafeAny;
  refreshTrigger?: number;
  userRole?: string; // to determine visibility permissions
 }
@@ -38,12 +40,12 @@ export function ActivityTimeline({ ticketId, createdAt, refreshTrigger = 0, user
  if (!ticketId) return;
  if (!silent) setLoading(true);
  try {
- const res = await fetch(`/api/tickets/${ticketId}/activities`);
+ const res = await api(`/api/tickets/${ticketId}/activities`);
  if (res.ok) {
  const data = await res.json();
  // Deduplicate by ID
  const seen = new Set<string>();
- const unique = data.filter((a: any) => {
+ const unique = data.filter((a: SafeAny) => {
  if (seen.has(a.id)) return false;
  seen.add(a.id);
  return true;
@@ -91,7 +93,7 @@ export function ActivityTimeline({ ticketId, createdAt, refreshTrigger = 0, user
  }
  }, [loading]);
 
- const formatDate = (date: any) => {
+ const formatDate = (date: SafeAny) => {
  if (!date) return"-";
  try {
  if (typeof date ==="string") {

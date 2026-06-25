@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState, useCallback } from"react";
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY } from"../lib/roles";
@@ -33,7 +35,7 @@ export function TimesheetApprovals() {
  const [appliedEndDate, setAppliedEndDate] = useState(() => localStorage.getItem("sn-timesheet-approvals-end-date") ||"");
  const [dateError, setDateError] = useState("");
 
- const getRecordTime = (val: any): number => {
+ const getRecordTime = (val: SafeAny): number => {
  if (!val) return 0;
  if (typeof val === 'object' && val.seconds !== undefined) {
  return val.seconds * 1000;
@@ -83,14 +85,14 @@ export function TimesheetApprovals() {
  setLoading(true);
  try {
  // Load all users for name lookup
- const usersRes = await fetch("/api/users");
+ const usersRes = await api("/api/users");
  const usersList = await usersRes.json();
  const map: Record<string, any> = {};
- usersList.forEach((u: any) => { map[u.uid] = u; });
+ usersList.forEach((u: SafeAny) => { map[u.uid] = u; });
  setUsers(map);
 
  // Load all timesheets
- const tsRes = await fetch("/api/timesheets/all"); // Assuming there's an endpoint for all timesheets
+ const tsRes = await api("/api/timesheets/all"); // Assuming there's an endpoint for all timesheets
  const tsList = await tsRes.json();
  setTimesheets(tsList);
  } catch (e) {
@@ -154,7 +156,7 @@ export function TimesheetApprovals() {
  const handleApprove = async (tsId: string) => {
  if (!confirm("Approve this timesheet?")) return;
  try {
- const res = await fetch(`/api/timesheets/${tsId}`, {
+ const res = await api(`/api/timesheets/${tsId}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -178,7 +180,7 @@ export function TimesheetApprovals() {
  const handleReject = async () => {
  if (!rejectId || !rejectReason.trim()) return;
  try {
- const res = await fetch(`/api/timesheets/${rejectId}`, {
+ const res = await api(`/api/timesheets/${rejectId}`, {
  method:"PUT",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ status:"Rejected", rejection_reason: rejectReason })
@@ -239,7 +241,7 @@ export function TimesheetApprovals() {
  const handleDelete = async (tsId: string) => {
  if (!confirm("Are you sure you want to delete this ticket/timesheet? This will also delete all associated time entries.")) return;
  try {
- const res = await fetch(`/api/timesheets/${tsId}`, {
+ const res = await api(`/api/timesheets/${tsId}`, {
  method:"DELETE"
  });
  if (res.ok) {
@@ -256,7 +258,7 @@ export function TimesheetApprovals() {
  const handleReopen = async (tsId: string) => {
  if (!confirm("Reopen this timesheet for editing?")) return;
  try {
- await fetch(`/api/timesheets/${tsId}`, {
+ await api(`/api/timesheets/${tsId}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -268,17 +270,17 @@ export function TimesheetApprovals() {
  } catch (e) { console.error(e); }
  };
 
- const handleView = async (ts: any) => {
+ const handleView = async (ts: SafeAny) => {
  setViewTs(ts);
  setViewTab("entries");
  try {
  // Fetch time cards
- const tcRes = await fetch(`/api/time-cards?timesheet_id=${ts.id}`);
+ const tcRes = await api(`/api/time-cards?timesheet_id=${ts.id}`);
  const cards = await tcRes.json();
  setViewCards(cards);
 
  // Fetch AI activity snapshots (screenshots)
- const actRes = await fetch(`/api/activity-entries?user_id=${ts.user_id}&start_date=${ts.week_start}&end_date=${ts.week_end}&limit=200`);
+ const actRes = await api(`/api/activity-entries?user_id=${ts.user_id}&start_date=${ts.week_start}&end_date=${ts.week_end}&limit=200`);
  const activities = await actRes.json();
  setViewActivities(activities);
  } catch (e) { console.error(e); }
@@ -377,7 +379,7 @@ export function TimesheetApprovals() {
  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
  <XAxis dataKey="name" fontSize={10} />
  <YAxis fontSize={10} label={{ value: 'Minutes', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 10 } }} />
- <Tooltip formatter={(v: any) => [`${v} mins`,"Total Time"]} contentStyle={{ fontSize: 10, borderRadius: 8, border: 'none' }} />
+ <Tooltip formatter={(v: SafeAny) => [`${v} mins`,"Total Time"]} contentStyle={{ fontSize: 10, borderRadius: 8, border: 'none' }} />
  <Bar dataKey="minutes" fill="#00e676" radius={[4, 4, 0, 0]} barSize={30} />
  </BarChart>
  </ResponsiveContainer>
@@ -607,3 +609,5 @@ export function TimesheetApprovals() {
  </div>
  );
 }
+
+

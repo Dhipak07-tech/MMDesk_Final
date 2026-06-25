@@ -1,3 +1,5 @@
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
 import React, { useEffect, useState } from"react";
 import { Link } from"react-router-dom";
 import { Settings, Save, RotateCcw, Plus, Trash2, ArrowUp, ArrowDown, ShieldAlert, Sparkles, Lock, Unlock, Eye } from"lucide-react";
@@ -10,10 +12,10 @@ import MyTasksList from"./MyTasksList";
 import QuickActions from"./QuickActions";
 
 interface CustomizableDashboardProps {
- data: any;
+ data: SafeAny;
  userUid: string;
  role: string;
- validBreaches: any[];
+ validBreaches: SafeAny[];
 }
 
 const ALL_AVAILABLE_WIDGETS = [
@@ -62,7 +64,7 @@ export function CustomizableDashboard({ data, userUid, role, validBreaches }: Cu
 
  const fetchLayout = () => {
  setLoading(true);
- fetch(`/api/dashboard/layout?userUid=${userUid}&role=${role}`)
+ api(`/api/dashboard/layout?userUid=${userUid}&role=${role}`)
  .then(res => res.json())
  .then(data => {
  if (Array.isArray(data)) {
@@ -97,7 +99,7 @@ export function CustomizableDashboard({ data, userUid, role, validBreaches }: Cu
  const handleSaveLayout = async () => {
  setLoading(true);
  try {
- const res = await fetch("/api/dashboard/layout", {
+ const res = await api("/api/dashboard/layout", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({ userUid, layout })
@@ -109,7 +111,7 @@ export function CustomizableDashboard({ data, userUid, role, validBreaches }: Cu
  } else {
  setMessage({ text: result.error ||"Failed to save layout", type:"error" });
  }
- } catch (e: any) {
+ } catch (e: SafeAny) {
  setMessage({ text: e.message, type:"error" });
  } finally {
  setLoading(false);
@@ -121,7 +123,7 @@ export function CustomizableDashboard({ data, userUid, role, validBreaches }: Cu
  if (!confirm("Are you sure you want to reset your layout to the template default?")) return;
  setLoading(true);
  try {
- const res = await fetch(`/api/dashboard/layout?userUid=${userUid}`, {
+ const res = await api(`/api/dashboard/layout?userUid=${userUid}`, {
  method:"DELETE"
  });
  const result = await res.json();
@@ -132,7 +134,7 @@ export function CustomizableDashboard({ data, userUid, role, validBreaches }: Cu
  } else {
  setMessage({ text: result.error ||"Failed to reset layout", type:"error" });
  }
- } catch (e: any) {
+ } catch (e: SafeAny) {
  setMessage({ text: e.message, type:"error" });
  } finally {
  setLoading(false);
@@ -147,7 +149,7 @@ export function CustomizableDashboard({ data, userUid, role, validBreaches }: Cu
  }
  setLoading(true);
  try {
- const res = await fetch("/api/dashboard/templates", {
+ const res = await api("/api/dashboard/templates", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -164,7 +166,7 @@ export function CustomizableDashboard({ data, userUid, role, validBreaches }: Cu
  } else {
  setMessage({ text: result.error ||"Failed to save template", type:"error" });
  }
- } catch (e: any) {
+ } catch (e: SafeAny) {
  setMessage({ text: e.message, type:"error" });
  } finally {
  setLoading(false);
@@ -473,3 +475,5 @@ export function CustomizableDashboard({ data, userUid, role, validBreaches }: Cu
  </div>
  );
 }
+
+

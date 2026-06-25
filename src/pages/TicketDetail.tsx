@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useRef } from"react";
-import { useParams, useNavigate } from"react-router-dom";
-import { doc, onSnapshot, updateDoc, serverTimestamp, collection, addDoc, query, orderBy, getDocs, where, setDoc } from"firebase/firestore";
-import { db, handleFirestoreError, OperationType } from"../lib/firebase";
+import { SafeAny } from '@/types';
+import api from '@/lib/api';
+import React, { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { mapDbTicketToFrontend, db, updateDoc, doc, serverTimestamp } from "../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
 import { Button } from"@/components/ui/button";
@@ -9,12 +10,11 @@ import { ChevronLeft, Send, History, MessageSquare, Save, Trash2, CheckCircle2, 
 import { cn } from"@/lib/utils";
 import { SLATimer } from"../components/SLATimer";
 import { useServiceCatalog } from"../lib/serviceCatalog";
-import { calculateSLADeadline } from"../lib/slaUtils";
+import { calculateSLADeadline, createDefaultSlaDelayMeta, getEffectiveSlaDelayState, type SlaDelayLogEntry, type SlaDelayMeta, type SlaDelayResponseType } from"../lib/slaEngine";
 import confetti from"canvas-confetti";
 import { captureScreenshot, analyzeWorkContext, saveWorkSession, type WorkAnalysis } from"../lib/workSessionAI";
 import { ActivityTimeline } from"../components/ActivityTimeline";
 import { SLADelayDialog } from"../components/SLADelayDialog";
-import { createDefaultSlaDelayMeta, getEffectiveSlaDelayState, type SlaDelayLogEntry, type SlaDelayMeta, type SlaDelayResponseType } from"../lib/slaDelayUtils";
 import { useActivityTracker } from"../contexts/ActivityTrackerContext";
 import { SaveActivityModal, type SessionFormType } from"../components/SaveActivityModal";
 import { useWorkspace, useCurrentTab } from"../components/WorkspaceLayout";
@@ -79,15 +79,14 @@ export function TicketDetail() {
  const [pastSessions, setPastSessions] = useState<any[]>([]);
 
  useEffect(() => {
- if (ticket?.number) {
- fetch(`/api/activity-sessions?ticket_number=${ticket.number}`)
- .then(r => r.json())
- .then(data => {
- if (Array.isArray(data)) setPastSessions(data);
- })
- .catch(() => {});
- }
- }, [ticket?.number, timelineRefresh]);
+    if (ticket?.number) {
+      api.get(`/api/activity-sessions?ticket_number=${ticket.number}`)
+        .then(res => {
+          if (Array.isArray(res.data)) setPastSessions(res.data);
+        })
+        .catch(() => {});
+    }
+  }, [ticket?.number, timelineRefresh]);
  const [isPosting, setIsPosting] = useState(false);
  const [postMessage, setPostMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
  const [slaDelaySaving, setSlaDelaySaving] = useState(false);
@@ -112,49 +111,44 @@ export function TicketDetail() {
  const visibleGroups = groups.filter(g => g.serviceProviderId === editedTicket?.serviceId && g.status === 'active');
 
  useEffect(() => {
- getDocs(collection(db,"users")).then(snap => {
- const usersList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
- setAgents(usersList.filter((u: any) => ROLE_HIERARCHY[u.role as Role] >= ROLE_HIERARCHY["agent"]));
- }).catch(() => {
- // Fallback: load agents from MySQL API
- fetch('/api/users').then(r => r.json()).then((usersList: any[]) => {
- setAgents(usersList.filter((u: any) => ['agent', 'admin', 'sub_admin', 'super_admin', 'ultra_super_admin'].includes(u.role)));
- }).catch(() => { });
- });
- // Fetch active incident categories and options dynamically
- fetch("/api/incident-categories?active_only=true")
- .then(r => r.json())
- .then(async (data) => {
- if (Array.isArray(data)) {
- setIncidentCategories(data.map((c: any) => c.name));
- setDynamicFields(data);
+    api.get("/api/users").then(res => {
+      const usersList = res.data;
+      setAgents(usersList.filter((u: SafeAny) => ROLE_HIERARCHY[u.role as Role] >= ROLE_HIERARCHY["agent"]));
+    }).catch((err) => {
+      console.error("Error fetching users:", err);
+    });
 
- // Fetch options for each dynamic field
- const optionsMap: Record<string, any[]> = {};
- await Promise.all(
- data.map(async (cat: any) => {
- try {
- const res = await fetch(`/api/incident-categories/options?category_id=${cat.id}&active_only=true`);
- if (res.ok) {
- const opts = await res.json();
- optionsMap[cat.id] = opts;
- }
- } catch (e) {
- console.error("Error loading options for category", cat.id, e);
- }
- })
- );
- setDynamicOptions(optionsMap);
- }
- })
- .catch(() => {
- setIncidentCategories([
-"Hardware Issue","Software Issue","Network Issue","System Access",
-"Security Issue","Login Problem","Email Issue","Performance Issue",
-"Service Request","Other"
- ]);
- });
- }, []);
+    // Fetch active incident categories and options dynamically
+    api.get("/api/incident-categories?active_only=true")
+      .then(async (res) => {
+        const data = res.data;
+        if (Array.isArray(data)) {
+          setIncidentCategories(data.map((c: SafeAny) => c.name));
+          setDynamicFields(data);
+
+          // Fetch options for each dynamic field
+          const optionsMap: Record<string, any[]> = {};
+          await Promise.all(
+            data.map(async (cat: SafeAny) => {
+              try {
+                const optRes = await api.get(`/api/incident-categories/options?category_id=${cat.id}&active_only=true`);
+                optionsMap[cat.id] = optRes.data;
+              } catch (e) {
+                console.error("Error loading options for category", cat.id, e);
+              }
+            })
+          );
+          setDynamicOptions(optionsMap);
+        }
+      })
+      .catch(() => {
+        setIncidentCategories([
+          "Hardware Issue","Software Issue","Network Issue","System Access",
+          "Security Issue","Login Problem","Email Issue","Performance Issue",
+          "Service Request","Other"
+        ]);
+      });
+  }, []);
 
  // DYNAMIC GROUP FILTERING: Only show users belonging to the selected group, or all agents if no group selected
  const selectedGroupObj = groups.find(g => g.name === editedTicket?.assignmentGroup);
@@ -171,88 +165,99 @@ export function TicketDetail() {
  }, [id]);
 
  useEffect(() => {
- if (!id) return;
- 
- // Resolve ticket_number to actual document ID if needed
- if (id.startsWith('INC') || id.startsWith('REQ') || id.startsWith('TSK')) {
- const q = query(collection(db,"tickets"), where("number","==", id));
- getDocs(q).then((snap) => {
- if (!snap.empty) {
- const actualId = snap.docs[0].id;
- navigate(`/tickets/${actualId}`, { replace: true });
- } else {
- navigate("/tickets");
- }
- }).catch((e) => {
- console.error(e);
- navigate("/tickets");
- });
- return;
- }
- const unsubscribe = onSnapshot(doc(db,"tickets", id), (docSnapshot) => {
- if (docSnapshot.exists()) {
- const data = { id: docSnapshot.id, ...docSnapshot.data() } as any;
- setTicket(data);
- setEditedTicket((prev: any) => {
- const mergedFields = customFieldsRef.current || {};
- if (prev && prev.status !== undefined) {
- return {
- ...prev,
- customFields: {
- ...(prev.customFields || {}),
- ...mergedFields
- }
- };
- }
- return {
- ...data,
- customFields: {
- ...(data.customFields || {}),
- ...mergedFields
- }
- };
- });
- } else {
- navigate("/tickets");
- }
- }, (error) => {
- handleFirestoreError(error, OperationType.GET, `tickets/${id}`);
- });
- return unsubscribe;
- }, [id, navigate]);
+    if (!id) return;
+    
+    // Resolve ticket_number to actual document ID if needed
+    if (id.startsWith('INC') || id.startsWith('REQ') || id.startsWith('TSK')) {
+      api.get("/api/tickets/all").then((res) => {
+        const found = res.data.find((t: SafeAny) => t.ticket_number === id);
+        if (found) {
+          navigate(`/tickets/${found.id}`, { replace: true });
+        } else {
+          navigate("/tickets");
+        }
+      }).catch((e) => {
+        console.error(e);
+        navigate("/tickets");
+      });
+      return;
+    }
 
- useEffect(() => {
- if (!id) return;
- fetch(`/api/tickets/${id}/custom-fields`)
- .then(r => r.json())
- .then(savedFields => {
- if (savedFields && typeof savedFields === 'object') {
- customFieldsRef.current = savedFields;
- setEditedTicket((prev: any) => {
- if (!prev) return null;
- return {
- ...prev,
- customFields: {
- ...(prev.customFields || {}),
- ...savedFields
- }
- };
- });
- }
- })
- .catch(err => console.error("Error fetching custom fields mapping:", err));
- }, [id]);
+    const fetchTicket = async () => {
+      try {
+        const res = await api.get(`/api/tickets/${id}`);
+        const data = mapDbTicketToFrontend(res.data);
+        if (data) {
+          setTicket(data);
+          setEditedTicket((prev: SafeAny) => {
+            const mergedFields = customFieldsRef.current || {};
+            if (prev && prev.status !== undefined) {
+              return {
+                ...prev,
+                customFields: {
+                  ...(prev.customFields || {}),
+                  ...mergedFields
+                }
+              };
+            }
+            return {
+              ...data,
+              customFields: {
+                ...(data.customFields || {}),
+                ...mergedFields
+              }
+            };
+          });
+        } else {
+          navigate("/tickets");
+        }
+      } catch (err) {
+        console.error("Error fetching ticket:", err);
+        navigate("/tickets");
+      }
+    };
 
- useEffect(() => {
- if (!id) return;
- const q = query(collection(db,"tickets", id,"comments"), orderBy("createdAt","asc"));
- const unsubscribe = onSnapshot(q, (snapshot) => {
- setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
- }, (error) => {
- handleFirestoreError(error, OperationType.LIST, `tickets/${id}/comments`);
- });
- return unsubscribe;
- }, [id]);
+    fetchTicket();
+    const interval = setInterval(fetchTicket, 10000);
+    return () => clearInterval(interval);
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (!id) return;
+    api.get(`/api/tickets/${id}/custom-fields`)
+      .then(res => {
+        const savedFields = res.data;
+        if (savedFields && typeof savedFields === 'object') {
+          customFieldsRef.current = savedFields;
+          setEditedTicket((prev: SafeAny) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              customFields: {
+                ...(prev.customFields || {}),
+                ...savedFields
+              }
+            };
+          });
+        }
+      })
+      .catch(err => console.error("Error fetching custom fields mapping:", err));
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchComments = async () => {
+      try {
+        const res = await api.get(`/api/tickets/${id}/activities?activity_type=comment`);
+        setComments(res.data);
+      } catch (err) {
+        console.error("Error fetching comments:", err);
+      }
+    };
+    fetchComments();
+    const interval = setInterval(fetchComments, 15000);
+    return () => clearInterval(interval);
+  }, [id]);
 
  const handleUpdate = async () => {
  if (!id || !user || !editedTicket) return;
@@ -279,7 +284,7 @@ export function TicketDetail() {
 
 
  try {
- const historyEntries: any[] = [];
+ const historyEntries: SafeAny[] = [];
  const fields = ["incidentCategory","incident_category","category","categoryId","subcategory","subcategoryId","service","serviceId","serviceProvider","status","onHoldReason","impact","urgency","assignmentGroup","title","description","assignedTo","affectedUser","resolutionCode","resolutionNotes","resolutionMethod","closureReason","watchList","workNotesList","businessPhone","location","configurationItem","computerName","knowledgeArticleUsed","originalAssignmentGroup","acknowledged","passwordReset","rackspaceTicketNo","additionalInformation"];
 
  fields.forEach(field => {
@@ -304,10 +309,10 @@ export function TicketDetail() {
  || editedTicket.assignedToName ||""
  :"";
 
- const updates: any = {
+ const updates: SafeAny = {
  ...payload,
  assignedToName: assignedUserName,
- updatedAt: serverTimestamp(),
+ updatedAt: new Date().toISOString(),
  history: [...(ticket.history || []), ...historyEntries]
  };
 
@@ -356,7 +361,7 @@ export function TicketDetail() {
  }
 
  // Calculate resolution duration
- const createdAtMs = ticket.createdAt?.seconds ? ticket.createdAt.seconds * 1000 : (typeof ticket.createdAt === 'string' ? new Date(ticket.createdAt).getTime() : Date.now());
+ const createdAtMs = ticket.createdAt ? new Date(ticket.createdAt).getTime() : Date.now();
  const resolvedAtMs = Date.now();
  const durationMs = resolvedAtMs - createdAtMs;
  updates.resolutionDuration = Math.max(0, durationMs);
@@ -413,7 +418,7 @@ export function TicketDetail() {
  if (ticket.resolutionDeadline) {
  const deadline = new Date(ticket.resolutionDeadline).getTime();
  const resolvedAtMs = new Date().getTime();
- const createdAtMs = ticket.createdAt?.seconds ? ticket.createdAt.seconds * 1000 : (typeof ticket.createdAt === 'string' ? new Date(ticket.createdAt).getTime() : 0);
+ const createdAtMs = ticket.createdAt ? new Date(ticket.createdAt).getTime() : 0;
 
  if (createdAtMs > 0 && resolvedAtMs < deadline) {
  const totalSla = deadline - createdAtMs;
@@ -426,56 +431,45 @@ export function TicketDetail() {
  }
  }
 
- const ticketRef = doc(db,"tickets", id);
  const finalUpdates = {
  ...updates,
  points: pointsAwarded > 0 ? (ticket.points || 0) + pointsAwarded : (ticket.points || 0)
  };
 
- // Save dynamic custom fields selections on update
- if (hasCategoryAccess && editedTicket.customFields && Object.keys(editedTicket.customFields).length > 0) {
- try {
- await fetch(`/api/tickets/${id}/custom-fields`, {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({ customFields: editedTicket.customFields })
- });
- } catch (e) {
- console.error("Error saving dynamic custom fields:", e);
- }
- }
- await updateDoc(ticketRef, finalUpdates);
- setTimelineRefresh(prev => prev + 1);
- // Dispatch real-time notification
- try {
- fetch("/api/notifications/dispatch", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({
- ticket: {
- id: id,
- ticket_number: ticket.number,
- created_by: ticket.createdBy,
- created_by_name: ticket.createdByName || ticket.caller,
- assigned_to: finalUpdates.assignedTo !== undefined ? finalUpdates.assignedTo : ticket.assignedTo,
- assigned_to_name: finalUpdates.assignedToName !== undefined ? finalUpdates.assignedToName : ticket.assignedToName,
- status: finalUpdates.status !== undefined ? finalUpdates.status : ticket.status,
- priority: finalUpdates.priority !== undefined ? finalUpdates.priority : ticket.priority
- },
- actorId: user.uid,
- actorName: profile?.name || user.email,
- type:"update",
- oldStatus: ticket.status,
- newStatus: finalUpdates.status !== undefined ? finalUpdates.status : ticket.status,
- oldAssignee: ticket.assignedTo,
- newAssignee: finalUpdates.assignedTo !== undefined ? finalUpdates.assignedTo : ticket.assignedTo
- })
- });
- } catch (e) {
- console.error("Failed to dispatch update notification:", e);
- }
-
- // Assignment changes and all other field changes are securely generated by the backend API.
+  // Save dynamic custom fields selections on update
+  if (hasCategoryAccess && editedTicket.customFields && Object.keys(editedTicket.customFields).length > 0) {
+    try {
+      await api.post(`/api/tickets/${id}/custom-fields`, { customFields: editedTicket.customFields });
+    } catch (e) {
+      console.error("Error saving dynamic custom fields:", e);
+    }
+  }
+  await api.put(`/api/tickets/${id}`, finalUpdates);
+  setTimelineRefresh(prev => prev + 1);
+  // Dispatch real-time notification
+  try {
+    api.post("/api/notifications/dispatch", {
+      ticket: {
+        id: id,
+        ticket_number: ticket.number,
+        created_by: ticket.createdBy,
+        created_by_name: ticket.createdByName || ticket.caller,
+        assigned_to: finalUpdates.assignedTo !== undefined ? finalUpdates.assignedTo : ticket.assignedTo,
+        assigned_to_name: finalUpdates.assignedToName !== undefined ? finalUpdates.assignedToName : ticket.assignedToName,
+        status: finalUpdates.status !== undefined ? finalUpdates.status : ticket.status,
+        priority: finalUpdates.priority !== undefined ? finalUpdates.priority : ticket.priority
+      },
+      actorId: user.uid,
+      actorName: profile?.name || user.email,
+      type: "update",
+      oldStatus: ticket.status,
+      newStatus: finalUpdates.status !== undefined ? finalUpdates.status : ticket.status,
+      oldAssignee: ticket.assignedTo,
+      newAssignee: finalUpdates.assignedTo !== undefined ? finalUpdates.assignedTo : ticket.assignedTo
+    });
+  } catch (e) {
+    console.error("Failed to dispatch update notification:", e);
+  }
 
  if (pointsAwarded > 0) {
  confetti({
@@ -490,7 +484,7 @@ export function TicketDetail() {
  alert("Incident updated successfully");
  if (isResolved) navigate("/tickets");
  }
- } catch (error: any) {
+ } catch (error: SafeAny) {
  console.error("Error updating ticket:", error);
  alert(`Failed to update incident: ${error.message ||"Unknown error"}`);
  } finally {
@@ -498,207 +492,152 @@ export function TicketDetail() {
  }
  };
 
- const handleAddComment = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!newComment.trim() || !id || !user) return;
- setIsPosting(true);
- try {
- // Post to API-backed activity timeline (customer-visible comment)
- const res = await fetch(`/api/tickets/${id}/activities`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({
- activity_type: 'comment',
- visibility_type: 'public',
- created_by: user.uid,
- created_by_name: profile?.name || user.email,
- message: newComment.trim(),
- email_note: emailComment
- })
- });
- if (!res.ok) throw new Error('Failed to post comment');
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !id || !user) return;
+    setIsPosting(true);
+    try {
+      // Post to API-backed activity timeline (customer-visible comment)
+      await api.post(`/api/tickets/${id}/activities`, {
+        activity_type: 'comment',
+        visibility_type: 'public',
+        created_by: user.uid,
+        created_by_name: profile?.name || user.email,
+        message: newComment.trim(),
+        email_note: emailComment
+      });
 
- // Update Firestore ticket metadata (SLA first response)
- try {
- const now = new Date().toISOString();
- const updates: any = { updatedAt: serverTimestamp(), history: [...(ticket.history || []), { action:"Comment Added", timestamp: now, user: profile?.name || user.email }] };
- if (!ticket.firstResponseAt) {
- updates.firstResponseAt = now;
- updates.responseSlaStatus ="Completed";
- // START Resolution SLA from this moment
- updates.resolutionSlaStatus ="In Progress";
- const resHours = ticket.slaResolutionHours || 24;
- const resolutionWindowMs = resHours * 60 * 60 * 1000;
- updates.resolutionDeadline = new Date(new Date(now).getTime() + resolutionWindowMs).toISOString();
- updates.resolutionSlaStartTime = now;
- }
- await updateDoc(doc(db,"tickets", id), updates);
- } catch (e) { /* Firestore update non-critical */ }
+      setNewComment("");
+      setEmailComment(false);
+      setTimelineRefresh(prev => prev + 1);
+      setPostMessage({ text: 'Comment posted successfully', type: 'success' });
+      setTimeout(() => setPostMessage(null), 3000);
+    } catch (error: SafeAny) {
+      console.error(error);
+      setPostMessage({ text: 'Failed to post comment', type: 'error' });
+      setTimeout(() => setPostMessage(null), 4000);
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
- setNewComment("");
- setEmailComment(false);
- setTimelineRefresh(prev => prev + 1);
- setPostMessage({ text: 'Comment posted successfully', type: 'success' });
- setTimeout(() => setPostMessage(null), 3000);
- } catch (error: any) {
- console.error(error);
- setPostMessage({ text: 'Failed to post comment', type: 'error' });
- setTimeout(() => setPostMessage(null), 4000);
- } finally {
- setIsPosting(false);
- }
- };
+  const handleAddWorkNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!workNote.trim() || !id || !user) return;
+    setIsPosting(true);
+    try {
+      // Post to API-backed activity timeline (internal/private work note)
+      await api.post(`/api/tickets/${id}/activities`, {
+        activity_type: 'work_note',
+        visibility_type: 'internal',
+        created_by: user.uid,
+        created_by_name: profile?.name || user.email,
+        message: workNote.trim(),
+        email_note: emailWorkNote
+      });
 
- const handleAddWorkNote = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!workNote.trim() || !id || !user) return;
- setIsPosting(true);
- try {
- // Post to API-backed activity timeline (internal/private work note)
- const res = await fetch(`/api/tickets/${id}/activities`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({
- activity_type: 'work_note',
- visibility_type: 'internal',
- created_by: user.uid,
- created_by_name: profile?.name || user.email,
- message: workNote.trim(),
- email_note: emailWorkNote
- })
- });
- if (!res.ok) throw new Error('Failed to post work note');
-
- // Update Firestore ticket metadata
- try {
- const now = new Date().toISOString();
- const updates: any = { updatedAt: serverTimestamp(), history: [...(ticket.history || []), { action:"Work Note Added", timestamp: now, user: profile?.name || user.email }] };
- if (!ticket.firstResponseAt) {
- updates.firstResponseAt = now;
- updates.responseSlaStatus ="Completed";
- // START Resolution SLA from this moment
- updates.resolutionSlaStatus ="In Progress";
- const resHours = ticket.slaResolutionHours || 24;
- updates.resolutionDeadline = calculateSLADeadline(new Date(now), resHours, {
- businessHours: ticket.businessHours,
- excludeWeekends: ticket.excludeWeekends,
- excludeHolidays: ticket.excludeHolidays
- }).toISOString();
- updates.resolutionSlaStartTime = now;
- }
- await updateDoc(doc(db,"tickets", id), updates);
- } catch (e) { /* Firestore update non-critical */ }
-
- setWorkNote("");
- setEmailWorkNote(false);
- setTimelineRefresh(prev => prev + 1);
- setPostMessage({ text: 'Work note added successfully', type: 'success' });
- setTimeout(() => setPostMessage(null), 3000);
- } catch (error: any) {
- console.error(error);
- setPostMessage({ text: 'Failed to add work note', type: 'error' });
- setTimeout(() => setPostMessage(null), 4000);
- } finally {
- setIsPosting(false);
- }
- };
+      setWorkNote("");
+      setEmailWorkNote(false);
+      setTimelineRefresh(prev => prev + 1);
+      setPostMessage({ text: 'Work note added successfully', type: 'success' });
+      setTimeout(() => setPostMessage(null), 3000);
+    } catch (error: SafeAny) {
+      console.error(error);
+      setPostMessage({ text: 'Failed to add work note', type: 'error' });
+      setTimeout(() => setPostMessage(null), 4000);
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
  const updateLocalField = (field: string, value: string) => {
- setEditedTicket((prev: any) => ({ ...prev, [field]: value }));
+ setEditedTicket((prev: SafeAny) => ({ ...prev, [field]: value }));
  };
 
- // Timer functions — AI-Enhanced
- const handleStartTimer = async () => {
- setAiProcessing(true);
- setAiStatusMessage("🚀 Starting AI Work Session...");
- setSelectedIncident(ticket.number);
- try {
- await startWatcher();
+  // Timer functions — AI-Enhanced
+  const handleStartTimer = async () => {
+    setAiProcessing(true);
+    setAiStatusMessage("🚀 Starting AI Work Session...");
+    setSelectedIncident(ticket.number);
+    try {
+      await startWatcher();
 
- // Post"AI Work Session Started" to timeline
- await fetch(`/api/tickets/${id}/activities`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({
- activity_type: 'system',
- visibility_type: 'internal',
- created_by: user.uid,
- created_by_name: profile?.name || user.email,
- message: 'AI Work Session Started'
- })
- });
- setTimelineRefresh(prev => prev + 1);
- 
- setAiStatusMessage("✅ Session active!");
- setTimeout(() => setAiStatusMessage(""), 3000);
- } catch (error) {
- console.error("[AI WorkSession] Start analysis failed:", error);
- setAiStatusMessage("⚠️ Failed to start session");
- setTimeout(() => setAiStatusMessage(""), 3000);
- } finally {
- setAiProcessing(false);
- }
- };
+      // Post"AI Work Session Started" to timeline
+      await api.post(`/api/tickets/${id}/activities`, {
+        activity_type: 'system',
+        visibility_type: 'internal',
+        created_by: user.uid,
+        created_by_name: profile?.name || user.email,
+        message: 'AI Work Session Started'
+      });
+      setTimelineRefresh(prev => prev + 1);
+      
+      setAiStatusMessage("✅ Session active!");
+      setTimeout(() => setAiStatusMessage(""), 3000);
+    } catch (error) {
+      console.error("[AI WorkSession] Start analysis failed:", error);
+      setAiStatusMessage("⚠️ Failed to start session");
+      setTimeout(() => setAiStatusMessage(""), 3000);
+    } finally {
+      setAiProcessing(false);
+    }
+  };
 
- const handleStopTimer = async () => {
- setAiProcessing(true);
- setAiStatusMessage("🛑 Stopping AI session...");
- try {
- const now = new Date();
- const startMs = Date.now() - (trackerElapsed * 1000);
- const start = new Date(startMs);
- const calculatedMinutes = Math.max(1, Math.round(trackerElapsed / 60));
+  const handleStopTimer = async () => {
+    setAiProcessing(true);
+    setAiStatusMessage("🛑 Stopping AI session...");
+    try {
+      const now = new Date();
+      const startMs = Date.now() - (trackerElapsed * 1000);
+      const start = new Date(startMs);
+      const calculatedMinutes = Math.max(1, Math.round(trackerElapsed / 60));
 
- const pad = (n: number) => String(n).padStart(2, '0');
- const formatTimeForInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
- const formatDateForInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const formatTimeForInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const formatDateForInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
- const initialStart = formatTimeForInput(start);
- const initialEnd = formatTimeForInput(now);
- const initialDate = formatDateForInput(now);
+      const initialStart = formatTimeForInput(start);
+      const initialEnd = formatTimeForInput(now);
+      const initialDate = formatDateForInput(now);
 
- await stopWatcher();
+      await stopWatcher();
 
- setSessionForm({
- entryDate: initialDate,
- startTime: initialStart,
- endTime: initialEnd,
- minutesWorked: calculatedMinutes,
- task:"Ticket Resolution",
- customTask:"",
- workType:"Support",
- shortDescription: trackerSummary ? trackerSummary.substring(0, 100) :"",
- description: trackerSummary ||"",
- notes:"",
- billable:"Billable"
- });
+      setSessionForm({
+        entryDate: initialDate,
+        startTime: initialStart,
+        endTime: initialEnd,
+        minutesWorked: calculatedMinutes,
+        task:"Ticket Resolution",
+        customTask:"",
+        workType:"Support",
+        shortDescription: trackerSummary ? trackerSummary.substring(0, 100) :"",
+        description: trackerSummary ||"",
+        notes:"",
+        billable:"Billable"
+      });
 
- // Post"AI Work Session Completed" to timeline
- await fetch(`/api/tickets/${id}/activities`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({
- activity_type: 'system',
- visibility_type: 'internal',
- created_by: user.uid,
- created_by_name: profile?.name || user.email,
- message: `AI Work Session Completed. Duration: ${Math.floor(trackerElapsed / 60)}m ${trackerElapsed % 60}s`
- })
- });
- setTimelineRefresh(prev => prev + 1);
- 
- setAiStatusMessage("✅ Session completed!");
- setTimeout(() => setAiStatusMessage(""), 3000);
- 
- setShowSessionPopup(true);
- } catch (error) {
- console.error("[AI WorkSession] Stop analysis failed:", error);
- setAiStatusMessage("⚠️ Failed to stop properly");
- setTimeout(() => setAiStatusMessage(""), 3000);
- } finally {
- setAiProcessing(false);
- }
- };
+      // Post"AI Work Session Completed" to timeline
+      await api.post(`/api/tickets/${id}/activities`, {
+        activity_type: 'system',
+        visibility_type: 'internal',
+        created_by: user.uid,
+        created_by_name: profile?.name || user.email,
+        message: `AI Work Session Completed. Duration: ${Math.floor(trackerElapsed / 60)}m ${trackerElapsed % 60}s`
+      });
+      setTimelineRefresh(prev => prev + 1);
+      
+      setAiStatusMessage("✅ Session completed!");
+      setTimeout(() => setAiStatusMessage(""), 3000);
+      
+      setShowSessionPopup(true);
+    } catch (error) {
+      console.error("[AI WorkSession] Stop analysis failed:", error);
+      setAiStatusMessage("⚠️ Failed to stop properly");
+      setTimeout(() => setAiStatusMessage(""), 3000);
+    } finally {
+      setAiProcessing(false);
+    }
+  };
 
  const handleSaveSession = async () => {
  if (!user) return;
@@ -724,7 +663,7 @@ export function TicketDetail() {
  const sun = new Date(mon.getTime() + 6 * 86400000);
  const sunStr = sun.toISOString().split("T")[0];
 
- const tsRes = await fetch("/api/timesheets/get-or-create", {
+ const tsRes = await api("/api/timesheets/get-or-create", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -735,7 +674,7 @@ export function TicketDetail() {
  });
  const ts = await tsRes.json();
 
- const response = await fetch("/api/time-cards", {
+ const response = await api("/api/time-cards", {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
@@ -773,7 +712,7 @@ export function TicketDetail() {
  }
  };
 
- const formatDate = (date: any) => {
+ const formatDate = (date: SafeAny) => {
  if (!date) return"-";
  try {
  if (typeof date.toDate ==="function") {
@@ -920,7 +859,7 @@ export function TicketDetail() {
  } : {})
  });
 
- await fetch(`/api/tickets/${id}/activities`, {
+ await api(`/api/tickets/${id}/activities`, {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -944,7 +883,7 @@ export function TicketDetail() {
  // Notify managers when RCA is submitted
  if (responseType ==="rca") {
  try {
- fetch("/api/notifications/dispatch", {
+ api("/api/notifications/dispatch", {
  method:"POST",
  headers: {"Content-Type":"application/json" },
  body: JSON.stringify({
@@ -960,7 +899,7 @@ export function TicketDetail() {
 
  setTimelineRefresh((prev) => prev + 1);
  setLocalPendingType(null);
- } catch (error: any) {
+ } catch (error: SafeAny) {
  console.error("Failed to submit SLA delay update:", error);
  alert(`Failed to submit SLA accountability update: ${error.message ||"Unknown error"}`);
  } finally {
@@ -1268,7 +1207,7 @@ export function TicketDetail() {
  value={editedTicket?.categoryId ||""}
  onChange={(e) => {
  const category = visibleCategories.find((item) => item.id === e.target.value);
- setEditedTicket((prev: any) => ({ ...prev, categoryId: e.target.value, category: category?.name ||"", subcategoryId:"", subcategory:"", serviceId:"", service:"", serviceProvider:"", assignmentGroup:"" }));
+ setEditedTicket((prev: SafeAny) => ({ ...prev, categoryId: e.target.value, category: category?.name ||"", subcategoryId:"", subcategory:"", serviceId:"", service:"", serviceProvider:"", assignmentGroup:"" }));
  }}
  className={cn(
 "col-span-2 p-1.5 border border-border rounded text-xs outline-none h-8 transition-colors",
@@ -1287,7 +1226,7 @@ export function TicketDetail() {
  value={editedTicket?.subcategoryId ||""}
  onChange={(e) => {
  const subcategory = visibleSubcategories.find((item) => item.id === e.target.value);
- setEditedTicket((prev: any) => ({ ...prev, subcategoryId: e.target.value, subcategory: subcategory?.name ||"", serviceId:"", service:"", serviceProvider:"", assignmentGroup:"" }));
+ setEditedTicket((prev: SafeAny) => ({ ...prev, subcategoryId: e.target.value, subcategory: subcategory?.name ||"", serviceId:"", service:"", serviceProvider:"", assignmentGroup:"" }));
  }}
  className={cn(
 "col-span-2 p-1.5 border border-border rounded text-xs outline-none h-8 transition-colors disabled:opacity-50 disabled:bg-muted bg-white",
@@ -1307,7 +1246,7 @@ export function TicketDetail() {
  value={editedTicket?.serviceId ||""}
  onChange={(e) => {
  const provider = visibleProviders.find((item) => item.id === e.target.value);
- setEditedTicket((prev: any) => ({ ...prev, serviceId: e.target.value, service: provider?.name ||"", serviceProvider: provider?.name ||"", assignmentGroup:"" }));
+ setEditedTicket((prev: SafeAny) => ({ ...prev, serviceId: e.target.value, service: provider?.name ||"", serviceProvider: provider?.name ||"", assignmentGroup:"" }));
  }}
  className={cn(
 "col-span-2 p-1.5 border border-border rounded text-xs outline-none h-8 transition-colors disabled:opacity-50 disabled:bg-muted bg-white",
@@ -1333,7 +1272,7 @@ export function TicketDetail() {
  <select
  value={editedTicket?.customFields?.[field.id] ||""}
  onChange={e => {
- setEditedTicket((prev: any) => ({
+ setEditedTicket((prev: SafeAny) => ({
  ...prev,
  customFields: {
  ...(prev?.customFields || {}),
@@ -1345,7 +1284,7 @@ export function TicketDetail() {
  required
  >
  <option value="">Select {field.name}</option>
- {fieldOptions.map((opt: any) => (
+ {fieldOptions.map((opt: SafeAny) => (
  <option key={opt.id} value={opt.value_text}>{opt.value_text}</option>
  ))}
  </select>
@@ -1995,7 +1934,7 @@ export function TicketDetail() {
  </tr>
  </thead>
  <tbody className="divide-y divide-slate-100">
- {ticket.history?.filter((h: any) => h.action.includes('SLA') || h.action.includes('Breach')).map((h: any, i: number) => (
+ {ticket.history?.filter((h: SafeAny) => h.action.includes('SLA') || h.action.includes('Breach')).map((h: SafeAny, i: number) => (
  <tr key={i} className="hover:bg-slate-50/50">
  <td className="p-3">
  <div className="flex items-center gap-2">
@@ -2224,3 +2163,6 @@ export function TicketDetail() {
  </div>
  );
 }
+
+
+

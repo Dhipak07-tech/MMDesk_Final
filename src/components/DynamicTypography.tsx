@@ -1,3 +1,4 @@
+import api from '@/lib/api';
 import React, { useEffect, useState } from"react";
 
 interface TypographySettings {
@@ -27,7 +28,7 @@ export function DynamicTypography() {
 
  useEffect(() => {
  // Fetch typography settings from backend
- fetch("/api/settings/typography")
+ api("/api/settings/typography")
  .then(res => res.json())
  .then(data => {
  if (data && !data.error) {
@@ -150,3 +151,4 @@ export function DynamicTypography() {
 
  return null; // purely side-effect component
 }
+

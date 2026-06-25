@@ -13,6 +13,18 @@ import java.util.stream.Collectors;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<?> handleResourceNotFound(ResourceNotFoundException e) {
+        log.error("[API Resource Not Found] {}", e.getMessage());
+        return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<?> handleUnauthorized(UnauthorizedException e) {
+        log.error("[API Unauthorized] {}", e.getMessage());
+        return ResponseEntity.status(419).body(Map.of("error", e.getMessage()));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleRuntime(RuntimeException e) {
         log.error("[API Error] {}", e.getMessage());
