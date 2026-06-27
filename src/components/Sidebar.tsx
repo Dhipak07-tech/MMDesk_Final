@@ -48,6 +48,8 @@ import {
   PhoneCall,
   BrainCircuit,
   MessageCircle,
+  Server,
+  MessageSquare,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -167,6 +169,8 @@ export function Sidebar() {
         { icon: HelpCircle, label: "Self-Service Portal", path: "/service-portal" },
         { icon: ShoppingCart, label: "Service Catalog", path: "/catalog", moduleKey: "catalog" },
         { icon: BookOpen, label: "Knowledge Base", path: "/kb", moduleKey: "kb" },
+        { icon: Server, label: "CMDB (Assets)", path: "/cmdb", moduleKey: "cmdb" },
+        { icon: MessageSquare, label: "Conversations", path: "/conversations" },
         { icon: Clock, label: "SLA Policies", path: "/sla", moduleKey: "sla" },
         { icon: History, label: "System Activity Log", path: "/history", moduleKey: "history" },
       ]
@@ -255,11 +259,13 @@ export function Sidebar() {
         { icon: KeyRound, label: "Access Control", path: "/access-control", moduleKey: "access_control" },
         { icon: Users, label: "Group Management", path: "/groups?tab=teams" },
         { icon: Settings2, label: "System Settings", path: "/settings", moduleKey: "settings" },
+        { icon: CheckCircle2, label: "Pending Approvals", path: "/approvals" },
         { icon: CheckCircle2, label: "Approved Tickets", path: "/approved-tickets" },
         { icon: ClipboardList, label: "Ticket Approvals", path: "/timesheet-approvals", moduleKey: "timesheet_approvals" },
         { icon: CheckCircle2, label: "Approved Timesheets", path: "/timesheet/reports?status=Approved", moduleKey: "approved_timesheet" },
         { icon: Palette, label: "Branding", path: "/branding", superAdminOnly: true, moduleKey: "settings" },
         { icon: Tag, label: "Incident Category Management", path: "/incident-categories", moduleKey: "settings" },
+        { icon: Database, label: "Database Viewer", path: "/admin/database-viewer" },
       ]
     }
   ];
