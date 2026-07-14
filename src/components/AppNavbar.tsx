@@ -187,7 +187,9 @@ export function AppNavbar() {
  loadData();
 
  // Establish SSE stream for real-time notifications
- const eventSource = new EventSource(`/api/notifications/stream?user_id=${encodeURIComponent(uid)}`);
+ const token = localStorage.getItem("token");
+ const streamUrl = `/api/notifications/stream?user_id=${encodeURIComponent(uid)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+ const eventSource = new EventSource(streamUrl);
 
  eventSource.onmessage = (event) => {
  try {

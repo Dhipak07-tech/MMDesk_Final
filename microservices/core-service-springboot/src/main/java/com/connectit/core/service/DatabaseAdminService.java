@@ -9,7 +9,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional
 public class DatabaseAdminService {
 
     private final JdbcTemplate jdbcTemplate;

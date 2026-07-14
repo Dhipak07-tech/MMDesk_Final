@@ -109,6 +109,23 @@ export function Register() {
  throw new Error(errData.error ||"Failed to create account via API.");
  }
 
+ // Auto-login: authenticate to get token
+ try {
+  const loginRes = await api("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.toLowerCase().trim(), password })
+  });
+  if (loginRes.ok) {
+    const loginData = await loginRes.json();
+    if (loginData.token) {
+      localStorage.setItem("token", loginData.token);
+    }
+  }
+ } catch (loginErr) {
+  console.warn("Auto-login failed:", loginErr);
+ }
+
  // Auto-login: save to localStorage
  localStorage.setItem("demo_user", JSON.stringify({
  uid,

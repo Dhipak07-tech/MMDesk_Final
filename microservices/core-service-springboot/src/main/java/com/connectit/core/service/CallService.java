@@ -19,7 +19,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
+@Transactional
 public class CallService {
 
     private final CallLogRepository callLogRepo;

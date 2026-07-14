@@ -101,6 +101,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             return header.substring(7);
         }
+        String param = req.getParameter("token");
+        if (StringUtils.hasText(param)) {
+            return param;
+        }
         return null;
     }
 }

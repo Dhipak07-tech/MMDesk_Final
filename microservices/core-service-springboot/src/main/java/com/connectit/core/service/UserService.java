@@ -17,7 +17,7 @@ import java.util.Optional;
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional
 public class UserService {
 
     private final UserRepository userRepository;
@@ -37,6 +37,7 @@ public class UserService {
      * (hex, not starting with $2a$/$2b$), falls back to SimpleHash check and
      * re-hashes on success.
      */
+    @Transactional
     public Optional<User> authenticate(String email, String password) {
         Optional<User> userOpt = userRepository.findByEmailIgnoreCaseAndIsActiveTrue(email);
         if (userOpt.isEmpty()) return Optional.empty();

@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
+@Transactional
 public class InboundEmailService {
 
     private final CompanyEmailConfigRepository configRepo;

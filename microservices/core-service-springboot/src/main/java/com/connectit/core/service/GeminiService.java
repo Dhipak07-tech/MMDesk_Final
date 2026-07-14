@@ -14,7 +14,7 @@ import java.util.*;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional(readOnly = true)
+@Transactional
 public class GeminiService {
 
     @Value("${gemini.api.key:}")

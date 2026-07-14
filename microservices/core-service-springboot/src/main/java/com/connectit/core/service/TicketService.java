@@ -13,7 +13,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
+@Transactional
 public class TicketService {
 
     private final TicketRepository ticketRepo;

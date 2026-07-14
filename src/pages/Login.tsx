@@ -69,6 +69,9 @@ export function Login() {
 
  if (response.ok) {
  const userData = await response.json();
+ if (userData.token) {
+   localStorage.setItem("token", userData.token);
+ }
  localStorage.setItem("demo_user", JSON.stringify({
  uid: userData.uid,
  name: userData.name,
