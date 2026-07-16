@@ -884,7 +884,7 @@ export function Tickets() {
 
  {/* Main Ticket Feed */}
  {viewMode === 'hybrid' ? (
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
  {filteredTickets.length === 0 ? (
  <div className="col-span-full py-16 text-center text-muted-foreground bg-white/20 dark:bg-black/10 backdrop-blur-md rounded-2xl border border-dashed border-border p-8">
  No incidents found matching current filters.
@@ -1031,7 +1031,7 @@ export function Tickets() {
  </div>
  ) : (
  /* Render modern ops table view mode */
- <div className="sn-card overflow-hidden p-0 border border-border/80 shadow-2xl rounded-2xl bg-card/60 backdrop-blur-md">
+ <div className="sn-card overflow-hidden p-0 border border-border/80 shadow-2xl rounded-2xl bg-card/60 backdrop-blur-md mt-6">
  <div className="p-4 border-b border-border/60 flex items-center justify-between bg-muted/20 backdrop-blur-md">
  <div className="text-sm font-bold">Operations Incident Log</div>
  <div className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Total Active: {filteredTickets.length}</div>

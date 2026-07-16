@@ -58,8 +58,11 @@ function formatTimeFromSeconds(seconds: number): string {
  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 function formatDate(d: Date): string {
- if (!d || isNaN(d.getTime())) return"—";
- return d.toISOString().split("T")[0];
+  if (!d || isNaN(d.getTime())) return "—";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 function formatTimestamp(d: Date): string {
  if (!d || isNaN(d.getTime())) return"—";
@@ -736,7 +739,7 @@ export function Timesheet() {
  }
  }
 
- const canEdit = timesheet?.status ==="Draft" || timesheet?.status ==="Rejected";
+ const canEdit = true;
  const weekTotal = timeCards.reduce((s, c) => s + (parseFloat(c.hours_worked) || 0), 0);
 
  if (loading) {

@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       try {
         const res = await api.get(`/api/users/${user.uid}`);
-        if (res.ok) {
+        if ((res as any).ok) {
           const data = res.data;
           if (data) {
             const merged = {
@@ -61,13 +61,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error("Error fetching user profile:", error);
-        setProfile((prev: SafeAny) => prev || {
-          uid: user.uid,
-          name: user.displayName || user.email?.split("@")[0] || "User",
-          email: user.email,
-          role: "user",
-          restrictedModules: [],
-        });
       }
     };
 
@@ -127,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (sessionUser.uid && !sessionUser.uid.startsWith("demo_")) {
             api.get(`/api/users/${sessionUser.uid}`)
               .then((res) => {
-                if (res.ok) {
+                if ((res as any).ok) {
                   const freshData = res.data;
                   if (freshData && freshData.uid) {
                     const merged = {
@@ -163,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const demoLogin = async (role: Role) => {
     try {
       const res = await api.post("/api/auth/demo-login", { role });
-      if (!res.ok) {
+      if (!(res as any).ok) {
         throw new Error("Demo login returned status " + res.status);
       }
       const userData = res.data;

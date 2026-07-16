@@ -59,10 +59,8 @@
   color: #3B82F6;
 }
 
-/* Layout Standardization */
 .standard-page-layout {
   max-width: 100%;
-  padding: 24px;
 }
 
 .standard-page-header {
@@ -112,16 +110,70 @@
   --radius-sm: calc(var(--radius) - 4px);
 
   /* Connect Inspired Colors - Redesigned to Modern Corporate Blue theme */
-  --color-sn-green: #3b82f6;
-  /* Modern Blue */
-  --color-sn-dark: #020617;
-  /* Space Navy Dark */
+  --color-sn-green: #5850ec;
+  --color-sn-dark: #090d16;
   --color-sn-gray: #0f172a;
-  /* Slate Navy */
   --color-text-dim: #64748b;
-  /* Slate Gray Light */
-  --color-sn-sidebar: #0f172a;
-  /* Translucent Deep Navy */
+  --color-sn-sidebar: #ffffff;
+
+  /* Global Tailwind Color Overrides to force Royal Iris Theme across all modules */
+  --color-blue-50: #f5f7ff;
+  --color-blue-100: #eef2ff;
+  --color-blue-200: #e0e7ff;
+  --color-blue-300: #c7d2fe;
+  --color-blue-400: #818cf8;
+  --color-blue-500: #5850ec;
+  --color-blue-600: #4f46e5;
+  --color-blue-700: #4338ca;
+  --color-blue-800: #3730a3;
+  --color-blue-900: #312e81;
+
+  --color-cyan-50: #f5f7ff;
+  --color-cyan-100: #eef2ff;
+  --color-cyan-200: #e0e7ff;
+  --color-cyan-300: #c7d2fe;
+  --color-cyan-400: #818cf8;
+  --color-cyan-500: #5850ec;
+  --color-cyan-600: #4f46e5;
+  --color-cyan-700: #4338ca;
+  --color-cyan-800: #3730a3;
+  --color-cyan-900: #312e81;
+
+  /* Global background/surface colors to enforce canvas-card contrast in all modules */
+  --color-white: #ffffff;
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+
+  --color-zinc-50: #f8fafc;
+  --color-zinc-100: #f1f5f9;
+  --color-zinc-200: #e2e8f0;
+  --color-zinc-300: #cbd5e1;
+  --color-zinc-400: #94a3b8;
+  --color-zinc-500: #64748b;
+  --color-zinc-600: #475569;
+  --color-zinc-700: #334155;
+  --color-zinc-800: #1e293b;
+  --color-zinc-900: #0f172a;
 }
 
 @keyframes gradientAnimation {
@@ -140,57 +192,49 @@
 
 @layer base {
   :root {
-    --light-brightness: 97%;
-    --background: 220 25% var(--light-brightness);
+    --light-brightness: 98%;
+    --background: 210 40% var(--light-brightness);
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 221.2 83.2% 53.3%;
-    /* Modern Professional Blue */
+    --primary: 243 82% 62%;
     --primary-foreground: 210 40% 98%;
     --secondary: 220 14% 96%;
     --secondary-foreground: 222 47% 11%;
     --muted: 220 14% 96%;
     --muted-foreground: 220 12% 40%;
-    --accent: 199 89% 48%;
-    /* Accent Cyan-Blue */
-    --accent-foreground: 222 47% 11%;
+    --accent: 243 82% 62%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
-    --ring: 221.2 83.2% 53.3%;
+    --border: 220 15% 92%;
+    --input: 220 15% 92%;
+    --ring: 243 82% 62%;
     --radius: 0.75rem;
   }
 
   .dark {
-    --background: 220 50% 8%;
-    /* Premium Deep Slate Navy (#0B1220) */
+    --background: 222 47% 6%;
     --foreground: 210 40% 98%;
-    /* High contrast crisp white-slate */
-    --card: 220 40% 11%;
-    /* Card background (#111827) */
+    --card: 222 47% 10%;
     --card-foreground: 210 40% 98%;
-    --popover: 220 40% 11%;
+    --popover: 222 47% 10%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    /* Bright Corporate Blue */
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 220 30% 18%;
-    /* Panel background (#1A2332) */
+    --primary: 243 82% 62%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 222 47% 12%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 220 30% 18%;
+    --muted: 222 47% 12%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 199 89% 48%;
+    --accent: 243 82% 62%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 220 30% 25%;
-    /* Border (#2D3B55) */
-    --input: 220 30% 25%;
-    --ring: 217.2 91.2% 59.8%;
+    --border: 222 47% 16%;
+    --input: 222 47% 16%;
+    --ring: 243 82% 62%;
 
     /* Light color overrides inside dark mode to prevent white patches */
     --color-white: #111827;
@@ -219,9 +263,7 @@
 
   body {
     @apply text-foreground font-sans text-sm font-normal antialiased transition-colors duration-200 min-h-screen;
-    background: linear-gradient(-45deg, #f8fafc, #eff6ff, #dbeafe, #eff6ff);
-    background-size: 400% 400%;
-    animation: gradientAnimation 20s ease infinite;
+    background: #f8fafc;
   }
 
   /* Global Typography Standards */
@@ -234,25 +276,21 @@
   .helper-text { @apply text-xs font-normal; }
 
   .dark body {
-    background: linear-gradient(-45deg, #0b1220, #0f172a, #111827, #0b1220);
-    background-size: 400% 400%;
-    animation: gradientAnimation 20s ease infinite;
+    background: #090d16;
   }
 }
 
 /* Glassmorphism Styles - Modified for Premium Corporate Blue */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(37, 99, 235, 0.1);
-  box-shadow: 0 8px 32px 0 rgba(37, 99, 235, 0.04);
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
 .dark .glass-panel {
-  background: rgba(11, 19, 41, 0.65);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  background: #111827;
+  border: 1px solid #1f2937;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 /* Redesign Technical Dashboard Styles */
@@ -265,24 +303,24 @@
 }
 
 .sn-card {
-  @apply rounded-2xl border bg-card/75 backdrop-blur-md p-6 shadow-xl border-border transition-all duration-300;
-  box-shadow: 0 10px 30px -10px rgba(37, 99, 235, 0.06);
+  @apply rounded-2xl border bg-card p-6 shadow-sm border-border transition-all duration-300;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 
 .dark .sn-card {
-  background: rgba(11, 19, 41, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+  background: #111827;
+  border: 1px solid #1f2937;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 .sn-card:hover {
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 12px 30px -5px rgba(37, 99, 235, 0.1);
+  border-color: rgba(88, 80, 236, 0.35);
+  box-shadow: 0 10px 15px -3px rgba(88, 80, 236, 0.08), 0 4px 6px -2px rgba(88, 80, 236, 0.08) !important;
 }
 
 .dark .sn-card:hover {
-  border-color: rgba(59, 130, 246, 0.35);
-  box-shadow: 0 20px 40px -10px rgba(59, 130, 246, 0.2);
+  border-color: rgba(88, 80, 236, 0.45);
+  box-shadow: 0 10px 20px -5px rgba(88, 80, 236, 0.25);
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -303,69 +341,64 @@
   background: rgba(37, 99, 235, 0.4);
 }
 
-/* Sidebar Custom Styling - Redesigned to Modern Corporate Blue */
 .bg-sn-sidebar {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(240, 246, 255, 0.9) 100%) !important;
-  backdrop-filter: blur(20px);
-  border-color: rgba(37, 99, 235, 0.15) !important;
-  color: var(--color-foreground) !important;
+  background: #ffffff !important;
+  backdrop-filter: none;
+  border-right: 1px solid #f1f5f9 !important;
+  color: #1e293b !important;
 }
 
 .dark .bg-sn-sidebar {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(8, 14, 36, 0.9) 100%) !important;
-  backdrop-filter: blur(20px);
-  border-color: rgba(255, 255, 255, 0.08) !important;
-  color: #ffffff !important;
+  background: #0f172a !important;
+  backdrop-filter: none;
+  border-right: 1px solid #1e293b !important;
+  color: #f8fafc !important;
 }
 
 /* Sidebar elements overrides for perfect readability and blue theme */
 .bg-sn-sidebar .text-text-dim {
-  color: #2563eb !important;
-  /* Primary blue for standard text labels */
+  color: #64748b !important;
 }
 
 .dark .bg-sn-sidebar .text-text-dim {
-  color: #93c5fd !important;
-  /* Light slate blue for standard text labels */
+  color: #94a3b8 !important;
 }
 
 /* Sidebar main title and logos */
 .bg-sn-sidebar span.text-blue-600,
 .bg-sn-sidebar span.text-blue-400 {
-  color: #1e40af !important;
-  /* Bold deep blue in Light Mode */
-  font-weight: 850 !important;
+  color: #5850ec !important;
+  font-weight: 800 !important;
 }
 
 .dark .bg-sn-sidebar span.text-blue-600,
 .dark .bg-sn-sidebar span.text-blue-400 {
-  color: #3b82f6 !important;
-  /* Bright blue in Dark Mode */
-  font-weight: 850 !important;
+  color: #818cf8 !important;
+  font-weight: 800 !important;
 }
 
 /* Sidebar Section Headings (Favorites, Incident, Meetings, etc.) */
 .bg-sn-sidebar nav button {
-  color: #1e3a8a !important;
-  /* Deep corporate blue */
-  opacity: 0.9 !important;
+  color: #64748b !important;
+  opacity: 0.85 !important;
+  font-size: 10px !important;
   font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
 }
 
 .bg-sn-sidebar nav button:hover {
-  color: #1d4ed8 !important;
+  color: #1e293b !important;
   opacity: 1 !important;
 }
 
 .dark .bg-sn-sidebar nav button {
-  color: #60a5fa !important;
-  /* Light blue */
-  opacity: 0.9 !important;
-  font-weight: 700 !important;
+  color: #94a3b8 !important;
+  opacity: 0.85 !important;
 }
 
 .dark .bg-sn-sidebar nav button:hover {
-  color: #93c5fd !important;
+  color: #ffffff !important;
   opacity: 1 !important;
 }
 
@@ -373,37 +406,39 @@
 .bg-sn-sidebar a.text-blue-500,
 .bg-sn-sidebar a.text-blue-400,
 .bg-sn-sidebar a[class*="bg-blue-500/"] {
-  color: #1e3a8a !important;
-  /* Deep Indigo-Blue in Light Mode */
-  background-color: rgba(37, 99, 235, 0.12) !important;
-  border-right: 3px solid #2563eb !important;
-  font-weight: 700 !important;
+  color: #ffffff !important;
+  background-color: #5850ec !important;
+  border-radius: 6px !important;
+  border-right: none !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(88, 80, 236, 0.15) !important;
 }
 
 .bg-sn-sidebar a.text-blue-500 svg,
 .bg-sn-sidebar a.text-blue-400 svg {
-  color: #2563eb !important;
+  color: #ffffff !important;
 }
 
 .dark .bg-sn-sidebar a.text-blue-500,
 .dark .bg-sn-sidebar a.text-blue-400,
 .dark .bg-sn-sidebar a[class*="bg-blue-500/"] {
   color: #ffffff !important;
-  /* Crisp high contrast white active state */
-  background-color: rgba(59, 130, 246, 0.2) !important;
-  border-right: 3px solid #3b82f6 !important;
-  font-weight: 700 !important;
+  background-color: #5850ec !important;
+  border-radius: 6px !important;
+  border-right: none !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(88, 80, 236, 0.3) !important;
 }
 
 .dark .bg-sn-sidebar a.text-blue-500 svg,
 .dark .bg-sn-sidebar a.text-blue-400 svg {
-  color: #60a5fa !important;
+  color: #ffffff !important;
 }
 
 /* Hover links in Sidebar */
 .bg-sn-sidebar a:hover {
-  background-color: rgba(37, 99, 235, 0.08) !important;
-  color: #1d4ed8 !important;
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
 }
 
 .dark .bg-sn-sidebar a:hover {
@@ -413,11 +448,19 @@
 
 /* SVG icons inside sidebar */
 .bg-sn-sidebar svg {
-  color: #2563eb !important;
+  color: #64748b !important;
+}
+
+.bg-sn-sidebar a:hover svg {
+  color: #1e293b !important;
 }
 
 .dark .bg-sn-sidebar svg {
-  color: #93c5fd !important;
+  color: #94a3b8 !important;
+}
+
+.dark .bg-sn-sidebar a:hover svg {
+  color: #ffffff !important;
 }
 
 /* Neon Priority Indicators - Blue Gradients */
@@ -1418,4 +1461,23 @@ html.dark .bg-zinc-100 {
 #ai-tracker-pet-root.minimized .atp-hover-tooltip,
 #ai-tracker-pet-root.minimized .atp-shadow {
   display: none !important;
+}
+
+/* Ensure inputs and selects with dark backgrounds show as clean white in light mode */
+input.bg-black\/40,
+select.bg-black\/40,
+div.bg-black\/40 input,
+div.bg-black\/40 select {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+.dark input.bg-black\/40,
+.dark select.bg-black\/40,
+.dark div.bg-black\/40 input,
+.dark div.bg-black\/40 select {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
 }

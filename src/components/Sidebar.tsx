@@ -157,7 +157,7 @@ export function Sidebar() {
             { icon: KeyRound, label: "Reset Password", onClick: () => setShowResetModal(true) },
           ]
         : [
-            { icon: LayoutDashboard, label: "Personal Dashboard", path: "/" },
+            { icon: LayoutDashboard, label: "Personal Dashboard", path: "/my-dashboard" },
             { icon: Trophy, label: "Leaderboard", path: "/leaderboard" },
             { icon: CalendarDays, label: "Calendar", path: "/calendar" },
             { icon: Ticket, label: "My Tickets", path: "/timesheet", moduleKey: "timesheet" },
@@ -322,11 +322,14 @@ export function Sidebar() {
   const filteredMenu = getFilteredMenu(menuStructure);
 
   return (
-    <aside className={cn(
-      "bg-sn-sidebar text-white flex flex-col sticky top-4 left-4 transition-all duration-300 border border-white/10 rounded-2xl m-4 mr-0 shadow-2xl z-20 overflow-hidden",
-      isCollapsed ? "w-16" : "w-64",
-      "h-[calc(100vh-2rem)]"
+    <div className={cn(
+      "shrink-0 transition-all duration-300 m-4 mr-0",
+      isCollapsed ? "w-16" : "w-64"
     )}>
+      <aside className={cn(
+        "bg-sn-sidebar text-white flex flex-col sticky top-4 w-full border border-white/10 rounded-2xl shadow-2xl z-20 overflow-hidden",
+        "h-[calc(100vh-2rem)]"
+      )}>
       {/* Sidebar Header */}
       <div className="p-4 flex items-center justify-between border-b border-white/10 h-16 shrink-0">
         {!isCollapsed && (
@@ -531,6 +534,7 @@ export function Sidebar() {
         </div>
       )}
     </aside>
+  </div>
   );
 }
 

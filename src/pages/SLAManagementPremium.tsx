@@ -271,7 +271,7 @@ export function SLAManagementPremium() {
  });
  setIsModalOpen(true);
  }}
- className="bg-gradient-to-tr from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 text-white font-bold text-xs rounded-xl py-2.5 px-4 shadow-[0_0_15px_rgba(37,99,235,0.4)] flex items-center gap-2"
+ className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-4 py-2.5 transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] flex items-center gap-2 cursor-pointer"
  >
  <Plus className="w-4 h-4" /> Create SLA Policy
  </Button>
@@ -829,188 +829,184 @@ export function SLAManagementPremium() {
  </div>
 
  {/* POLICY CREATION / EDITING MODAL */}
- {isModalOpen && (
- <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999] p-4 animate-in fade-in duration-200">
- <div className="bg-[#1A2332] rounded-2xl border border-[#2D3B55] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
- {/* Modal Header */}
- <div className="px-6 py-4 bg-[#111827] border-b border-[#2D3B55] flex items-center justify-between">
- <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
- <Clock className="w-5 h-5 text-blue-400" /> {selectedPolicyId ?"Edit SLA Policy" :"Create SLA Policy"}
- </h2>
- <button onClick={() => setIsModalOpen(false)} className="text-text-dim hover:text-white hover:bg-white/5 rounded-lg p-1.5 transition-colors">
- <X className="w-4 h-4" />
- </button>
- </div>
+ {isModalOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999] p-4 animate-in fade-in duration-200">
+  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+  {/* Modal Header */}
+  <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+  <h2 className="text-base font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+  <Clock className="w-5 h-5 text-blue-500" /> {selectedPolicyId ?"Edit SLA Policy" :"Create SLA Policy"}
+  </h2>
+  <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:text-text-dim dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg p-1.5 transition-colors cursor-pointer">
+  <X className="w-4 h-4" />
+  </button>
+  </div>
 
- {/* Modal Body / Form */}
- <form onSubmit={handleSavePolicy} className="p-6 space-y-4 overflow-y-auto max-h-[70vh] custom-scrollbar text-left">
- <div className="space-y-1">
- <label className="text-[10px] font-semibold uppercase text-text-dim">Policy Name</label>
- <input
- required
- type="text"
- className="w-full bg-[#111827] border border-[#2D3B55] rounded-xl p-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
- value={newPolicy.name ||""}
- onChange={(e) => setNewPolicy({ ...newPolicy, name: e.target.value })}
- placeholder="e.g. Critical Priority Software Policy"
- />
- </div>
+  {/* Modal Body / Form */}
+  <form onSubmit={handleSavePolicy} className="p-6 space-y-4 overflow-y-auto max-h-[70vh] custom-scrollbar text-left">
+  <div className="space-y-1">
+  <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Policy Name</label>
+  <input
+  required
+  type="text"
+  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+  value={newPolicy.name ||""}
+  onChange={(e) => setNewPolicy({ ...newPolicy, name: e.target.value })}
+  placeholder="e.g. Critical Priority Software Policy"
+  />
+  </div>
 
- <div className="grid grid-cols-2 gap-4">
- <div className="space-y-1">
- <label className="text-[10px] font-semibold uppercase text-text-dim">Priority Level</label>
- <select
- className="w-full bg-[#111827] border border-[#2D3B55] rounded-xl p-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
- value={newPolicy.priority ||"3 - Moderate"}
- onChange={(e) => setNewPolicy({ ...newPolicy, priority: e.target.value })}
- >
- {["1 - Critical","2 - High","3 - Moderate","4 - Low"].map(p => (
- <option key={p} value={p}>{p}</option>
- ))}
- </select>
- </div>
- <div className="space-y-1">
- <label className="text-[10px] font-semibold uppercase text-text-dim">Incident Category</label>
- <select
- className="w-full bg-[#111827] border border-[#2D3B55] rounded-xl p-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
- value={newPolicy.category ||"Software"}
- onChange={(e) => setNewPolicy({ ...newPolicy, category: e.target.value })}
- >
- {["Inquiry / Help","Software","Hardware","Network","Database"].map(c => (
- <option key={c} value={c}>{c}</option>
- ))}
- </select>
- </div>
- </div>
+  <div className="grid grid-cols-2 gap-4">
+  <div className="space-y-1">
+  <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Priority Level</label>
+  <select
+  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+  value={newPolicy.priority ||"3 - Moderate"}
+  onChange={(e) => setNewPolicy({ ...newPolicy, priority: e.target.value })}
+  >
+  {["1 - Critical","2 - High","3 - Moderate","4 - Low"].map(p => (
+  <option key={p} value={p}>{p}</option>
+  ))}
+  </select>
+  </div>
+  <div className="space-y-1">
+  <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Incident Category</label>
+  <select
+  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+  value={newPolicy.category ||"Software"}
+  onChange={(e) => setNewPolicy({ ...newPolicy, category: e.target.value })}
+  >
+  {["Inquiry / Help","Software","Hardware","Network","Database"].map(c => (
+  <option key={c} value={c}>{c}</option>
+  ))}
+  </select>
+  </div>
+  </div>
 
- <div className="grid grid-cols-2 gap-4">
- <div className="space-y-1">
- <label className="text-[10px] font-semibold uppercase text-text-dim">Response SLA (Hours)</label>
- <input
- required
- type="number"
- className="w-full bg-[#111827] border border-[#2D3B55] rounded-xl p-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
- value={newPolicy.responseTimeHours || 0}
- onChange={(e) => setNewPolicy({ ...newPolicy, responseTimeHours: parseInt(e.target.value) })}
- />
- </div>
- <div className="space-y-1">
- <label className="text-[10px] font-semibold uppercase text-text-dim">Resolution SLA (Hours)</label>
- <input
- required
- type="number"
- className="w-full bg-[#111827] border border-[#2D3B55] rounded-xl p-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
- value={newPolicy.resolutionTimeHours || 0}
- onChange={(e) => setNewPolicy({ ...newPolicy, resolutionTimeHours: parseInt(e.target.value) })}
- />
- </div>
- </div>
+  <div className="grid grid-cols-2 gap-4">
+  <div className="space-y-1">
+  <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Response SLA (Hours)</label>
+  <input
+  required
+  type="number"
+  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+  value={newPolicy.responseTimeHours || 0}
+  onChange={(e) => setNewPolicy({ ...newPolicy, responseTimeHours: parseInt(e.target.value) })}
+  />
+  </div>
+  <div className="space-y-1">
+  <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Resolution SLA (Hours)</label>
+  <input
+  required
+  type="number"
+  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+  value={newPolicy.resolutionTimeHours || 0}
+  onChange={(e) => setNewPolicy({ ...newPolicy, resolutionTimeHours: parseInt(e.target.value) })}
+  />
+  </div>
+  </div>
 
- <div className="grid grid-cols-2 gap-4">
- <div className="space-y-1">
- <label className="text-[10px] font-semibold uppercase text-text-dim">Assignment Group</label>
- <input
- type="text"
- className="w-full bg-[#111827] border border-[#2D3B55] rounded-xl p-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
- value={newPolicy.assignmentGroup ||""}
- onChange={(e) => setNewPolicy({ ...newPolicy, assignmentGroup: e.target.value })}
- placeholder="e.g. L1 Support"
- />
- </div>
- <div className="space-y-1">
- <label className="text-[10px] font-semibold uppercase text-text-dim">Escalation Levels (Tiers)</label>
- <input
- type="number"
- min="1"
- max="5"
- className="w-full bg-[#111827] border border-[#2D3B55] rounded-xl p-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
- value={newPolicy.escalationLevels || 1}
- onChange={(e) => setNewPolicy({ ...newPolicy, escalationLevels: parseInt(e.target.value) })}
- />
- </div>
- </div>
+  <div className="grid grid-cols-2 gap-4">
+  <div className="space-y-1">
+  <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Assignment Group</label>
+  <input
+  type="text"
+  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+  value={newPolicy.assignmentGroup ||""}
+  onChange={(e) => setNewPolicy({ ...newPolicy, assignmentGroup: e.target.value })}
+  placeholder="e.g. L1 Support"
+  />
+  </div>
+  <div className="space-y-1">
+  <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Escalation Levels (Tiers)</label>
+  <input
+  type="number"
+  min="1"
+  max="5"
+  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+  value={newPolicy.escalationLevels || 1}
+  onChange={(e) => setNewPolicy({ ...newPolicy, escalationLevels: parseInt(e.target.value) })}
+  />
+  </div>
+  </div>
 
- <div className="space-y-1">
- <label className="text-[10px] font-semibold uppercase text-text-dim">Description</label>
- <textarea
- className="w-full bg-[#111827] border border-[#2D3B55] rounded-xl p-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500 h-16 resize-none"
- value={newPolicy.description ||""}
- onChange={(e) => setNewPolicy({ ...newPolicy, description: e.target.value })}
- placeholder="Provide context regarding this SLA policy..."
- />
- </div>
+  <div className="space-y-1">
+  <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Description</label>
+  <textarea
+  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500 h-16 resize-none"
+  value={newPolicy.description ||""}
+  onChange={(e) => setNewPolicy({ ...newPolicy, description: e.target.value })}
+  placeholder="Provide context regarding this SLA policy..."
+  />
+  </div>
 
- <div className="space-y-3 p-4 bg-black/25 rounded-xl border border-white/5">
- <h4 className="text-xs font-bold uppercase tracking-wider text-white">Business Exclusion Rules</h4>
- <div className="flex items-center justify-between text-xs">
- <label className="font-medium text-text-dim">Calculate SLA inside Business Hours only</label>
- <input
- type="checkbox"
- checked={newPolicy.businessHoursOnly || false}
- onChange={(e) => setNewPolicy({ ...newPolicy, businessHoursOnly: e.target.checked })}
- className="w-4 h-4 accent-blue-500 cursor-pointer"
- />
- </div>
- <div className="flex items-center justify-between text-xs">
- <label className="font-medium text-text-dim">Exclude Weekends from SLA calculation</label>
- <input
- type="checkbox"
- checked={newPolicy.excludeWeekends || false}
- onChange={(e) => setNewPolicy({ ...newPolicy, excludeWeekends: e.target.checked })}
- className="w-4 h-4 accent-blue-500 cursor-pointer"
- />
- </div>
- <div className="flex items-center justify-between text-xs">
- <label className="font-medium text-text-dim">Exclude Corporate Holidays</label>
- <input
- type="checkbox"
- checked={newPolicy.excludeHolidays || false}
- onChange={(e) => setNewPolicy({ ...newPolicy, excludeHolidays: e.target.checked })}
- className="w-4 h-4 accent-blue-500 cursor-pointer"
- />
- </div>
- <div className="flex items-center justify-between text-xs">
- <label className="font-medium text-text-dim">Allow SLA Pause/Resume (On Hold states)</label>
- <input
- type="checkbox"
- checked={newPolicy.allowPause || false}
- onChange={(e) => setNewPolicy({ ...newPolicy, allowPause: e.target.checked })}
- className="w-4 h-4 accent-blue-500 cursor-pointer"
- />
- </div>
- <div className="flex items-center justify-between text-xs">
- <label className="font-medium text-text-dim">Policy Active</label>
- <input
- type="checkbox"
- checked={newPolicy.isActive || false}
- onChange={(e) => setNewPolicy({ ...newPolicy, isActive: e.target.checked })}
- className="w-4 h-4 accent-blue-500 cursor-pointer"
- />
- </div>
- </div>
+  <div className="space-y-3 p-4 bg-slate-50 dark:bg-black/25 rounded-xl border border-slate-200 dark:border-white/5">
+  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-white">Business Exclusion Rules</h4>
+  <div className="flex items-center justify-between text-xs">
+  <label className="font-medium text-slate-600 dark:text-text-dim">Calculate SLA inside Business Hours only</label>
+  <input
+  type="checkbox"
+  checked={newPolicy.businessHoursOnly || false}
+  onChange={(e) => setNewPolicy({ ...newPolicy, businessHoursOnly: e.target.checked })}
+  className="w-4 h-4 accent-blue-500 cursor-pointer bg-white"
+  />
+  </div>
+  <div className="flex items-center justify-between text-xs">
+  <label className="font-medium text-slate-600 dark:text-text-dim">Exclude Weekends from SLA calculation</label>
+  <input
+  type="checkbox"
+  checked={newPolicy.excludeWeekends || false}
+  onChange={(e) => setNewPolicy({ ...newPolicy, excludeWeekends: e.target.checked })}
+  className="w-4 h-4 accent-blue-500 cursor-pointer bg-white"
+  />
+  </div>
+  <div className="flex items-center justify-between text-xs">
+  <label className="font-medium text-slate-600 dark:text-text-dim">Exclude Corporate Holidays</label>
+  <input
+  type="checkbox"
+  checked={newPolicy.excludeHolidays || false}
+  onChange={(e) => setNewPolicy({ ...newPolicy, excludeHolidays: e.target.checked })}
+  className="w-4 h-4 accent-blue-500 cursor-pointer bg-white"
+  />
+  </div>
+  <div className="flex items-center justify-between text-xs">
+  <label className="font-medium text-slate-600 dark:text-text-dim">Allow SLA Pause/Resume (On Hold states)</label>
+  <input
+  type="checkbox"
+  checked={newPolicy.allowPause || false}
+  onChange={(e) => setNewPolicy({ ...newPolicy, allowPause: e.target.checked })}
+  className="w-4 h-4 accent-blue-500 cursor-pointer bg-white"
+  />
+  </div>
+  <div className="flex items-center justify-between text-xs">
+  <label className="font-medium text-slate-600 dark:text-text-dim">Policy Active</label>
+  <input
+  type="checkbox"
+  checked={newPolicy.isActive || false}
+  onChange={(e) => setNewPolicy({ ...newPolicy, isActive: e.target.checked })}
+  className="w-4 h-4 accent-blue-500 cursor-pointer bg-white"
+  />
+  </div>
+  </div>
 
- {/* Modal Buttons */}
- <div className="pt-4 flex justify-end gap-3 border-t border-[#2D3B55]">
- <button
- type="button"
- onClick={() => setIsModalOpen(false)}
- className="px-4 py-2 border border-[#2D3B55] hover:bg-white/5 rounded-xl text-xs font-bold text-white transition-colors"
- >
- Cancel
- </button>
- <button
- type="submit"
- className="px-5 py-2 bg-gradient-to-tr from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/20"
- >
- {selectedPolicyId ?"Update Policy" :"Create Policy"}
- </button>
- </div>
- </form>
- </div>
- </div>
- )}
+  {/* Modal Buttons */}
+  <div className="pt-4 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
+  <button
+  type="button"
+  onClick={() => setIsModalOpen(false)}
+  className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+  >
+  Cancel
+  </button>
+  <button
+  type="submit"
+  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/20 cursor-pointer"
+  >
+  {selectedPolicyId ?"Update Policy" :"Create Policy"}
+  </button>
+  </div>
+  </form>
+  </div>
+  </div>}
  </div>
  );
 }
-
-
