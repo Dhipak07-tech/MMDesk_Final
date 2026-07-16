@@ -4,7 +4,7 @@ import React, { useState } from"react";
 import { Link, useNavigate } from"react-router-dom";
 import { type Role } from"../lib/roles";
 import { useAuth } from "../contexts/AuthContext";
-import { Loader2 } from"lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { cn } from"@/lib/utils";
 
 // Local Button component
@@ -34,6 +34,7 @@ export function Login() {
   const { demoLogin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -131,17 +132,26 @@ export function Login() {
  />
  </div>
 
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Password</label>
- <input
- type="password"
- required
- value={password}
- onChange={e => setPassword(e.target.value)}
- className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-sn-green focus:border-sn-green outline-none transition-all"
- placeholder="••••••••"
- />
- </div>
+  <div className="space-y-1.5">
+  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Password</label>
+  <div className="relative">
+    <input
+      type={showPassword ? "text" : "password"}
+      required
+      value={password}
+      onChange={e => setPassword(e.target.value)}
+      className="w-full p-3 pr-10 border border-border rounded-lg focus:ring-2 focus:ring-sn-green focus:border-sn-green outline-none transition-all"
+      placeholder="••••••••"
+    />
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer flex items-center justify-center"
+    >
+      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+    </button>
+  </div>
+  </div>
 
  <Button
  type="submit"

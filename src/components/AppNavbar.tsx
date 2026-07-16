@@ -373,13 +373,13 @@ export function AppNavbar() {
  };
 
  return (
- <header className="h-16 bg-white/45 dark:bg-[#080a14]/65 backdrop-blur-md border border-border/80 dark:border-white/10 flex items-center justify-between px-6 sticky top-4 z-10 m-4 mb-2 rounded-2xl shadow-xl shrink-0">
+ <header className="h-16 bg-white dark:bg-[#0f172a] border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-6 sticky top-0 z-30 shrink-0">
  <div className="relative w-96" ref={searchRef}>
- <div className="flex items-center gap-2 bg-muted/30 dark:bg-white/5 px-4 py-2 rounded-xl w-full border border-transparent focus-within:border-cyan-500/30 focus-within:ring-2 focus-within:ring-cyan-500/10 focus-within:shadow-[0_0_15px_rgba(6,182,212,0.15)] transition-all">
- <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+ <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 px-4 py-2 rounded-full w-full border border-slate-200 dark:border-slate-800 focus-within:border-[#5850ec]/60 focus-within:ring-1 focus-within:ring-[#5850ec]/40 transition-all">
+ <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
  <input
  type="text"
- placeholder="Search tickets, users, articles, assets..."
+ placeholder="Search everything..."
  value={searchQuery}
  onChange={(e) => {
  setSearchQuery(e.target.value);

@@ -14,6 +14,7 @@ import { cn } from"@/lib/utils";
 import { useAuth } from"../contexts/AuthContext";
 import { AccessRestricted } from"./AccessRestricted";
 import { useTickets } from"../contexts/TicketsContext";
+import { TabContext } from "./TabContext";
 
 // Helper to map paths to module keys for access restriction
 function getModuleKeyForPath(path: string): string | null {
@@ -514,11 +515,7 @@ export function TabWorkspaceProvider({ children }: { children: React.ReactNode }
 }
 
 // Separate viewport render helper to provide tabId context
-export const TabContext = createContext<{ tabId: string } | null>(null);
-
-export function useCurrentTab() {
- return useContext(TabContext);
-}
+export { TabContext, useCurrentTab } from "./TabContext";
 
 export function WorkspaceLayout() {
  const { isTabsEnabled, tabs, activeTabId, openTab, closeTab, pinTab, unpinTab, duplicateTab, closeOthers, closeAll, reorder, switchToTab } = useWorkspace();
@@ -745,7 +742,7 @@ export function WorkspaceLayout() {
  )}
 
  {/* Viewport render area */}
- <div className="flex-grow min-h-0 overflow-y-auto">
+ <div className="flex-grow min-h-0 overflow-y-auto px-6 py-6">
  {!isTabsEnabled ? (
  isRestrictedPath(location.pathname + location.search, restrictedModules) ? (
  <AccessRestricted />
