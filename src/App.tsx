@@ -49,6 +49,7 @@ const Leaderboard = lazy(() => import("./pages/Leaderboard").then(m => ({ defaul
 const ApprovedTickets = lazy(() => import("./pages/ApprovedTickets").then(m => ({ default: m.ApprovedTickets })));
 const Companies = lazy(() => import("./pages/Companies").then(m => ({ default: m.Companies })));
 const TimesheetApprovals = lazy(() => import("./pages/TimesheetApprovals").then(m => ({ default: m.TimesheetApprovals })));
+const Diagnostics = lazy(() => import("./pages/Diagnostics").then(m => ({ default: m.Diagnostics })));
 const Groups = lazy(() => import("./pages/Groups").then(m => ({ default: m.Groups })));
 const ClearUsers = lazy(() => import("./pages/ClearUsers").then(m => ({ default: m.ClearUsers })));
 const BrandingSettings = lazy(() => import("./pages/BrandingSettings").then(m => ({ default: m.BrandingSettings })));
@@ -172,6 +173,7 @@ function AppBody() {
  <Route path="/companies/:id" element={<Companies />} />
  <Route path="/companies/:id/edit" element={<Companies />} />
  <Route path="/timesheet-approvals" element={<TimesheetApprovals />} />
+ <Route path="/diagnostics" element={<Diagnostics />} />
  <Route path="/groups" element={<Groups />} />
  <Route path="/clear-users" element={<ClearUsers />} />
  <Route path="/email-integrations" element={<EmailIntegrations />} />
