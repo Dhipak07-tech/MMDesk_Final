@@ -38,21 +38,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const fetchProfile = async () => {
+      if (user.uid.startsWith("demo_")) {
+        return;
+      }
       try {
         const res = await api.get(`/api/users/${user.uid}`);
-        const data = res.data;
-        if (data) {
-          const merged = {
-            uid: user.uid,
-            name: data.name || user.displayName || user.email?.split("@")[0] || "User",
-            email: data.email || user.email,
-            role: data.role || "user",
-            restrictedModules: data.restrictedModules || [],
-            disabled: data.disabled || false,
-            phone: data.phone || "",
-          };
-          setProfile(merged);
-          localStorage.setItem("demo_user", JSON.stringify(merged));
+        if (res.ok) {
+          const data = res.data;
+          if (data) {
+            const merged = {
+              uid: user.uid,
+              name: data.name || user.displayName || user.email?.split("@")[0] || "User",
+              email: data.email || user.email,
+              role: data.role || "user",
+              restrictedModules: data.restrictedModules || [],
+              disabled: data.disabled || false,
+              phone: data.phone || "",
+            };
+            setProfile(merged);
+            localStorage.setItem("demo_user", JSON.stringify(merged));
+          }
         }
       } catch (error) {
         console.error("Error fetching user profile:", error);
@@ -119,20 +124,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
  resolveLoading();
 
           // Optionally refresh user profile from the API in background
-          if (sessionUser.uid) {
+          if (sessionUser.uid && !sessionUser.uid.startsWith("demo_")) {
             api.get(`/api/users/${sessionUser.uid}`)
               .then((res) => {
-                const freshData = res.data;
-                if (freshData && freshData.uid) {
-                  const merged = {
-                    uid: freshData.uid || sessionUser.uid,
-                    name: freshData.name || sessionUser.name,
-                    email: freshData.email || sessionUser.email,
-                    role: freshData.role || sessionUser.role || "user",
-                    phone: freshData.phone || "",
-                  };
-                  setProfile(merged);
-                  localStorage.setItem("demo_user", JSON.stringify(merged));
+                if (res.ok) {
+                  const freshData = res.data;
+                  if (freshData && freshData.uid) {
+                    const merged = {
+                      uid: freshData.uid || sessionUser.uid,
+                      name: freshData.name || sessionUser.name,
+                      email: freshData.email || sessionUser.email,
+                      role: freshData.role || sessionUser.role || "user",
+                      phone: freshData.phone || "",
+                    };
+                    setProfile(merged);
+                    localStorage.setItem("demo_user", JSON.stringify(merged));
+                  }
                 }
               })
               .catch(() => {});
@@ -156,6 +163,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const demoLogin = async (role: Role) => {
     try {
       const res = await api.post("/api/auth/demo-login", { role });
+      if (!res.ok) {
+        throw new Error("Demo login returned status " + res.status);
+      }
       const userData = res.data;
       if (userData && userData.token) {
         localStorage.setItem("token", userData.token);

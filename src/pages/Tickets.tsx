@@ -502,6 +502,7 @@ export function Tickets() {
  const coreRequiredFieldChecks = [
  { key:"field.caller", label:"Reporting User", value: newTicket.caller, alwaysRequired: true },
  { key:"field.title", label:"Short description", value: newTicket.title, alwaysRequired: true },
+ { key:"field.description", label:"Description", value: newTicket.description, alwaysRequired: true },
  { key:"field.category", label:"Category", value: newTicket.category, alwaysRequired: true },
  { key:"field.subcategory", label:"Subcategory", value: newTicket.subcategory, alwaysRequired: true },
  { key:"field.service", label:"Service", value: newTicket.service, alwaysRequired: true },
@@ -597,6 +598,7 @@ export function Tickets() {
  description: newTicket.description,
  caller: newTicket.caller || user?.email ||"",
  callerEmail: newTicket.callerEmail || user?.email ||"",
+ category: newTicket.category,
  incidentCategory: newTicket.incidentCategory,
  subcategory: newTicket.subcategory,
  service: newTicket.service,
@@ -635,9 +637,12 @@ export function Tickets() {
 
  console.log("Sending ticket creation payload to API:", apiPayload);
 
-    const res = await api.post("/api/tickets/create", apiPayload);
-    const createdData = res.data;
-    const ticketId = createdData.id;
+ const res = await api.post("/api/tickets/create", apiPayload);
+ if (!res.ok) {
+   throw new Error(res.data?.error || `Server returned status ${res.status}`);
+ }
+ const createdData = res.data;
+ const ticketId = createdData.id;
  console.log("Ticket created successfully with ID:", ticketId);
 
  closeModal();
@@ -1842,7 +1847,9 @@ export function Tickets() {
  </div>
  {isFeatureVisible("field.description") && (
  <div className="grid grid-cols-6 items-start gap-4">
- <label className="text-[11px] text-right font-medium uppercase leading-tight mt-1">Description</label>
+ <label className="text-[11px] text-right font-medium uppercase leading-tight mt-1">
+   <span className="text-red-500">*</span> Description
+ </label>
  <div className="col-span-5 space-y-1.5">
  <textarea
  rows={4}
