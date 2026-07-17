@@ -472,6 +472,31 @@ public class DatabaseSeeder implements CommandLineRunner {
                     "notes TEXT, " +
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
 
+            // Delay Reports
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS delay_reports (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "task_incident_id VARCHAR(255) NOT NULL, " +
+                    "assigned_time TIMESTAMP NOT NULL, " +
+                    "expected_completion_time TIMESTAMP NOT NULL, " +
+                    "actual_completion_time TIMESTAMP NOT NULL, " +
+                    "total_delay_duration VARCHAR(100), " +
+                    "reason_for_delay VARCHAR(255) NOT NULL, " +
+                    "activities_performed_during_delay TEXT NOT NULL, " +
+                    "meeting_details TEXT, " +
+                    "technical_system_issues TEXT, " +
+                    "dependency_approval_wait_time DECIMAL(10,2), " +
+                    "additional_comments TEXT, " +
+                    "report_status VARCHAR(100) DEFAULT 'Draft', " +
+                    "rejection_reason TEXT, " +
+                    "employee_uid VARCHAR(128) NOT NULL, " +
+                    "employee_name VARCHAR(255) NOT NULL, " +
+                    "manager_uid VARCHAR(128) NOT NULL, " +
+                    "manager_name VARCHAR(255) NOT NULL, " +
+                    "attachment_url VARCHAR(500) DEFAULT NULL, " +
+                    "attachment_name VARCHAR(255) DEFAULT NULL, " +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+
             // Settings Workflows
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS settings_workflows (" +
                     "id VARCHAR(128) PRIMARY KEY, " +

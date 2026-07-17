@@ -45,6 +45,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("error", "Validation failed: " + errors));
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<?> handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException e) {
+        log.warn("[Resource Not Found] {}", e.getMessage());
+        return ResponseEntity.status(404).body(Map.of("error", "Resource not found: " + e.getResourcePath()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleGeneric(Exception e) {
         log.error("[API Unexpected Error]", e);

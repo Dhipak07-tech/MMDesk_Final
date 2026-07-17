@@ -3,6 +3,7 @@ import api from '@/lib/api';
 import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard,
+  Activity,
   Ticket,
   Users,
   Settings,
@@ -162,6 +163,8 @@ export function Sidebar() {
             { icon: CalendarDays, label: "Calendar", path: "/calendar" },
             { icon: Ticket, label: "My Tickets", path: "/timesheet", moduleKey: "timesheet" },
             { icon: BarChart2, label: "Timesheet Reports", path: "/timesheet/reports", moduleKey: "timesheet_reports" },
+            { icon: ClipboardList, label: "Ticket Approvals", path: "/timesheet-approvals", moduleKey: "timesheet_approvals" },
+            { icon: Activity, label: "System Diagnostics", path: "/diagnostics" },
             { icon: Monitor, label: "AI Activity Tracker", path: "/activity-tracker" },
             { icon: KeyRound, label: "Reset Password", onClick: () => setShowResetModal(true) },
           ]
@@ -279,6 +282,7 @@ export function Sidebar() {
         { icon: CheckCircle2, label: "Pending Approvals", path: "/approvals" },
         { icon: CheckCircle2, label: "Approved Tickets", path: "/approved-tickets" },
         { icon: ClipboardList, label: "Ticket Approvals", path: "/timesheet-approvals", moduleKey: "timesheet_approvals" },
+        { icon: Activity, label: "System Diagnostics", path: "/diagnostics" },
         { icon: CheckCircle2, label: "Approved Timesheets", path: "/timesheet/reports?status=Approved", moduleKey: "approved_timesheet" },
         { icon: Palette, label: "Branding", path: "/branding", superAdminOnly: true, moduleKey: "settings" },
         { icon: Tag, label: "Incident Category Management", path: "/incident-categories", moduleKey: "settings" },
@@ -438,9 +442,10 @@ export function Sidebar() {
                       key={item.label}
                       to={item.path || "#"}
                       onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey || e.shiftKey) {
-                          e.preventDefault();
-                          openTab(item.path || "#", { forceNew: true });
+                        e.preventDefault();
+                        if (item.path) {
+                          const isCtrlClick = e.ctrlKey || e.metaKey || e.shiftKey;
+                          openTab(item.path, isCtrlClick ? { forceNew: true } : undefined);
                         }
                       }}
                       onAuxClick={(e) => {
