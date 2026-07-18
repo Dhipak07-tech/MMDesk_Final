@@ -6,7 +6,7 @@ import { mapDbTicketToFrontend, db, updateDoc, doc, serverTimestamp } from "../l
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
 import { Button } from"@/components/ui/button";
-import { ChevronLeft, Send, History, MessageSquare, Save, Trash2, CheckCircle2, Clock, Plus, Star, Play, Square, Eye, AlertCircle, Lock, Globe, Users, Search, Zap, ShieldAlert } from"lucide-react";
+import { ChevronLeft, Send, History, MessageSquare, Save, Trash2, CheckCircle2, Clock, Plus, Star, Play, Square, Eye, AlertCircle, Lock, Globe, Users, Search, Zap, ShieldAlert, Paperclip, Image, FileText } from "lucide-react";
 import { cn } from"@/lib/utils";
 import { SLATimer } from"../components/SLATimer";
 import { useServiceCatalog } from"../lib/serviceCatalog";
@@ -65,8 +65,12 @@ export function TicketDetail() {
   const [commentAttachments, setCommentAttachments] = useState<{name: string, url: string}[]>([]);
   const [isUploadingWorkNoteFile, setIsUploadingWorkNoteFile] = useState(false);
   const [isUploadingCommentFile, setIsUploadingCommentFile] = useState(false);
-  const workNoteFileInputRef = useRef<HTMLInputElement>(null);
-  const commentFileInputRef = useRef<HTMLInputElement>(null);
+  const [workNoteAttachMenuOpen, setWorkNoteAttachMenuOpen] = useState(false);
+  const [commentAttachMenuOpen, setCommentAttachMenuOpen] = useState(false);
+  const workNoteMediaInputRef = useRef<HTMLInputElement>(null);
+  const workNoteDocInputRef = useRef<HTMLInputElement>(null);
+  const commentMediaInputRef = useRef<HTMLInputElement>(null);
+  const commentDocInputRef = useRef<HTMLInputElement>(null);
  const [isUpdating, setIsUpdating] = useState(false);
  const [agents, setAgents] = useState<any[]>([]);
  const [incidentCategories, setIncidentCategories] = useState<string[]>([]);
@@ -554,16 +558,28 @@ export function TicketDetail() {
  }
  };
 
-  const handleUploadAttachment = async (e: React.ChangeEvent<HTMLInputElement>, target: 'work_note' | 'comment') => {
+  const handleUploadAttachment = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'work_note' | 'comment',
+    fileType: 'media' | 'doc'
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Allowed extensions check (images and documents/docx)
-    const allowedExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'];
     const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    if (!allowedExtensions.includes(fileExtension)) {
-      alert("Unsupported file type. Please attach pictures or documents (PDF, DOCX, etc.).");
-      return;
+    
+    if (fileType === 'media') {
+      const allowedImageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+      if (!allowedImageExtensions.includes(fileExtension)) {
+        alert("Unsupported file type. Please select a picture (PNG, JPG, etc.) for Media.");
+        return;
+      }
+    } else {
+      const allowedDocExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'];
+      if (!allowedDocExtensions.includes(fileExtension)) {
+        alert("Unsupported file type. Please select a document (PDF, DOCX, etc.) for Docx.");
+        return;
+      }
     }
 
     if (target === 'work_note') {
@@ -576,17 +592,14 @@ export function TicketDetail() {
       const formData = new FormData();
       formData.append("file", file);
 
-      // We call the custom /api/tickets/upload endpoint
-      const response = await fetch("/api/tickets/upload", {
-        method: 'POST',
-        body: formData
+      // Use the authenticated api Axios client to pass Bearer tokens!
+      const response = await api.post("/api/tickets/upload", formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       });
 
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         const newAttachment = { name: data.file_name, url: data.file_path };
         if (target === 'work_note') {
@@ -1979,9 +1992,18 @@ export function TicketDetail() {
 
   <input
     type="file"
-    ref={workNoteFileInputRef}
+    ref={workNoteMediaInputRef}
     className="hidden"
-    onChange={(e) => handleUploadAttachment(e, 'work_note')}
+    accept="image/*"
+    onChange={(e) => handleUploadAttachment(e, 'work_note', 'media')}
+  />
+
+  <input
+    type="file"
+    ref={workNoteDocInputRef}
+    className="hidden"
+    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+    onChange={(e) => handleUploadAttachment(e, 'work_note', 'doc')}
   />
 
   <div className="flex items-center justify-between mt-3">
@@ -2000,32 +2022,61 @@ export function TicketDetail() {
   </label>
   </div>
   <div className="flex items-center gap-2">
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      disabled={isUploadingWorkNoteFile}
-      onClick={() => workNoteFileInputRef.current?.click()}
-      className="border-amber-300 text-amber-700 hover:bg-amber-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
-    >
-      {isUploadingWorkNoteFile ? (
-        <div className="w-3 h-3 border-2 border-amber-600/30 border-t-amber-700 rounded-full animate-spin" />
-      ) : (
-        <Paperclip className="w-3.5 h-3.5" />
-      )}
-      <span>Attach</span>
-    </Button>
-    <Button
-    type="button"
-    size="sm"
-    disabled={(!workNote.trim() && workNoteAttachments.length === 0) || isPosting}
-    onClick={(e) => handleAddWorkNote(e)}
-    className="bg-amber-500 hover:bg-amber-600 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
-    >
-    {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
-    Post Work Note
-    </Button>
-  </div>
+     <div className="relative">
+       <Button
+         type="button"
+         size="sm"
+         variant="outline"
+         disabled={isUploadingWorkNoteFile}
+         onClick={() => setWorkNoteAttachMenuOpen(prev => !prev)}
+         className="border-amber-300 text-amber-700 hover:bg-amber-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
+       >
+         {isUploadingWorkNoteFile ? (
+           <div className="w-3 h-3 border-2 border-amber-600/30 border-t-amber-700 rounded-full animate-spin" />
+         ) : (
+           <Paperclip className="w-3.5 h-3.5" />
+         )}
+         <span>Attach</span>
+       </Button>
+       
+       {workNoteAttachMenuOpen && (
+         <div className="absolute bottom-10 left-0 z-10 w-36 rounded-md border border-amber-200 bg-white p-1 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 text-left">
+           <button
+             type="button"
+             onClick={() => {
+               setWorkNoteAttachMenuOpen(false);
+               workNoteMediaInputRef.current?.click();
+             }}
+             className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs font-bold text-amber-900 hover:bg-amber-50 transition-colors"
+           >
+             <Image className="w-3.5 h-3.5 text-amber-600" />
+             <span>Media</span>
+           </button>
+           <button
+             type="button"
+             onClick={() => {
+               setWorkNoteAttachMenuOpen(false);
+               workNoteDocInputRef.current?.click();
+             }}
+             className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs font-bold text-amber-900 hover:bg-amber-50 transition-colors"
+           >
+             <FileText className="w-3.5 h-3.5 text-amber-600" />
+             <span>Docx</span>
+           </button>
+         </div>
+       )}
+     </div>
+     <Button
+     type="button"
+     size="sm"
+     disabled={(!workNote.trim() && workNoteAttachments.length === 0) || isPosting}
+     onClick={(e) => handleAddWorkNote(e)}
+     className="bg-amber-500 hover:bg-amber-600 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
+     >
+     {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
+     Post Work Note
+     </Button>
+   </div>
   </div>
   </div>
   </div>
@@ -2062,9 +2113,18 @@ export function TicketDetail() {
 
  <input
    type="file"
-   ref={commentFileInputRef}
+   ref={commentMediaInputRef}
    className="hidden"
-   onChange={(e) => handleUploadAttachment(e, 'comment')}
+   accept="image/*"
+   onChange={(e) => handleUploadAttachment(e, 'comment', 'media')}
+ />
+
+ <input
+   type="file"
+   ref={commentDocInputRef}
+   className="hidden"
+   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+   onChange={(e) => handleUploadAttachment(e, 'comment', 'doc')}
  />
 
  <div className="flex items-center justify-between mt-3">
@@ -2083,21 +2143,50 @@ export function TicketDetail() {
  </label>
  </div>
  <div className="flex items-center gap-2">
-   <Button
-     type="button"
-     size="sm"
-     variant="outline"
-     disabled={isUploadingCommentFile}
-     onClick={() => commentFileInputRef.current?.click()}
-     className="border-blue-300 text-blue-700 hover:bg-blue-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
-   >
-     {isUploadingCommentFile ? (
-       <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-700 rounded-full animate-spin" />
-     ) : (
-       <Paperclip className="w-3.5 h-3.5" />
+   <div className="relative">
+     <Button
+       type="button"
+       size="sm"
+       variant="outline"
+       disabled={isUploadingCommentFile}
+       onClick={() => setCommentAttachMenuOpen(prev => !prev)}
+       className="border-blue-300 text-blue-700 hover:bg-blue-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
+     >
+       {isUploadingCommentFile ? (
+         <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-700 rounded-full animate-spin" />
+       ) : (
+         <Paperclip className="w-3.5 h-3.5" />
+       )}
+       <span>Attach</span>
+     </Button>
+     
+     {commentAttachMenuOpen && (
+       <div className="absolute bottom-10 left-0 z-10 w-36 rounded-md border border-blue-200 bg-white p-1 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 text-left">
+         <button
+           type="button"
+           onClick={() => {
+             setCommentAttachMenuOpen(false);
+             commentMediaInputRef.current?.click();
+           }}
+           className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs font-bold text-blue-900 hover:bg-blue-50 transition-colors"
+         >
+           <Image className="w-3.5 h-3.5 text-blue-600" />
+           <span>Media</span>
+         </button>
+         <button
+           type="button"
+           onClick={() => {
+             setCommentAttachMenuOpen(false);
+             commentDocInputRef.current?.click();
+           }}
+           className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs font-bold text-blue-900 hover:bg-blue-50 transition-colors"
+         >
+           <FileText className="w-3.5 h-3.5 text-blue-600" />
+           <span>Docx</span>
+         </button>
+       </div>
      )}
-     <span>Attach</span>
-   </Button>
+   </div>
    <Button
    type="button"
    size="sm"

@@ -1,9 +1,25 @@
 import { SafeAny } from '@/types';
 import api from '@/lib/api';
-import React, { useState, useEffect, useCallback } from"react";
+import React, { useState, useEffect, useCallback, useRef } from"react";
 import { BarChart2, ArrowLeft, Bot, Zap, Clock, Plus, Eye, Save, X, Paperclip, Check } from"lucide-react";
 import { Link } from"react-router-dom";
 import { useAuth } from"../contexts/AuthContext";
+
+function formatLocalDateTimeForInput(dateTimeStr: string | null | undefined): string {
+  if (!dateTimeStr) return "";
+  try {
+    const d = new Date(dateTimeStr);
+    if (isNaN(d.getTime())) return "";
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  } catch (e) {
+    return "";
+  }
+}
 
 export function TimesheetReports() {
   const { user, profile } = useAuth();
@@ -38,6 +54,35 @@ export function TimesheetReports() {
     attachment_url: "",
     attachment_name: ""
   });
+
+  // Ticket search states for Log Time Delay Report dialog
+  const [allTickets, setAllTickets] = useState<any[]>([]);
+  const [isTicketDropdownOpen, setIsTicketDropdownOpen] = useState(false);
+  const ticketDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isDelayModalOpen) {
+      const fetchTickets = async () => {
+        try {
+          const res = await api.get("/api/tickets/all");
+          setAllTickets(res.data || []);
+        } catch (e) {
+          console.error("Failed to load tickets:", e);
+        }
+      };
+      fetchTickets();
+    }
+  }, [isDelayModalOpen]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ticketDropdownRef.current && !ticketDropdownRef.current.contains(event.target as Node)) {
+        setIsTicketDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -193,8 +238,8 @@ export function TimesheetReports() {
 
   // Recalculate duration automatically when times change
   useEffect(() => {
-    if (form.expected_completion_time && form.actual_completion_time) {
-      const start = new Date(form.expected_completion_time);
+    if (form.assigned_time && form.actual_completion_time) {
+      const start = new Date(form.assigned_time);
       const end = new Date(form.actual_completion_time);
       const diffMs = end.getTime() - start.getTime();
       if (diffMs <= 0) {
@@ -209,7 +254,7 @@ export function TimesheetReports() {
         total_delay_duration: `${hrs > 0 ? hrs + " hours " : ""}${mins} minutes`
       }));
     }
-  }, [form.expected_completion_time, form.actual_completion_time]);
+  }, [form.assigned_time, form.actual_completion_time]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -293,6 +338,34 @@ export function TimesheetReports() {
       }
 
       if (res.ok) {
+        // Also attach to the ticket if we have a ticket ID and an attachment!
+        if (form.task_incident_id && form.attachment_url) {
+          try {
+            const selectedTicket = allTickets.find(t => {
+              const ticketNo = (t.ticketNumber || t.number || t.ticket_number || t.id || "").toLowerCase();
+              return ticketNo === form.task_incident_id.toLowerCase();
+            });
+            if (selectedTicket) {
+              await api.post(`/api/tickets/${selectedTicket.id}/activities`, {
+                activity_type: 'work_note',
+                visibility_type: 'internal',
+                created_by: user?.uid,
+                created_by_name: profile?.name || user?.email || "Employee",
+                message: `Logged Time Delay Justification: ${form.activities_performed_during_delay}`,
+                metadata_json: JSON.stringify({
+                  attachments: [
+                    {
+                      name: form.attachment_name || "Attached File",
+                      url: form.attachment_url
+                    }
+                  ]
+                })
+              });
+            }
+          } catch (err) {
+            console.error("Failed to post delay report attachment to ticket activities:", err);
+          }
+        }
         alert(status === "Draft" ? "Delay report saved as Draft!" : "Delay report submitted successfully!");
         setIsDelayModalOpen(false);
         fetchDelayReports();
@@ -358,6 +431,19 @@ export function TimesheetReports() {
     Approved:"bg-green-100 text-green-700 border-green-200",
     Rejected:"bg-red-100 text-red-700 border-red-200",
   };
+
+  const filteredTickets = allTickets.filter(t => {
+    const isBreached = t.responseSlaStatus === "Breached" || 
+                       t.response_sla_status === "Breached" || 
+                       t.resolutionSlaStatus === "Breached" || 
+                       t.resolution_sla_status === "Breached";
+    if (!isBreached) return false;
+
+    const q = (form.task_incident_id || "").toLowerCase();
+    const ticketNo = (t.ticketNumber || t.number || t.ticket_number || t.id || "").toLowerCase();
+    const title = (t.title || "").toLowerCase();
+    return !q || ticketNo.includes(q) || title.includes(q);
+  });
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -544,7 +630,7 @@ export function TimesheetReports() {
             {/* Header */}
             <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-500" /> Log Time Delay Report
+                <Clock className="w-5 h-5 text-blue-500" /> Time Delay Report
               </h2>
               <button onClick={() => setIsDelayModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:text-text-dim dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg p-1.5 transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
@@ -554,7 +640,7 @@ export function TimesheetReports() {
             {/* Form */}
             <form className="p-6 space-y-4 overflow-y-auto max-h-[70vh] custom-scrollbar text-left">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
+                <div className="space-y-1 relative" ref={ticketDropdownRef}>
                   <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Task / Incident ID *</label>
                   <input
                     required
@@ -562,8 +648,40 @@ export function TimesheetReports() {
                     className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="e.g. INC38190 or TSK812"
                     value={form.task_incident_id}
-                    onChange={e => setForm({ ...form, task_incident_id: e.target.value })}
+                    onChange={e => {
+                      setForm({ ...form, task_incident_id: e.target.value });
+                      setIsTicketDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsTicketDropdownOpen(true)}
                   />
+                  {isTicketDropdownOpen && filteredTickets.length > 0 && (
+                    <div className="absolute left-0 right-0 top-[102%] z-[1000] max-h-48 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg p-1 text-left custom-scrollbar">
+                      {filteredTickets.map(t => {
+                        const ticketId = t.ticketNumber || t.number || t.ticket_number || t.id || "";
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              const assignedTime = formatLocalDateTimeForInput(t.createdAt || t.created_at);
+                              const expectedTime = formatLocalDateTimeForInput(t.resolutionDeadline || t.resolution_deadline);
+                              setForm({
+                                ...form,
+                                task_incident_id: ticketId,
+                                assigned_time: assignedTime || form.assigned_time,
+                                expected_completion_time: expectedTime || form.expected_completion_time
+                              });
+                              setIsTicketDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex flex-col gap-0.5 border-b border-slate-50 dark:border-slate-800 last:border-0"
+                          >
+                            <span className="font-bold text-blue-600 dark:text-blue-400">{ticketId}</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{t.title}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-semibold uppercase text-slate-500 dark:text-text-dim">Reason for Delay *</label>
