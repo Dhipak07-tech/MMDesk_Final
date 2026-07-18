@@ -694,19 +694,61 @@ export function TicketDetail() {
   };
 
  const handleSaveSession = async () => {
- if (!user) return;
- if (!sessionForm.shortDescription.trim()) {
- alert("Short Description is required.");
- return;
- }
+    if (!user) return;
+    if (!sessionForm.shortDescription.trim()) {
+      alert("Short Description is required.");
+      return;
+    }
 
- setSavingSession(true);
- try {
- const userId = user.uid;
- const finalTask = sessionForm.task ==="Other..." ? sessionForm.customTask : sessionForm.task;
- const finalShortDesc = ticket?.number 
- ? `[${ticket.number}] ${sessionForm.shortDescription}`
- : sessionForm.shortDescription;
+    setSavingSession(true);
+    try {
+      const userId = user.uid;
+      const finalTask = sessionForm.task ==="Other..." ? sessionForm.customTask : sessionForm.task;
+      const finalShortDesc = ticket?.number 
+        ? `[${ticket.number}] ${sessionForm.shortDescription}`
+        : sessionForm.shortDescription;
+
+      // 1. Save actual session data (with screenshots!) to /api/work-sessions
+      const sessionData = {
+        user_id: userId,
+        user_name: profile?.name || user.email || "Agent",
+        ticket_id: id,
+        ticket_number: ticket?.number || "",
+        start_time: new Date(Date.now() - trackerElapsed * 1000).toISOString(),
+        stop_time: new Date().toISOString(),
+        duration: trackerElapsed,
+        summary: sessionForm.description || trackerSummary || "",
+        session_data: trackerEntries // Pass actual captured logs and screenshots
+      };
+      
+      try {
+        await api("/api/work-sessions", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sessionData)
+        });
+      } catch (ex) {
+        console.error("Failed to save work session:", ex);
+      }
+
+      // 2. Save each captured screenshot to the ticket screenshots gallery
+      for (const entry of trackerEntries) {
+        if (entry.screenshotDataUrl) {
+          try {
+            await api(`/api/tickets/${id}/screenshots`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ticket_number: ticket?.number || "",
+                screenshot_data: entry.screenshotDataUrl,
+                description: `${entry.appName}: ${entry.description}`
+              })
+            });
+          } catch (ex) {
+            console.error("Failed to save entry screenshot:", ex);
+          }
+        }
+      }
 
  const entryD = new Date(sessionForm.entryDate +"T12:00:00");
  const day = entryD.getDay();
