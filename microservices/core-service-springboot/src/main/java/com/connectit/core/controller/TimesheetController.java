@@ -26,6 +26,7 @@ public class TimesheetController {
 
     private final JdbcTemplate jdbcTemplate;
     private final com.connectit.core.service.EmailService emailService;
+    private final com.connectit.core.service.WorkflowEscalationHelper workflowEscalationHelper;
 
     @Value("${app.mail.from:info@technosprint.net}")
     private String mailFrom;
@@ -140,11 +141,8 @@ public class TimesheetController {
             values.add(id);
             jdbcTemplate.update(updateSql, values.toArray());
 
-            // Send notification email to admins
+            // Send notification email to Team Leads / Group Managers
             try {
-                List<Map<String, Object>> admins = jdbcTemplate.queryForList(
-                    "SELECT email, name FROM users WHERE role IN ('admin', 'super_admin', 'ultra_super_admin')"
-                );
                 List<Map<String, Object>> ts = jdbcTemplate.queryForList("SELECT * FROM timesheets WHERE id = ?", id);
                 if (!ts.isEmpty()) {
                     String tsUserId = (String) ts.get(0).get("user_id");
@@ -155,16 +153,31 @@ public class TimesheetController {
                     List<Map<String, Object>> employee = jdbcTemplate.queryForList("SELECT name FROM users WHERE uid = ?", tsUserId);
                     String empName = employee.isEmpty() ? "Employee" : (String) employee.get(0).get("name");
 
-                    for (Map<String, Object> admin : admins) {
-                        String adminEmail = (String) admin.get("email");
-                        String adminName = (String) admin.get("name");
-                        if (adminEmail != null) {
-                            sendTimesheetEmail(adminEmail, adminName, empName, tsWeekStart, tsWeekEnd, String.valueOf(totalHours));
+                    List<Map<String, Object>> leads = jdbcTemplate.queryForList(
+                        "SELECT DISTINCT u.email, u.name FROM settings_group_members m " +
+                        "JOIN settings_groups g ON m.group_id = g.id " +
+                        "JOIN users u ON (u.uid = g.leader_uid OR u.uid = g.manager_uid) " +
+                        "WHERE m.user_id = ? AND m.status = 'active' AND u.is_active = 1",
+                        tsUserId
+                    );
+
+                    // Fallback to admins if no group leads found
+                    if (leads.isEmpty()) {
+                        leads = jdbcTemplate.queryForList(
+                            "SELECT email, name FROM users WHERE role IN ('admin', 'super_admin', 'ultra_super_admin') AND is_active = 1"
+                        );
+                    }
+
+                    for (Map<String, Object> lead : leads) {
+                        String leadEmail = (String) lead.get("email");
+                        String leadName = (String) lead.get("name");
+                        if (leadEmail != null) {
+                            sendTimesheetEmail(leadEmail, leadName, empName, tsWeekStart, tsWeekEnd, String.valueOf(totalHours));
                         }
                     }
                 }
             } catch (Exception e) {
-                System.err.println("[Notify Admins] Failed: " + e.getMessage());
+                System.err.println("[Notify Team Leads] Failed: " + e.getMessage());
             }
         } else {
             String updateSql = "UPDATE timesheets SET " + setClause + " WHERE id = ?";
@@ -175,6 +188,9 @@ public class TimesheetController {
         // Sync status to time cards if changed
         if (status != null) {
             jdbcTemplate.update("UPDATE time_cards SET status = ? WHERE timesheet_id = ?", status, id);
+            if ("Approved".equals(status)) {
+                workflowEscalationHelper.handleTimesheetApproval(id);
+            }
         }
 
         List<Map<String, Object>> updated = jdbcTemplate.queryForList("SELECT * FROM timesheets WHERE id = ?", id);

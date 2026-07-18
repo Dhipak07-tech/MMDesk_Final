@@ -67,6 +67,7 @@ const CreateCall = lazy(() => import("./pages/calls/CreateCall").then(m => ({ de
 const CallDetail = lazy(() => import("./pages/calls/CallDetail").then(m => ({ default: m.CallDetail })));
 const AIAssistant = lazy(() => import("./pages/ai/AIAssistant").then(m => ({ default: m.AIAssistant })));
 const DatabaseViewer = lazy(() => import("./pages/DatabaseViewer").then(m => ({ default: m.DatabaseViewer })));
+const MarketingShowcase = lazy(() => import("./pages/MarketingShowcase").then(m => ({ default: m.MarketingShowcase })));
 
 function LoadingScreen() {
  return (
@@ -179,6 +180,7 @@ function AppBody() {
  <Route path="/email-integrations" element={<EmailIntegrations />} />
  <Route path="/branding" element={<BrandingSettings />} />
  <Route path="/settings" element={<Settings />} />
+ <Route path="/marketing" element={<MarketingShowcase />} />
  <Route path="/activity-tracker" element={<ActivityTracker />} />
  <Route path="/data-analytics" element={<DataAnalytics />} />
  <Route path="/global-search" element={<GlobalSearch />} />

@@ -82,14 +82,14 @@ export function Users() {
     setUpdating(null);
   };
 
-  const handleToggleAccess = async (userId: string, currentRole: Role, disabled: boolean) => {
+  const handleToggleAccess = async (userId: string, currentRole: Role, currentIsDisabled: boolean) => {
     if (!canManage(myRole, currentRole)) {
       alert("You cannot modify access for users at or above your level.");
       return;
     }
     setUpdating(userId);
     try {
-      await api.put(`/api/users/${userId}`, { disabled: !disabled ? 1 : 0 });
+      await api.put(`/api/users/${userId}`, { is_active: currentIsDisabled });
       fetchUsers();
     } catch (e) { console.error(e); }
     setUpdating(null);
@@ -111,7 +111,7 @@ export function Users() {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        disabled: 0
+        is_active: true
       });
       fetchUsers();
       setIsCreateModalOpen(false);
@@ -249,7 +249,7 @@ export function Users() {
  const Icon = ROLE_ICONS[uRole] || UserCog;
  const isMe = u.uid === profile?.uid || u.id === profile?.uid;
  const canEdit = !isMe && canManage(myRole, uRole);
- const isDisabled = u.disabled === true;
+  const isDisabled = u.is_active === false;
 
  return (
  <tr key={u.id} className={cn("hover:bg-muted/5 transition-colors", isDisabled &&"opacity-50")}>
@@ -296,8 +296,8 @@ export function Users() {
  <div className="relative">
  <select
  value={uRole}
- disabled={updating === u.id}
- onChange={e => handleRoleChange(u.id, e.target.value as Role, uRole)}
+ disabled={updating === u.uid}
+ onChange={e => handleRoleChange(u.uid, e.target.value as Role, uRole)}
  className="pl-2 pr-7 py-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green appearance-none bg-white cursor-pointer"
  >
  {myAssignable.map(r => (
@@ -310,12 +310,12 @@ export function Users() {
  <Button
  size="sm"
  variant={isDisabled ?"default" :"outline"}
- disabled={updating === u.id}
- onClick={() => handleToggleAccess(u.id, uRole, isDisabled)}
+ disabled={updating === u.uid}
+ onClick={() => handleToggleAccess(u.uid, uRole, isDisabled)}
  className={cn("h-7 text-xs font-bold",
  isDisabled ?"bg-sn-green text-sn-dark" :"text-red-600 border-red-200 hover:bg-red-50")}
  >
- {updating === u.id ?"..." : isDisabled ?"Grant Access" :"Remove Access"}
+ {updating === u.uid ?"..." : isDisabled ?"Grant Access" :"Remove Access"}
  </Button>
  <button
  className="h-7 w-7 flex items-center justify-center rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
@@ -329,7 +329,7 @@ export function Users() {
  onClick={async () => {
  if (confirm(`Are you sure you want to delete user ${u.email}?`)) {
  try {
- await api.delete(`/api/users/${u.id}`);
+ await api.delete(`/api/users/${u.uid}`);
  fetchUsers();
  } catch (e) {
  console.error(e);

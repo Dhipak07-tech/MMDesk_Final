@@ -53,45 +53,42 @@ export function Login() {
   };
 
   const handleLogin = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!email.trim() || !password.trim()) {
- setError("Please enter email and password.");
- return;
- }
- setError("");
- setIsLoading(true);
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) {
+      setError("Please enter email and password.");
+      return;
+    }
+    setError("");
+    setIsLoading(true);
 
- try {
- const response = await api("/api/auth/login", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({ email, password })
- });
+    try {
+      const response = await api.post("/api/auth/login", {
+        email: email.toLowerCase().trim(),
+        password
+      });
 
- if (response.ok) {
- const userData = await response.json();
- if (userData.token) {
-   localStorage.setItem("token", userData.token);
- }
- localStorage.setItem("demo_user", JSON.stringify({
- uid: userData.uid,
- name: userData.name,
- email: userData.email,
- role: userData.role ||"user",
- phone: userData.phone ||""
- }));
- window.location.href ="/";
- return;
- }
-
- const errorData = await response.json().catch(() => ({}));
- setError(errorData.error ||"Invalid email or password.");
- } catch (err: SafeAny) {
- setError("Login failed: Check your connection and try again.");
- } finally {
- setIsLoading(false);
- }
- };
+      if (response.status === 200) {
+        const userData = response.data;
+        if (userData.token) {
+          localStorage.setItem("token", userData.token);
+        }
+        localStorage.setItem("demo_user", JSON.stringify({
+          uid: userData.uid,
+          name: userData.name,
+          email: userData.email,
+          role: userData.role || "user",
+          phone: userData.phone || ""
+        }));
+        window.location.href = "/";
+        return;
+      }
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Invalid email or password.";
+      setError(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
  return (
  <div className="min-h-screen flex items-center justify-center bg-sn-dark p-4 animate-fade-in">

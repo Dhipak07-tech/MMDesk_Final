@@ -43,6 +43,7 @@ import {
   Palette,
   Tag,
   Lock,
+  Megaphone,
   Eye,
   EyeOff,
   X,
@@ -227,6 +228,12 @@ export function Sidebar() {
       items: [
         { icon: PhoneCall, label: "Call Logs", path: "/calls" },
         { icon: PlusCircle, label: "Log New Call", path: "/calls/new" },
+      ]
+    },
+    {
+      label: "Marketing",
+      items: [
+        { icon: Megaphone, label: "Marketing Showcase", path: "/marketing" },
       ]
     },
     {
