@@ -57,8 +57,16 @@ export function TicketDetail() {
  const [comments, setComments] = useState<any[]>([]);
  const [newComment, setNewComment] = useState("");
  const [workNote, setWorkNote] = useState("");
- const [emailWorkNote, setEmailWorkNote] = useState(false);
- const [emailComment, setEmailComment] = useState(false);
+  const [emailWorkNote, setEmailWorkNote] = useState(false);
+  const [emailComment, setEmailComment] = useState(false);
+
+  // Note Attachment States & Refs
+  const [workNoteAttachments, setWorkNoteAttachments] = useState<{name: string, url: string}[]>([]);
+  const [commentAttachments, setCommentAttachments] = useState<{name: string, url: string}[]>([]);
+  const [isUploadingWorkNoteFile, setIsUploadingWorkNoteFile] = useState(false);
+  const [isUploadingCommentFile, setIsUploadingCommentFile] = useState(false);
+  const workNoteFileInputRef = useRef<HTMLInputElement>(null);
+  const commentFileInputRef = useRef<HTMLInputElement>(null);
  const [isUpdating, setIsUpdating] = useState(false);
  const [agents, setAgents] = useState<any[]>([]);
  const [incidentCategories, setIncidentCategories] = useState<string[]>([]);
@@ -546,23 +554,84 @@ export function TicketDetail() {
  }
  };
 
+  const handleUploadAttachment = async (e: React.ChangeEvent<HTMLInputElement>, target: 'work_note' | 'comment') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Allowed extensions check (images and documents/docx)
+    const allowedExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'];
+    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!allowedExtensions.includes(fileExtension)) {
+      alert("Unsupported file type. Please attach pictures or documents (PDF, DOCX, etc.).");
+      return;
+    }
+
+    if (target === 'work_note') {
+      setIsUploadingWorkNoteFile(true);
+    } else {
+      setIsUploadingCommentFile(true);
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      // We call the custom /api/tickets/upload endpoint
+      const response = await fetch("/api/tickets/upload", {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        const newAttachment = { name: data.file_name, url: data.file_path };
+        if (target === 'work_note') {
+          setWorkNoteAttachments(prev => [...prev, newAttachment]);
+        } else {
+          setCommentAttachments(prev => [...prev, newAttachment]);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to upload attachment.");
+    } finally {
+      if (target === 'work_note') {
+        setIsUploadingWorkNoteFile(false);
+      } else {
+        setIsUploadingCommentFile(false);
+      }
+      // Reset input element value to allow uploading same file again
+      e.target.value = "";
+    }
+  };
+
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !id || !user) return;
     setIsPosting(true);
     try {
       // Post to API-backed activity timeline (customer-visible comment)
-      await api.post(`/api/tickets/${id}/activities`, {
+      const payload: SafeAny = {
         activity_type: 'comment',
         visibility_type: 'public',
         created_by: user.uid,
         created_by_name: profile?.name || user.email,
         message: newComment.trim(),
         email_note: emailComment
-      });
+      };
+      if (commentAttachments.length > 0) {
+        payload.metadata_json = JSON.stringify({ attachments: commentAttachments });
+      }
+
+      await api.post(`/api/tickets/${id}/activities`, payload);
 
       setNewComment("");
       setEmailComment(false);
+      setCommentAttachments([]);
       setTimelineRefresh(prev => prev + 1);
       setPostMessage({ text: 'Comment posted successfully', type: 'success' });
       setTimeout(() => setPostMessage(null), 3000);
@@ -581,17 +650,23 @@ export function TicketDetail() {
     setIsPosting(true);
     try {
       // Post to API-backed activity timeline (internal/private work note)
-      await api.post(`/api/tickets/${id}/activities`, {
+      const payload: SafeAny = {
         activity_type: 'work_note',
         visibility_type: 'internal',
         created_by: user.uid,
         created_by_name: profile?.name || user.email,
         message: workNote.trim(),
         email_note: emailWorkNote
-      });
+      };
+      if (workNoteAttachments.length > 0) {
+        payload.metadata_json = JSON.stringify({ attachments: workNoteAttachments });
+      }
+
+      await api.post(`/api/tickets/${id}/activities`, payload);
 
       setWorkNote("");
       setEmailWorkNote(false);
+      setWorkNoteAttachments([]);
       setTimelineRefresh(prev => prev + 1);
       setPostMessage({ text: 'Work note added successfully', type: 'success' });
       setTimeout(() => setPostMessage(null), 3000);
@@ -1882,40 +1957,78 @@ export function TicketDetail() {
  </div>
  </div>
  <div className="p-4">
- <textarea
- value={workNote}
- onChange={(e) => setWorkNote(e.target.value)}
- placeholder="Type internal work notes here... (visible only to agents)"
- className="w-full p-3 border border-amber-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-amber-300 min-h-[120px] resize-none bg-white/80 placeholder:text-amber-400"
- />
- <div className="flex items-center justify-between mt-3">
- <div className="flex items-center gap-4">
- <span className="text-[9px] text-amber-600 font-medium flex items-center gap-1">
- <Lock className="w-3 h-3" /> Not visible to customer
- </span>
- <label className="flex items-center gap-1.5 text-[10px] text-amber-700 font-semibold cursor-pointer select-none">
- <input
- type="checkbox"
- checked={emailWorkNote}
- onChange={(e) => setEmailWorkNote(e.target.checked)}
- className="w-3.5 h-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 accent-amber-500"
- />
- Email Note
- </label>
- </div>
- <Button
- type="button"
- size="sm"
- disabled={!workNote.trim() || isPosting}
- onClick={(e) => handleAddWorkNote(e)}
- className="bg-amber-500 hover:bg-amber-600 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
- >
- {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
- Post Work Note
- </Button>
- </div>
- </div>
- </div>
+  <textarea
+  value={workNote}
+  onChange={(e) => setWorkNote(e.target.value)}
+  placeholder="Type internal work notes here... (visible only to agents)"
+  className="w-full p-3 border border-amber-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-amber-300 min-h-[120px] resize-none bg-white/80 placeholder:text-amber-400"
+  />
+  
+  {/* Selected Attachments list */}
+  {workNoteAttachments.length > 0 && (
+    <div className="flex flex-wrap gap-2 mb-3 mt-1.5">
+      {workNoteAttachments.map((file, idx) => (
+        <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-100/50 border border-amber-200 text-[10px] font-bold text-amber-800">
+          <Paperclip className="w-3 h-3 text-amber-600" />
+          <span>{file.name}</span>
+          <button type="button" onClick={() => setWorkNoteAttachments(prev => prev.filter((_, i) => i !== idx))} className="ml-1.5 text-amber-500 hover:text-amber-700 text-xs font-bold font-mono">×</button>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <input
+    type="file"
+    ref={workNoteFileInputRef}
+    className="hidden"
+    onChange={(e) => handleUploadAttachment(e, 'work_note')}
+  />
+
+  <div className="flex items-center justify-between mt-3">
+  <div className="flex items-center gap-4">
+  <span className="text-[9px] text-amber-600 font-medium flex items-center gap-1">
+  <Lock className="w-3 h-3" /> Not visible to customer
+  </span>
+  <label className="flex items-center gap-1.5 text-[10px] text-amber-700 font-semibold cursor-pointer select-none">
+  <input
+  type="checkbox"
+  checked={emailWorkNote}
+  onChange={(e) => setEmailWorkNote(e.target.checked)}
+  className="w-3.5 h-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 accent-amber-500"
+  />
+  Email Note
+  </label>
+  </div>
+  <div className="flex items-center gap-2">
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={isUploadingWorkNoteFile}
+      onClick={() => workNoteFileInputRef.current?.click()}
+      className="border-amber-300 text-amber-700 hover:bg-amber-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
+    >
+      {isUploadingWorkNoteFile ? (
+        <div className="w-3 h-3 border-2 border-amber-600/30 border-t-amber-700 rounded-full animate-spin" />
+      ) : (
+        <Paperclip className="w-3.5 h-3.5" />
+      )}
+      <span>Attach</span>
+    </Button>
+    <Button
+    type="button"
+    size="sm"
+    disabled={(!workNote.trim() && workNoteAttachments.length === 0) || isPosting}
+    onClick={(e) => handleAddWorkNote(e)}
+    className="bg-amber-500 hover:bg-amber-600 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
+    >
+    {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
+    Post Work Note
+    </Button>
+  </div>
+  </div>
+  </div>
+  </div>
 
  {/* Additional Comments (External/Customer Visible) */}
  <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-br from-blue-50/80 to-slate-50/30 overflow-hidden">
@@ -1933,6 +2046,27 @@ export function TicketDetail() {
  placeholder="Type comments visible to the customer here..."
  className="w-full p-3 border border-blue-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-blue-300 min-h-[120px] resize-none bg-white/80 placeholder:text-blue-400"
  />
+ 
+ {/* Selected Attachments list */}
+ {commentAttachments.length > 0 && (
+   <div className="flex flex-wrap gap-2 mb-3 mt-1.5">
+     {commentAttachments.map((file, idx) => (
+       <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-100/50 border border-blue-200 text-[10px] font-bold text-blue-800">
+         <Paperclip className="w-3 h-3 text-blue-600" />
+         <span>{file.name}</span>
+         <button type="button" onClick={() => setCommentAttachments(prev => prev.filter((_, i) => i !== idx))} className="ml-1.5 text-blue-500 hover:text-amber-700 text-xs font-bold font-mono">×</button>
+       </div>
+     ))}
+   </div>
+ )}
+
+ <input
+   type="file"
+   ref={commentFileInputRef}
+   className="hidden"
+   onChange={(e) => handleUploadAttachment(e, 'comment')}
+ />
+
  <div className="flex items-center justify-between mt-3">
  <div className="flex items-center gap-4">
  <span className="text-[9px] text-blue-600 font-medium flex items-center gap-1">
@@ -1948,16 +2082,33 @@ export function TicketDetail() {
  Email Note
  </label>
  </div>
- <Button
- type="button"
- size="sm"
- disabled={!newComment.trim() || isPosting}
- onClick={(e) => handleAddComment(e)}
- className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
- >
- {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
- Post Comment
- </Button>
+ <div className="flex items-center gap-2">
+   <Button
+     type="button"
+     size="sm"
+     variant="outline"
+     disabled={isUploadingCommentFile}
+     onClick={() => commentFileInputRef.current?.click()}
+     className="border-blue-300 text-blue-700 hover:bg-blue-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
+   >
+     {isUploadingCommentFile ? (
+       <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-700 rounded-full animate-spin" />
+     ) : (
+       <Paperclip className="w-3.5 h-3.5" />
+     )}
+     <span>Attach</span>
+   </Button>
+   <Button
+   type="button"
+   size="sm"
+   disabled={(!newComment.trim() && commentAttachments.length === 0) || isPosting}
+   onClick={(e) => handleAddComment(e)}
+   className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
+   >
+   {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
+   Post Comment
+   </Button>
+ </div>
  </div>
  </div>
  </div>

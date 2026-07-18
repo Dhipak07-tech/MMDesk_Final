@@ -14,6 +14,9 @@ import jakarta.validation.Valid;
 import com.connectit.core.dto.request.TicketCreateRequest;
 import com.connectit.core.dto.request.TicketUpdateRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.File;
+import java.util.UUID;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -280,6 +283,33 @@ public class TicketController {
         body.put("activity_type", Boolean.TRUE.equals(body.get("is_internal")) ? "work_note" : "comment");
         body.put("visibility_type", Boolean.TRUE.equals(body.get("is_internal")) ? "internal" : "public");
         return addActivity(id, body);
+    }
+
+    @PostMapping("/tickets/upload")
+    public ResponseEntity<?> uploadAttachment(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "File is empty"));
+            }
+            String originalFilename = file.getOriginalFilename();
+            String extension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String filename = "attach_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8) + extension;
+            File uploadDir = new File("./public/uploads").getAbsoluteFile();
+            if (!uploadDir.exists()) uploadDir.mkdirs();
+            File destination = new File(uploadDir, filename);
+            file.transferTo(destination);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "file_path", "/uploads/" + filename,
+                "file_name", originalFilename
+            ));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
     }
 
 
