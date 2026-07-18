@@ -1927,6 +1927,7 @@ export function TicketDetail() {
  createdAt={ticket.createdAt}
  refreshTrigger={timelineRefresh}
  userRole={profile?.role}
+ allowInternal={canEdit}
  />
  </div>
  ) : activeTab ==="Related Records" ? (

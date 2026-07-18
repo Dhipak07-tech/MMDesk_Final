@@ -12,6 +12,7 @@ export interface ActivityTimelineProps {
  createdAt?: SafeAny;
  refreshTrigger?: number;
  userRole?: string; // to determine visibility permissions
+ allowInternal?: boolean;
 }
 
 type FilterType ="all" |"work_notes" |"comments" |"system" |"emails";
@@ -126,36 +127,39 @@ export function ActivityTimeline({ ticketId, createdAt, refreshTrigger = 0, user
  return"-";
  };
 
- const filteredActivities = activities.filter(a => {
- // Filter by type
- if (filter ==="comments" && a.activity_type !=="comment") return false;
- if (filter ==="work_notes" && a.activity_type !=="work_note") return false;
- if (filter ==="emails" && !a.activity_type.startsWith("email")) return false;
- if (filter ==="system" && a.activity_type !=="status_change" && a.activity_type !=="system" && a.activity_type !=="sla_triggered" && a.activity_type !=="assignment_change") return false;
+  const visibleActivities = activities.filter(a => {
+    // Role-based visibility: customers should never see internal notes
+    if (userRole === 'user' && a.visibility_type === 'internal' && !allowInternal) return false;
+    return true;
+  });
 
- // Search filter
- if (search) {
- const searchLower = search.toLowerCase();
- if (!a.message?.toLowerCase().includes(searchLower) &&
- !a.created_by_name?.toLowerCase().includes(searchLower)) {
- return false;
- }
- }
+  const filteredActivities = visibleActivities.filter(a => {
+    // Filter by type
+    if (filter ==="comments" && a.activity_type !=="comment") return false;
+    if (filter ==="work_notes" && a.activity_type !=="work_note") return false;
+    if (filter ==="emails" && !a.activity_type.startsWith("email")) return false;
+    if (filter ==="system" && a.activity_type !=="status_change" && a.activity_type !=="system" && a.activity_type !=="sla_triggered" && a.activity_type !=="assignment_change") return false;
 
- // Role-based visibility: customers should never see internal notes
- if (userRole === 'user' && a.visibility_type === 'internal') return false;
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      if (!a.message?.toLowerCase().includes(searchLower) &&
+          !a.created_by_name?.toLowerCase().includes(searchLower)) {
+        return false;
+      }
+    }
 
- return true;
- });
+    return true;
+  });
 
- // Count activities by type for badge display
- const counts = {
- all: activities.length,
- work_notes: activities.filter(a => a.activity_type === 'work_note').length,
- comments: activities.filter(a => a.activity_type === 'comment').length,
- system: activities.filter(a => ['status_change', 'system', 'sla_triggered', 'assignment_change'].includes(a.activity_type)).length,
- emails: activities.filter(a => a.activity_type?.startsWith('email')).length,
- };
+  // Count activities by type for badge display
+  const counts = {
+    all: visibleActivities.length,
+    work_notes: visibleActivities.filter(a => a.activity_type === 'work_note').length,
+    comments: visibleActivities.filter(a => a.activity_type === 'comment').length,
+    system: visibleActivities.filter(a => ['status_change', 'system', 'sla_triggered', 'assignment_change'].includes(a.activity_type)).length,
+    emails: visibleActivities.filter(a => a.activity_type?.startsWith('email')).length,
+  };
 
  const handleManualRefresh = () => {
  setIsPolling(true);
