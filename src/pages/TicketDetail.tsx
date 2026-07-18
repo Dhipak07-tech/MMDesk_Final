@@ -39,9 +39,20 @@ export function TicketDetail() {
  setTabTitle(currentTab.tabId, `${num}: ${desc}`);
  }
  }, [ticket, currentTab?.tabId, setTabTitle]);
- const [editedTicket, setEditedTicket] = useState<any>(null);
- const customFieldsRef = useRef<any>(null);
- const canEdit = profile?.role ? (ROLE_HIERARCHY[profile.role as Role] >= ROLE_HIERARCHY["agent"]) : false;
+  const [editedTicket, setEditedTicket] = useState<any>(null);
+  const customFieldsRef = useRef<any>(null);
+  const [ticketScreenshots, setTicketScreenshots] = useState<any[]>([]);
+
+  const isAssignee = ticket && user && (ticket.assignedTo === user.uid || ticket.assignedTo === user.email || ticket.assignedToName === profile?.name);
+  const isCreator = ticket && user && (ticket.createdBy === user.uid || ticket.createdBy === user.email || ticket.created_by === user.uid || ticket.created_by === user.email);
+  const isAdminOrLead = profile?.role && ["admin", "super_admin", "ultra_super_admin"].includes(profile.role);
+  
+  const canEdit = profile?.role ? (
+    isAdminOrLead ||
+    isAssignee ||
+    isCreator ||
+    !ticket?.assignedTo
+  ) : false;
 
  const [comments, setComments] = useState<any[]>([]);
  const [newComment, setNewComment] = useState("");
@@ -188,6 +199,15 @@ export function TicketDetail() {
         const res = await api.get(`/api/tickets/${id}`);
         const data = mapDbTicketToFrontend(res.data);
         if (data) {
+          const isAssignee = data.assignedTo === user?.uid || data.assignedTo === user?.email || data.assignedToName === profile?.name || data.assignedToName === user?.email;
+          const isCreator = data.createdBy === user?.uid || data.createdBy === user?.email || data.created_by === user?.uid || data.created_by === user?.email;
+          const isAdminOrLead = profile?.role && ["admin", "super_admin", "ultra_super_admin"].includes(profile.role);
+          
+          if (data.assignedTo && !isAssignee && !isCreator && !isAdminOrLead) {
+            navigate("/tickets");
+            return;
+          }
+
           setTicket(data);
           setEditedTicket((prev: SafeAny) => {
             const mergedFields = customFieldsRef.current || {};
@@ -221,6 +241,40 @@ export function TicketDetail() {
     const interval = setInterval(fetchTicket, 10000);
     return () => clearInterval(interval);
   }, [id, navigate]);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchWorkSessions = async () => {
+      try {
+        const res = await api.get(`/api/work-sessions?ticket_id=${id}`);
+        if (Array.isArray(res.data)) {
+          setPastSessions(res.data);
+        }
+      } catch (err) {
+        console.error("Error fetching work sessions:", err);
+      }
+    };
+    fetchWorkSessions();
+    const interval = setInterval(fetchWorkSessions, 10000);
+    return () => clearInterval(interval);
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchScreenshots = async () => {
+      try {
+        const res = await api.get(`/api/tickets/${id}/screenshots`);
+        if (Array.isArray(res.data)) {
+          setTicketScreenshots(res.data);
+        }
+      } catch (err) {
+        console.error("Error fetching ticket screenshots:", err);
+      }
+    };
+    fetchScreenshots();
+    const interval = setInterval(fetchScreenshots, 10000);
+    return () => clearInterval(interval);
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -1620,87 +1674,148 @@ export function TicketDetail() {
 
  {/* Tab Content */}
  <div className="p-6">
- {activeTab ==="Work Sessions" ? (
- <div className="space-y-6">
- <div className="flex items-center justify-between mb-4">
- <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Ticket Work Sessions</h3>
- {isActiveSession && (
- <span className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
- <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Active Session
- </span>
- )}
- </div>
+  {activeTab ==="Work Sessions" ? (
+  <div className="space-y-6">
+  <div className="flex items-center justify-between mb-4">
+  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Ticket Work Sessions</h3>
+  {isActiveSession && (
+  <span className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Active Session
+  </span>
+  )}
+  </div>
 
- {isActiveSession && trackerEntries.length > 0 && (
- <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 mb-6">
- <h4 className="text-xs font-bold text-blue-800 mb-3 uppercase tracking-wider">Current Session Activity</h4>
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
- {trackerEntries.map((entry, idx) => (
- <div key={idx} className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
- <div className="flex items-center gap-2 mb-2">
- <span className="text-xl">{entry.appIcon}</span>
- <span className="text-xs font-bold text-slate-700 truncate">{entry.appName}</span>
- <span className="text-[10px] text-slate-400 ml-auto">{new Date(entry.timestamp).toLocaleTimeString()}</span>
- </div>
- {entry.screenshotDataUrl && (
- <img src={entry.screenshotDataUrl} alt="Screenshot" className="w-full h-24 object-cover rounded mb-2 border border-slate-100" />
- )}
- <p className="text-[10px] text-slate-600 leading-tight line-clamp-3">{entry.description}</p>
- </div>
- ))}
- </div>
- </div>
- )}
+  {ticketScreenshots.length > 0 && (
+    <div className="mb-6 text-left">
+      <h4 className="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider">AI Activity Tracker Screenshots</h4>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {ticketScreenshots.map((ss, ssIdx) => (
+          <div key={ssIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 shadow-sm">
+            {ss.screenshotData ? (
+              <img src={ss.screenshotData} alt="Captured Activity Screenshot" className="w-full h-32 object-cover rounded border border-slate-100 mb-2 cursor-zoom-in" onClick={() => window.open(ss.screenshotData, '_blank')} />
+            ) : ss.screenshotUrl ? (
+              <img src={ss.screenshotUrl} alt="Captured Activity Screenshot" className="w-full h-32 object-cover rounded border border-slate-100 mb-2 cursor-zoom-in" onClick={() => window.open(ss.screenshotUrl, '_blank')} />
+            ) : null}
+            <p className="text-[10px] text-slate-500 font-medium">Captured: {new Date(ss.capturedAt || ss.captured_at).toLocaleString()}</p>
+            {ss.description && <p className="text-[10px] text-slate-600 mt-1 line-clamp-2">{ss.description}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
 
- {pastSessions.length === 0 ? (
- <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
- <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
- <p className="text-sm font-medium text-slate-500">No work sessions recorded for this ticket.</p>
- <p className="text-xs text-slate-400 mt-1">Start a work session to track your time and capture AI context.</p>
- </div>
- ) : (
- <div className="space-y-4">
- {pastSessions.map((session, idx) => (
- <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
- <div className="flex items-center justify-between mb-3">
- <div className="flex items-center gap-3">
- <div className="bg-slate-100 text-slate-600 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">
- #{pastSessions.length - idx}
- </div>
- <div>
- <p className="text-sm font-bold text-slate-800">{new Date(session.start_time).toLocaleString()}</p>
- <p className="text-xs text-slate-500">
- Logged by {session.user_name ||"Agent"} • 
- <span className="ml-1 text-blue-600 font-semibold">
- {Math.floor(session.duration / 3600).toString().padStart(2, '0')}:
- {Math.floor((session.duration % 3600) / 60).toString().padStart(2, '0')}:
- {(session.duration % 60).toString().padStart(2, '0')}
- </span>
- </p>
- </div>
- </div>
- <span className={cn(
-"text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider",
- session.status === 'completed' ?"bg-slate-100 text-slate-600" :"bg-green-100 text-green-700"
- )}>
- {session.status}
- </span>
- </div>
- 
- {session.status === 'completed' && (
- <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mt-2">
- <p className="text-xs text-slate-600 font-medium mb-1 uppercase tracking-wider">AI Summary</p>
- <p className="text-sm text-slate-800 leading-relaxed italic">
- Activity captured successfully. Full AI summary details and screenshots are accessible in the Timesheet module.
- </p>
- </div>
- )}
- </div>
- ))}
- </div>
- )}
- </div>
- ) : activeTab ==="Notes" ? (
+  {isActiveSession && trackerEntries.length > 0 && (
+  <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 mb-6">
+  <h4 className="text-xs font-bold text-blue-800 mb-3 uppercase tracking-wider">Current Session Activity</h4>
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {trackerEntries.map((entry, idx) => (
+  <div key={idx} className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+  <div className="flex items-center gap-2 mb-2">
+  <span className="text-xl">{entry.appIcon}</span>
+  <span className="text-xs font-bold text-slate-700 truncate">{entry.appName}</span>
+  <span className="text-[10px] text-slate-400 ml-auto">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+  </div>
+  {entry.screenshotDataUrl && (
+  <img src={entry.screenshotDataUrl} alt="Screenshot" className="w-full h-24 object-cover rounded mb-2 border border-slate-100" />
+  )}
+  <p className="text-[10px] text-slate-600 leading-tight line-clamp-3">{entry.description}</p>
+  </div>
+  ))}
+  </div>
+  </div>
+  )}
+
+  {pastSessions.length === 0 ? (
+  <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+  <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+  <p className="text-sm font-medium text-slate-500">No work sessions recorded for this ticket.</p>
+  <p className="text-xs text-slate-400 mt-1">Start a work session to track your time and capture AI context.</p>
+  </div>
+  ) : (
+  <div className="space-y-4">
+  {pastSessions.map((session, idx) => {
+    let summary = "";
+    let activities = [];
+    if (session.notes) {
+      try {
+        const parsed = JSON.parse(session.notes);
+        summary = parsed.summary || parsed.description || parsed.notes || "";
+        if (Array.isArray(parsed.session_data)) {
+          activities = parsed.session_data;
+        } else if (Array.isArray(parsed.activity_entries)) {
+          activities = parsed.activity_entries;
+        }
+      } catch (e) {
+        summary = session.notes;
+      }
+    }
+    const isCompleted = session.end_time || session.duration > 0;
+    
+    return (
+      <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-left">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="bg-slate-100 text-slate-600 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">
+              #{pastSessions.length - idx}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800">{new Date(session.start_time).toLocaleString()}</p>
+              <p className="text-xs text-slate-500">
+                Logged by {session.user_name || "Agent"} • 
+                <span className="ml-1 text-blue-600 font-semibold">
+                  {Math.floor(session.duration / 3600).toString().padStart(2, '0')}:
+                  {Math.floor((session.duration % 3600) / 60).toString().padStart(2, '0')}:
+                  {(session.duration % 60).toString().padStart(2, '0')}
+                </span>
+              </p>
+            </div>
+          </div>
+          <span className={cn(
+            "text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider",
+            isCompleted ? "bg-slate-100 text-slate-600" : "bg-green-100 text-green-700"
+          )}>
+            {isCompleted ? "completed" : "active"}
+          </span>
+        </div>
+        
+        {summary && (
+          <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mt-2">
+            <p className="text-xs text-slate-600 font-medium mb-1 uppercase tracking-wider">AI Summary</p>
+            <p className="text-sm text-slate-800 leading-relaxed italic">
+              {summary}
+            </p>
+          </div>
+        )}
+
+        {activities.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Tracked Activity Logs</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {activities.map((act, actIdx) => (
+                <div key={actIdx} className="bg-slate-50/50 p-2.5 rounded-lg border border-slate-100 text-[10px] leading-tight">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-lg">{act.appIcon || "🖥️"}</span>
+                    <span className="font-bold text-slate-700 truncate max-w-[120px]">{act.appName || act.app_name}</span>
+                    <span className="text-[9px] text-slate-400 ml-auto">
+                      {act.timestamp ? new Date(act.timestamp).toLocaleTimeString() : ""}
+                    </span>
+                  </div>
+                  {act.screenshotDataUrl && (
+                    <img src={act.screenshotDataUrl} alt="Activity screenshot" className="w-full h-16 object-cover rounded mb-1 border border-slate-200" />
+                  )}
+                  <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight">{act.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  })}
+  </div>
+  )}
+  </div>
+  ) : activeTab ==="Notes" ? (
  <div className="space-y-6">
  {/* Toast Notification */}
  {postMessage && (

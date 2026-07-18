@@ -281,9 +281,9 @@ export function AccessControl() {
  const uid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
  // Check if email already exists
- const checkRes = await api("/api/users");
- if (checkRes.ok) {
- const existingUsers = await checkRes.json();
+ const checkRes = await api.get("/api/users");
+ if (checkRes.status === 200) {
+ const existingUsers = checkRes.data;
  const emailExists = existingUsers.some((u: SafeAny) =>
  u.email?.toLowerCase() === newUser.email.toLowerCase().trim()
  );
@@ -295,10 +295,7 @@ export function AccessControl() {
  }
 
  // Create user via REST API
- const res = await api("/api/users", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({
+ const res = await api.post("/api/users", {
  uid,
  name: newUser.name.trim(),
  email: newUser.email.toLowerCase().trim(),
@@ -308,12 +305,10 @@ export function AccessControl() {
  createdBy: profile?.uid,
  is_active: true,
  is_demo: false,
- }),
  });
 
- if (!res.ok) {
- const errData = await res.json().catch(() => ({}));
- throw new Error(errData.error ||"Failed to create user.");
+ if (res.status !== 201 && res.status !== 200) {
+ throw new Error(res.data?.error || "Failed to create user.");
  }
 
  setShowCreate(false);

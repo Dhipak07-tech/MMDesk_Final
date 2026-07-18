@@ -4,10 +4,12 @@ import React, { useState, useEffect, useMemo, useCallback } from"react";
 import {
  ChevronLeft, ChevronRight, Plus, Copy, RefreshCw, HelpCircle,
  Clock, CalendarDays, User, Settings, X, Save, Trash2, FileText,
- Printer, ChevronDown
-} from"lucide-react";
-import { useAuth } from"../contexts/AuthContext";
-import { Link } from"react-router-dom";
+ Printer, ChevronDown, CheckCircle2
+} from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { Link } from "react-router-dom";
+import { useWorkspace } from "../components/WorkspaceLayout";
+import { cn } from "@/lib/utils";
 
 /* ─── Timezone list ─── */
 const TIMEZONES = [
@@ -105,7 +107,8 @@ const HOUR_HEIGHT = 60; // px per hour row
 
 /* ════════════════════════════════════════ MAIN ════════════════════════════════════════ */
 export function Calendar() {
- const { user, profile } = useAuth();
+  const { user, profile } = useAuth();
+  const { openTab } = useWorkspace();
 
  /* ── State ── */
  const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -204,50 +207,98 @@ export function Calendar() {
 
  /* ── Fetch all users if admin/sub-admin ── */
  useEffect(() => {
- if (!user) return;
- const role = profile?.role || 'user';
- const hasAdminAccess = role === 'admin' || role === 'sub_admin' || role === 'super_admin' || role === 'ultra_super_admin';
- if (hasAdminAccess) {
- api("/api/users")
- .then(r => r.json())
- .then(list => setUsers(Array.isArray(list) ? list : []))
- .catch(e => console.error("Error loading users list:", e));
- }
+   if (!user) return;
+   const role = profile?.role || 'user';
+   const hasAdminAccess = role === 'admin' || role === 'sub_admin' || role === 'super_admin' || role === 'ultra_super_admin';
+   if (hasAdminAccess) {
+     api.get("/api/users")
+       .then(res => {
+         const list = res.data;
+         setUsers(Array.isArray(list) ? list : []);
+       })
+       .catch(e => console.error("Error loading users list:", e));
+   }
  }, [user, profile]);
 
  const selectedUserProfile = useMemo(() => {
- if (!selectedUserId) return profile;
- return users.find(u => u.uid === selectedUserId) || profile;
+   if (!selectedUserId) return profile;
+   return users.find(u => u.uid === selectedUserId) || profile;
  }, [selectedUserId, users, profile]);
 
- /* ── Load data ── */
- const loadData = useCallback(async () => {
- if (!user) return;
- setLoading(true);
- try {
- const targetUserId = selectedUserId || user.uid;
- // Fetch timesheets for user
- const tsRes = await api(`/api/timesheets?user_id=${targetUserId}`);
- const tsList = await tsRes.json();
- setTimesheets(tsList);
+  /* ── Load data ── */
+  const loadData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const targetUserId = selectedUserId || user.uid;
+      // Fetch timesheets for user
+      const tsRes = await api.get(`/api/timesheets?user_id=${targetUserId}`);
+      const tsList = tsRes.data || [];
+      setTimesheets(tsList);
 
- if (tsList.length === 0) {
- setTimeCards([]);
- setLoading(false);
- return;
- }
+      // Get all time cards for the current range
+      let allCards: any[] = [];
+      if (tsList.length > 0) {
+        const tcRes = await api.get(`/api/time-cards?user_id=${targetUserId}&start_date=${weekStart}&end_date=${weekEnd}`);
+        allCards = Array.isArray(tcRes.data) ? tcRes.data : [];
+      }
 
- // Get all time cards for the current range
- const tcRes = await api(`/api/time-cards?user_id=${targetUserId}&start_date=${weekStart}&end_date=${weekEnd}`);
- const allCards = await tcRes.json();
- setTimeCards(Array.isArray(allCards) ? allCards : []);
- } catch (e) {
- console.error("Error loading calendar data:", e);
- setTimeCards([]);
- } finally {
- setLoading(false);
- }
- }, [user, weekStart, weekEnd, selectedUserId]);
+      // Fetch resolved and closed tickets for targetUserId
+      let ticketCards: any[] = [];
+      try {
+        const resolvedRes = await api.get(`/api/tickets/assigned/${targetUserId}`);
+        const ticketsList = resolvedRes.data || [];
+        const completedTickets = ticketsList.filter((t: any) => 
+          (t.status === 'Resolved' && t.resolved_at) || 
+          (t.status === 'Closed' && (t.closed_at || t.resolved_at))
+        );
+        
+        ticketCards = completedTickets.map((t: any) => {
+          const completeTimeStr = t.status === 'Closed' ? (t.closed_at || t.resolved_at) : t.resolved_at;
+          const resolvedDate = completeTimeStr.substring(0, 10); // YYYY-MM-DD
+          let rawTime = "12:00";
+          if (completeTimeStr.length >= 16) {
+            rawTime = completeTimeStr.substring(11, 16); // HH:MM
+          }
+          
+          // Calculate end time (1 hour later)
+          let endH = 13;
+          let endM = "00";
+          const parts = rawTime.split(":");
+          if (parts.length === 2) {
+            const h = parseInt(parts[0]);
+            endH = (h + 1) % 24;
+            endM = parts[1];
+          }
+          const endTime = `${String(endH).padStart(2, '0')}:${endM}`;
+
+          return {
+            id: `ticket-${t.id}`,
+            ticketId: t.id,
+            entry_date: resolvedDate,
+            start_time: rawTime,
+            end_time: endTime,
+            hours_worked: 60,
+            work_type: "Ticket Resolution",
+            billable: "Non-Billable",
+            description: t.description || t.title,
+            short_description: `${t.status === 'Closed' ? 'Closed' : 'Resolved'}: ${t.ticket_number} - ${t.title}`,
+            task: t.ticket_number,
+            isTicket: true
+          };
+        });
+      } catch (ticketErr) {
+        console.error("Error loading tickets for calendar:", ticketErr);
+      }
+
+      setTimeCards([...allCards, ...ticketCards]);
+    } catch (e) {
+      console.error("Error loading calendar data:", e);
+      setTimeCards([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, weekStart, weekEnd, selectedUserId]);
 
  useEffect(() => {
  loadData();
@@ -280,19 +331,21 @@ export function Calendar() {
  }, [timeCards, weekStart, weekEnd]);
 
  /* ── Per-day stats ── */
- const dayStats = useMemo(() => {
- const stats: Record<string, { logged: number; cards: SafeAny[] }> = {};
- weekDays.forEach(day => { stats[day.date] = { logged: 0, cards: [] }; });
- weekCards.forEach(card => {
- if (stats[card.entry_date]) {
- stats[card.entry_date].logged += parseFloat(card.hours_worked) || 0;
- stats[card.entry_date].cards.push(card);
- }
- });
- return stats;
- }, [weekCards, weekDays]);
+  const dayStats = useMemo(() => {
+    const stats: Record<string, { logged: number; cards: SafeAny[] }> = {};
+    weekDays.forEach(day => { stats[day.date] = { logged: 0, cards: [] }; });
+    weekCards.forEach(card => {
+      if (stats[card.entry_date]) {
+        if (!card.isTicket) {
+          stats[card.entry_date].logged += parseFloat(card.hours_worked) || 0;
+        }
+        stats[card.entry_date].cards.push(card);
+      }
+    });
+    return stats;
+  }, [weekCards, weekDays]);
 
- const totalMinutes = weekCards.reduce((s, c) => s + (parseFloat(c.hours_worked) || 0), 0);
+  const totalMinutes = weekCards.filter(c => !c.isTicket).reduce((s, c) => s + (parseFloat(c.hours_worked) || 0), 0);
 
  /* ── Capacity bar color ── */
  function capacityColor(logged: number): string {
@@ -767,224 +820,277 @@ export function Calendar() {
 
  {/* Event blocks */}
  {events.map(({ card, col, totalCols, style }, idx) => {
- const width = displayType ==="overlay" ? (totalCols > 1 ? `${100 / totalCols}%` :"100%") :"100%";
- const left = displayType ==="overlay" ? (totalCols > 1 ? `${(col / totalCols) * 100}%` :"0") :"0";
- const borderColor = getEventColor(idx);
+    const width = displayType === "overlay" ? (totalCols > 1 ? `${100 / totalCols}%` : "100%") : "100%";
+    const left = displayType === "overlay" ? (totalCols > 1 ? `${(col / totalCols) * 100}%` : "0") : "0";
+    const borderColor = getEventColor(idx);
 
- return (
- <div
- key={card.id}
- className={displayType ==="overlay" ?"absolute px-0.5 cursor-pointer group" :"cursor-pointer group"}
- style={displayType ==="overlay" ? { ...style, width, left, zIndex: 10 + col } : {}}
- onClick={() => openEditPanel(card)}
- >
- <div
- className="rounded-sm border border-border bg-card shadow-sm overflow-hidden flex hover:shadow-md transition-shadow py-1 min-h-[36px]"
- style={{ borderLeft: `3px solid ${borderColor}` }}
- >
- <div className="flex-grow px-1.5 overflow-hidden">
- <div className="flex items-center gap-1 group/tooltip relative">
- <Clock className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
- <span className="text-[10px] font-bold truncate">
- {(() => {
- const incidentMatch = (card.ticket_number || card.short_description || card.description ||"").match(/INC\d{5,}/i);
- const incNum = incidentMatch ? incidentMatch[0].toUpperCase() : null;
- return incNum ? (
- <>
- <span className="text-blue-600 mr-1">{incNum}</span>
- ({card.hours_worked}m) {card.short_description || card.task || card.work_type ||"Entry"}
- </>
- ) : (
- `(${card.hours_worked}m) ${card.short_description || card.task || card.work_type ||"Entry"}`
- );
- })()}
- </span>
- 
- {/* Hover Tooltip */}
- <div className="absolute bottom-full left-0 mb-1 hidden group-hover/tooltip:block bg-slate-900 dark:bg-sn-dark text-white text-[10px] p-2 rounded shadow-lg z-50 whitespace-nowrap min-w-max">
- {(() => {
- const incidentMatch = (card.ticket_number || card.short_description || card.description ||"").match(/INC\d{5,}/i);
- const incNum = incidentMatch ? incidentMatch[0].toUpperCase() : null;
- return incNum && <div className="font-bold text-blue-300">{incNum}</div>;
- })()}
- <div className="font-medium">{card.short_description || card.task || card.work_type ||"Entry"}</div>
- <div className="text-gray-300">{card.hours_worked} Minutes Worked</div>
- <div className="text-gray-400 mt-1">Logged by: {selectedUserProfile?.name ||"Technician"}</div>
+    return (
+      <div
+        key={card.id}
+        className={displayType === "overlay" ? "absolute px-0.5 cursor-pointer group" : "cursor-pointer group"}
+        style={displayType === "overlay" ? { ...style, width, left, zIndex: 10 + col } : {}}
+        onClick={() => {
+          if (card.isTicket) {
+            openTab(`/tickets/${card.ticketId}`);
+          } else {
+            openEditPanel(card);
+          }
+        }}
+      >
+        <div
+          className={cn(
+            "rounded-sm border shadow-sm overflow-hidden flex hover:shadow-md transition-shadow py-1 min-h-[36px]",
+            card.isTicket 
+              ? "bg-green-50/95 dark:bg-[#122c22]/90 border-green-200 dark:border-green-800/40" 
+              : "bg-card border-border"
+          )}
+          style={{ borderLeft: card.isTicket ? `3px solid #10b981` : `3px solid ${borderColor}` }}
+        >
+          <div className="flex-grow px-1.5 overflow-hidden">
+            <div className="flex items-center gap-1 group/tooltip relative">
+              {card.isTicket ? (
+                <CheckCircle2 className="w-2.5 h-2.5 text-green-500 flex-shrink-0" />
+              ) : (
+                <Clock className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
+              )}
+              <span className={cn("text-[10px] font-bold truncate", card.isTicket && "text-green-800 dark:text-green-300")}>
+                {card.isTicket ? (
+                  <>
+                    <span className="text-green-600 dark:text-green-400 mr-1 font-bold">{card.task}</span>
+                    {card.short_description.replace(`Resolved: ${card.task} - `, "")}
+                  </>
+                ) : (
+                  (() => {
+                    const incidentMatch = (card.ticket_number || card.short_description || card.description || "").match(/INC\d{5,}/i);
+                    const incNum = incidentMatch ? incidentMatch[0].toUpperCase() : null;
+                    return incNum ? (
+                      <>
+                        <span className="text-blue-600 mr-1">{incNum}</span>
+                        ({card.hours_worked}m) {card.short_description || card.task || card.work_type || "Entry"}
+                      </>
+                    ) : (
+                      `(${card.hours_worked}m) ${card.short_description || card.task || card.work_type || "Entry"}`
+                    );
+                  })()
+                )}
+              </span>
+              
+              {/* Hover Tooltip */}
+              <div className="absolute bottom-full left-0 mb-1 hidden group-hover/tooltip:block bg-slate-900 dark:bg-sn-dark text-white text-[10px] p-2 rounded shadow-lg z-50 whitespace-nowrap min-w-max">
+                {card.isTicket ? (
+                  <>
+                    <div className="font-bold text-green-300">{card.task} (RESOLVED)</div>
+                    <div className="font-medium">{card.description}</div>
+                    <div className="text-gray-400 mt-1">Resolved by: {selectedUserProfile?.name || "Technician"}</div>
+                  </>
+                ) : (
+                  <>
+                    {(() => {
+                      const incidentMatch = (card.ticket_number || card.short_description || card.description || "").match(/INC\d{5,}/i);
+                      const incNum = incidentMatch ? incidentMatch[0].toUpperCase() : null;
+                      return incNum && <div className="font-bold text-blue-300">{incNum}</div>;
+                    })()}
+                    <div className="font-medium">{card.short_description || card.task || card.work_type || "Entry"}</div>
+                    <div className="text-gray-300">{card.hours_worked} Minutes Worked</div>
+                    <div className="text-gray-400 mt-1">Logged by: {selectedUserProfile?.name || "Technician"}</div>
+                  </>
+                )}
+              </div>
+            </div>
+            {viewDetails === "with_details" && card.description && (
+              <div className="text-[9px] text-muted-foreground truncate mt-0.5">{card.description}</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  })}
  </div>
- </div>
- {viewDetails ==="with_details" && card.description && (
- <div className="text-[9px] text-muted-foreground truncate mt-0.5">{card.description}</div>
- )}
- </div>
- </div>
+
+  {/* To-Do Row */}
+  <div className="border-b border-border h-16 p-1 space-y-0.5 overflow-y-auto">
+  {todoEntries.map((card, idx) => (
+    <div
+      key={card.id}
+      className={cn(
+        "rounded-sm border px-1.5 py-0.5 text-[9px] cursor-pointer hover:bg-muted/30 truncate flex items-center gap-1 group/tooltip relative",
+        card.isTicket 
+          ? "bg-green-50/95 dark:bg-[#122c22]/90 border-green-200 dark:border-green-800/40 text-green-800 dark:text-green-300" 
+          : "bg-card border-border"
+      )}
+      style={{ borderLeft: card.isTicket ? `3px solid #10b981` : `3px solid ${getEventColor(idx)}` }}
+      onClick={() => {
+        if (card.isTicket) {
+          openTab(`/tickets/${card.ticketId}`);
+        } else {
+          openEditPanel(card);
+        }
+      }}
+    >
+      {card.isTicket ? (
+        <CheckCircle2 className="w-2.5 h-2.5 text-green-500 flex-shrink-0" />
+      ) : (
+        <Clock className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
+      )}
+      <span className="font-medium truncate">
+        {card.isTicket ? (
+          <>
+            <span className="text-green-600 dark:text-green-400 mr-1 font-bold">{card.task}</span>
+            {card.short_description.replace(`Resolved: ${card.task} - `, "")}
+          </>
+        ) : (
+          (() => {
+            const incidentMatch = (card.ticket_number || card.short_description || card.description || "").match(/INC\d{5,}/i);
+            const incNum = incidentMatch ? incidentMatch[0].toUpperCase() : null;
+            return incNum ? (
+              <>
+                <span className="text-blue-600 mr-1 font-bold">{incNum}</span>
+                {card.short_description || card.task || card.work_type || "Entry"}
+              </>
+            ) : (
+              card.short_description || card.task || card.work_type || "Entry"
+            );
+          })()
+        )}
+      </span>
+    </div>
+  ))}
+  </div>
  </div>
  );
  })}
  </div>
 
- {/* To-Do Row */}
- <div className="border-b border-border h-16 p-1 space-y-0.5 overflow-y-auto">
- {todoEntries.map((card, idx) => (
- <div
- key={card.id}
- className="rounded-sm border border-border bg-card px-1.5 py-0.5 text-[9px] cursor-pointer hover:bg-muted/30 truncate flex items-center gap-1 group/tooltip relative"
- style={{ borderLeft: `3px solid ${getEventColor(idx)}` }}
- onClick={() => openEditPanel(card)}
- >
- <Clock className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
- <span className="font-medium truncate">
- {(() => {
- const incidentMatch = (card.ticket_number || card.short_description || card.description ||"").match(/INC\d{5,}/i);
- const incNum = incidentMatch ? incidentMatch[0].toUpperCase() : null;
- return incNum ? (
- <>
- <span className="text-blue-600 mr-1 font-bold">{incNum}</span>
- {card.short_description || card.task || card.work_type ||"Entry"}
- </>
- ) : (
- card.short_description || card.task || card.work_type ||"Entry"
- );
- })()}
- </span>
- </div>
- ))}
- </div>
- </div>
- );
- })}
- </div>
+  {/* ═══ EDIT SIDE PANEL ═══ */}
+  {editPanel && (() => {
+    const incMatch = (editPanel.ticket_number || editPanel.short_description || editPanel.description || "").match(/INC\d{5,}/i);
+    const incNum = incMatch ? incMatch[0].toUpperCase() : null;
+    const isLocked = editPanel.is_system_generated === 1 || !!incMatch || editPanel.status === 'Approved' || editPanel.status === 'Submitted';
+    const lockReason = editPanel.status === 'Approved' || editPanel.status === 'Submitted'
+      ? `This entry is locked because the timesheet is ${editPanel.status}.`
+      : "Incident-linked entries are read-only.";
 
- {/* ═══ EDIT SIDE PANEL ═══ */}
- {editPanel && (
- <div className="fixed inset-0 z-50 flex justify-end">
- <div className="absolute inset-0 bg-black/30" onClick={() => setEditPanel(null)} />
- <div className="relative w-full max-w-md bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right">
- {/* Panel Header */}
- <div className="flex items-center justify-between p-4 border-b border-border bg-muted/10">
- <div className="flex flex-col">
- <div className="flex items-center gap-2">
- <FileText className="w-5 h-5 text-blue-600" />
- <h3 className="font-bold text-sm">{editPanel.id ?"Time Entry" :"New Time Entry"}</h3>
- {editPanel && (() => {
- const incMatch = (editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i);
- const isLocked = editPanel.is_system_generated === 1 || incMatch;
- return isLocked ? (
- <span className="ml-2 px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full flex items-center gap-1 border border-amber-200">
- 🔒 Read Only
- </span>
- ) : null;
- })()}
- </div>
- {editPanel && (() => {
- const incMatch = (editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i);
- const incNum = incMatch ? incMatch[0].toUpperCase() : null;
- return incNum ? (
- <div className="mt-1 flex items-center gap-1 text-xs">
- <span className="text-muted-foreground font-medium">Incident:</span>
- <Link to={`/tickets/${incNum}`} className="font-bold text-blue-600 hover:underline flex items-center gap-0.5">
- {incNum}
- </Link>
- </div>
- ) : null;
- })()}
- </div>
- <button onClick={() => setEditPanel(null)} className="p-1 hover:bg-muted rounded"><X className="w-5 h-5" /></button>
- </div>
+    return (
+      <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="absolute inset-0 bg-black/30" onClick={() => setEditPanel(null)} />
+        <div className="relative w-full max-w-md bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right">
+          {/* Panel Header */}
+          <div className="flex items-center justify-between p-4 border-b border-border bg-muted/10">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-sm">{editPanel.id ? "Time Entry" : "New Time Entry"}</h3>
+                {isLocked && (
+                  <span className="ml-2 px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full flex items-center gap-1 border border-amber-200">
+                    🔒 Read Only
+                  </span>
+                )}
+              </div>
+              {incNum && (
+                <div className="mt-1 flex items-center gap-1 text-xs">
+                  <span className="text-muted-foreground font-medium">Incident:</span>
+                  <Link to={`/tickets/${incNum}`} className="font-bold text-blue-600 hover:underline flex items-center gap-0.5">
+                    {incNum}
+                  </Link>
+                </div>
+              )}
+            </div>
+            <button onClick={() => setEditPanel(null)} className="p-1 hover:bg-muted rounded"><X className="w-5 h-5" /></button>
+          </div>
 
- {/* Panel Body */}
- <div className="flex-grow overflow-y-auto p-5 space-y-4">
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">Date</label>
- <input readOnly value={editPanel.entry_date} className="w-full p-1.5 bg-muted/20 border border-border rounded text-xs h-8" />
- </div>
- <div className="grid grid-cols-2 gap-3">
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">Start Time</label>
- <input value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))}
- disabled={editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" placeholder="7:00 AM" />
- </div>
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">End Time</label>
- <input value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))}
- disabled={editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" placeholder="5:00 PM" />
- </div>
- </div>
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">Minutes Worked</label>
- <input type="number" step="5" value={editForm.minutesWorked} onChange={e => setEditForm(f => ({ ...f, minutesWorked: e.target.value }))}
- disabled={editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
- </div>
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">Task / Work Type</label>
- <input value={editForm.task} onChange={e => setEditForm(f => ({ ...f, task: e.target.value }))}
- disabled={editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
- </div>
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">Short Description</label>
- <input value={editForm.shortDescription} onChange={e => setEditForm(f => ({ ...f, shortDescription: e.target.value }))}
- disabled={editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- placeholder="Brief description of work done..."
- className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
- </div>
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">Billable</label>
- <select value={editForm.billable} onChange={e => setEditForm(f => ({ ...f, billable: e.target.value }))}
- disabled={editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70">
- <option>Billable</option>
- <option>Non-Billable</option>
- <option>Internal</option>
- </select>
- </div>
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">Description</label>
- <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
- disabled={editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- rows={4} className="w-full p-2 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green resize-none disabled:bg-muted/50 disabled:opacity-70" />
- </div>
- <div>
- <label className="text-xs text-muted-foreground font-medium block mb-1">Notes</label>
- <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
- disabled={editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- rows={2} className="w-full p-2 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green resize-none disabled:bg-muted/50 disabled:opacity-70" placeholder="Additional notes..." />
- </div>
- </div>
+          {/* Panel Body */}
+          <div className="flex-grow overflow-y-auto p-5 space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground font-medium block mb-1">Date</label>
+              <input readOnly value={editPanel.entry_date} className="w-full p-1.5 bg-muted/20 border border-border rounded text-xs h-8" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground font-medium block mb-1">Start Time</label>
+                <input value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))}
+                  disabled={isLocked}
+                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" placeholder="7:00 AM" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium block mb-1">End Time</label>
+                <input value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))}
+                  disabled={isLocked}
+                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" placeholder="5:00 PM" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-medium block mb-1">Minutes Worked</label>
+              <input type="number" step="5" value={editForm.minutesWorked} onChange={e => setEditForm(f => ({ ...f, minutesWorked: e.target.value }))}
+                disabled={isLocked}
+                className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-medium block mb-1">Task / Work Type</label>
+              <input value={editForm.task} onChange={e => setEditForm(f => ({ ...f, task: e.target.value }))}
+                disabled={isLocked}
+                className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-medium block mb-1">Short Description</label>
+              <input value={editForm.shortDescription} onChange={e => setEditForm(f => ({ ...f, shortDescription: e.target.value }))}
+                disabled={isLocked}
+                placeholder="Brief description of work done..."
+                className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-medium block mb-1">Billable</label>
+              <select value={editForm.billable} onChange={e => setEditForm(f => ({ ...f, billable: e.target.value }))}
+                disabled={isLocked}
+                className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70">
+                <option>Billable</option>
+                <option>Non-Billable</option>
+                <option>Internal</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-medium block mb-1">Description</label>
+              <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                disabled={isLocked}
+                rows={4} className="w-full p-2 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green resize-none disabled:bg-muted/50 disabled:opacity-70" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-medium block mb-1">Notes</label>
+              <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                disabled={isLocked}
+                rows={2} className="w-full p-2 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green resize-none disabled:bg-muted/50 disabled:opacity-70" placeholder="Additional notes..." />
+            </div>
+          </div>
 
- {/* Panel Footer */}
- <div className="p-4 border-t border-border flex items-center justify-between bg-muted/10">
- <div className="relative group">
- <button
- onClick={deleteFromPanel}
- disabled={!editPanel.id || (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))}
- className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed"
- >
- <Trash2 className="w-3.5 h-3.5" /> Delete
- </button>
- {editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i)) && (
- <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-slate-900 dark:bg-sn-dark text-white text-[10px] p-1.5 rounded shadow whitespace-nowrap z-50">
- Incident-linked entries cannot be deleted manually.
- </div>
- )}
- </div>
- <div className="flex items-center gap-2">
- <button onClick={() => setEditPanel(null)} className="px-3 py-1.5 border border-border rounded text-xs hover:bg-muted transition-colors">Close</button>
- {!(editPanel && (editPanel.is_system_generated === 1 || !!(editPanel.ticket_number || editPanel.short_description || editPanel.description ||"").match(/INC\d{5,}/i))) && (
- <button onClick={saveEditPanel} disabled={editSaving}
- className="flex items-center gap-1 bg-sn-green text-sn-dark px-4 py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity">
- <Save className="w-3.5 h-3.5" /> {editSaving ?"Saving..." :"Save"}
- </button>
- )}
- </div>
- </div>
- </div>
- </div>
- )}
+          {/* Panel Footer */}
+          <div className="p-4 border-t border-border flex items-center justify-between bg-muted/10">
+            <div className="relative group">
+              <button
+                onClick={deleteFromPanel}
+                disabled={!editPanel.id || isLocked}
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </button>
+              {isLocked && (
+                <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-slate-900 dark:bg-sn-dark text-white text-[10px] p-1.5 rounded shadow whitespace-nowrap z-50">
+                  {lockReason}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setEditPanel(null)} className="px-3 py-1.5 border border-border rounded text-xs hover:bg-muted transition-colors">Close</button>
+              {!isLocked && (
+                <button onClick={saveEditPanel} disabled={editSaving}
+                  className="flex items-center gap-1 bg-sn-green text-sn-dark px-4 py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity">
+                  <Save className="w-3.5 h-3.5" /> {editSaving ? "Saving..." : "Save"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  })()}
  </div>
  );
 }
-
-

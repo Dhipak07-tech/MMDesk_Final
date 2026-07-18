@@ -739,7 +739,7 @@ export function Timesheet() {
  }
  }
 
- const canEdit = true;
+ const canEdit = !timesheet || (timesheet.status !== "Approved" && timesheet.status !== "Submitted");
  const weekTotal = timeCards.reduce((s, c) => s + (parseFloat(c.hours_worked) || 0), 0);
 
  if (loading) {

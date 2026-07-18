@@ -26,6 +26,15 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     @Query("SELECT t FROM Ticket t WHERE t.assignedTo = :uid ORDER BY t.createdAt DESC")
     List<Ticket> findByAssignedTo(@Param("uid") String uid);
 
+    @Query("SELECT t FROM Ticket t WHERE t.assignedTo = :uid OR t.assignmentGroup IN :groups ORDER BY t.createdAt DESC")
+    List<Ticket> findByAssignedToOrAssignmentGroupIn(@Param("uid") String uid, @Param("groups") List<String> groups);
+
+    @Query("SELECT t FROM Ticket t WHERE (t.assignedTo = :uid OR t.assignmentGroup IN :groups) AND t.status NOT IN ('Resolved','Closed','Canceled') ORDER BY t.createdAt DESC")
+    List<Ticket> findOpenByAssignedToOrAssignmentGroupIn(@Param("uid") String uid, @Param("groups") List<String> groups);
+
+    @Query("SELECT t FROM Ticket t WHERE (t.assignedTo = :uid OR t.assignmentGroup IN :groups) AND t.status IN ('Resolved','Closed') ORDER BY t.resolvedAt DESC")
+    List<Ticket> findResolvedByAssignedToOrAssignmentGroupIn(@Param("uid") String uid, @Param("groups") List<String> groups);
+
     @Query("SELECT t FROM Ticket t WHERE (t.assignedTo IS NULL OR t.assignedTo = '') ORDER BY t.createdAt DESC")
     List<Ticket> findUnassigned();
 
@@ -55,4 +64,10 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     @Query("SELECT COUNT(t) FROM Ticket t WHERE t.status IN ('Resolved','Closed') AND t.resolvedAt >= :today")
     long countResolvedToday(@Param("today") LocalDateTime today);
+
+    @Query("SELECT t FROM Ticket t WHERE t.assignedTo = :uid AND t.status NOT IN ('Resolved','Closed','Canceled') ORDER BY t.createdAt DESC")
+    List<Ticket> findOpenByAssignedTo(@Param("uid") String uid);
+
+    @Query("SELECT t FROM Ticket t WHERE t.assignedTo = :uid AND t.status IN ('Resolved','Closed') ORDER BY t.resolvedAt DESC")
+    List<Ticket> findResolvedByAssignedTo(@Param("uid") String uid);
 }

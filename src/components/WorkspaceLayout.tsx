@@ -277,36 +277,47 @@ export function TabWorkspaceProvider({ children }: { children: React.ReactNode }
     }
   };
 
- const openTab = (path: string, options?: { title?: string; focus?: boolean; forceNew?: boolean }) => {
- if (!isTabsEnabled) {
- navigate(path);
- return;
- }
+  const openTab = (path: string, options?: { title?: string; focus?: boolean; forceNew?: boolean }) => {
+    if (!isTabsEnabled) {
+      navigate(path);
+      return;
+    }
 
- const cleanPath = path.split("?")[0];
- if (cleanPath ==="/" || cleanPath ==="/login" || cleanPath ==="/register") return;
+    const cleanPath = path.split("?")[0];
+    if (cleanPath === "/" || cleanPath === "/login" || cleanPath === "/register") return;
 
- // Check duplicate
- if (!options?.forceNew) {
- const existingTab = tabs.find(t => t.path === path);
- if (existingTab) {
- programNavigate(path, existingTab.id);
- return;
- }
- }
+    // Check duplicate
+    if (!options?.forceNew) {
+      const existingTab = tabs.find(t => t.path === path);
+      if (existingTab) {
+        programNavigate(path, existingTab.id);
+        return;
+      }
+    }
 
- const newId = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
- const title = options?.title || getTabTitleFromPath(path);
- const newTab: Tab = {
- id: newId,
- path,
- title,
- pinned: false
- };
+    // Reuse the active tab if not forcing new tab and a tab is active
+    if (!options?.forceNew && activeTabId) {
+      setTabs(prev => prev.map(t => t.id === activeTabId ? {
+        ...t,
+        path,
+        title: options?.title || getTabTitleFromPath(path)
+      } : t));
+      programNavigate(path, activeTabId);
+      return;
+    }
 
- setTabs(prev => [...prev, newTab]);
- programNavigate(path, newId);
- };
+    const newId = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const title = options?.title || getTabTitleFromPath(path);
+    const newTab: Tab = {
+      id: newId,
+      path,
+      title,
+      pinned: false
+    };
+
+    setTabs(prev => [...prev, newTab]);
+    programNavigate(path, newId);
+  };
 
  const closeTab = (id: string) => {
  const tabToClose = tabs.find(t => t.id === id);
