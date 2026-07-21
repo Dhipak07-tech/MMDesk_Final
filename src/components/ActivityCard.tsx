@@ -1,15 +1,63 @@
 import { SafeAny } from '@/types';
-import React from"react";
-import { MessageSquare, Lock, Globe, Clock, Paperclip, Shield } from"lucide-react";
-import { cn } from"@/lib/utils";
+import React, { useState } from "react";
+import { MessageSquare, Lock, Globe, Clock, Paperclip, Shield, MoreVertical, PlusCircle, Share2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface ActivityCardProps {
  activity: SafeAny;
  formatDate: (date: SafeAny) => string;
+ parentTicket?: SafeAny;
 }
 
-export function ActivityCard({ activity, formatDate }: ActivityCardProps) {
- const isInternal = activity.visibility_type === 'internal' || activity.activity_type === 'work_note';
+export function ActivityCard({ activity, formatDate, parentTicket }: ActivityCardProps) {
+  const isInternal = activity.visibility_type === 'internal' || activity.activity_type === 'work_note';
+  const parentStatus = (parentTicket?.status || parentTicket?.state || "").toString().trim();
+  const isParentOnHold = !parentTicket || !parentStatus || parentStatus.toLowerCase() === 'on hold' || parentStatus.toLowerCase().includes('hold') || parentStatus.toLowerCase().includes('pending') || Boolean(parentTicket?.onHoldReason) || true;
+  const [showMenu, setShowMenu] = useState(false);
+
+ const handleCreateNewTicketFromNote = () => {
+   const noteText = activity.message || "";
+   const caller = parentTicket?.caller || parentTicket?.callerEmail || "";
+   const affectedUser = parentTicket?.affectedUser || parentTicket?.affectedUserEmail || "";
+   const location = parentTicket?.location || "";
+   const company = parentTicket?.companyId || parentTicket?.company || "";
+   const assignmentGroup = parentTicket?.assignmentGroup || "";
+   const assignedTo = parentTicket?.assignedTo || "";
+   const businessPhone = parentTicket?.businessPhone || "";
+   const category = parentTicket?.category || "";
+   const subcategory = parentTicket?.subcategory || "";
+   const service = parentTicket?.service || "";
+   const parentNumber = parentTicket?.number || parentTicket?.id || "";
+   const parentId = parentTicket?.id || "";
+   const title = parentTicket?.title ? `Service Request from Incident #${parentNumber}: ${parentTicket.title}` : `Service Request from Incident #${parentNumber}`;
+
+   const query = new URLSearchParams({
+     filter: "service_request",
+     fromNote: "true",
+     noteContent: noteText,
+     caller: caller,
+     affectedUser: affectedUser,
+     location: location,
+     company: company,
+     assignmentGroup: assignmentGroup,
+     assignedTo: assignedTo,
+     businessPhone: businessPhone,
+     category: category,
+     subcategory: subcategory,
+     service: service,
+     title: title,
+     parentNumber: parentNumber,
+     parentId: parentId
+   }).toString();
+
+   window.location.href = `/tickets?${query}`;
+ };
+
+ const handleForwardNote = () => {
+   const subject = encodeURIComponent(`Fwd: [${parentTicket?.number || parentTicket?.id || 'Ticket'}] Internal Work Note`);
+   const body = encodeURIComponent(`---------- Forwarded Work Note ----------\nFrom: ${activity.created_by_name || 'Agent'}\nDate: ${formatDate(activity.created_at)}\n\n${activity.message}`);
+   window.location.href = `mailto:?subject=${subject}&body=${body}`;
+ };
  
  let metadata: SafeAny = {};
  try {
@@ -79,10 +127,62 @@ export function ActivityCard({ activity, formatDate }: ActivityCardProps) {
  </span>
  </div>
  </div>
- {/* Timestamp */}
- <div className="flex items-center gap-1 text-muted-foreground flex-shrink-0">
+ 
+ {/* Right Header Actions: Timestamp + Three-Dots Menu */}
+ <div className="flex items-center gap-2 flex-shrink-0">
+ <div className="flex items-center gap-1 text-muted-foreground">
  <Clock className="w-3 h-3" />
  <span className="text-[10px] font-medium">{formatDate(activity.created_at)}</span>
+ </div>
+
+ {/* Three Dots Context Menu - Prominently rendered on Internal Notes */}
+ {isInternal && (
+   <div className="relative">
+     <button
+       type="button"
+       onClick={(e) => {
+         e.stopPropagation();
+         setShowMenu(prev => !prev);
+       }}
+       className="p-1 hover:bg-amber-200/60 dark:hover:bg-white/10 rounded-md text-amber-900 dark:text-amber-200 hover:text-amber-950 font-bold transition-all cursor-pointer border border-amber-300/50 bg-amber-100/60 shadow-xs"
+       title="Options"
+     >
+       <MoreVertical className="w-4 h-4 text-amber-800 dark:text-amber-200" />
+     </button>
+
+     {showMenu && (
+       <div 
+         className="absolute right-0 top-7 z-50 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+         onMouseLeave={() => setShowMenu(false)}
+       >
+         <button
+           type="button"
+           onClick={(e) => {
+             e.stopPropagation();
+             setShowMenu(false);
+             handleCreateNewTicketFromNote();
+           }}
+           className="w-full text-left px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 font-medium flex items-center gap-2 cursor-pointer transition-colors"
+         >
+           <PlusCircle className="w-3.5 h-3.5 text-blue-500" />
+           <span>Add Action as NEW ticket</span>
+         </button>
+         <button
+           type="button"
+           onClick={(e) => {
+             e.stopPropagation();
+             setShowMenu(false);
+             handleForwardNote();
+           }}
+           className="w-full text-left px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-600 dark:hover:text-amber-400 font-medium flex items-center gap-2 cursor-pointer transition-colors"
+         >
+           <Share2 className="w-3.5 h-3.5 text-amber-500" />
+           <span>Forward</span>
+         </button>
+       </div>
+     )}
+   </div>
+ )}
  </div>
  </div>
  

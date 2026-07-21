@@ -6,7 +6,7 @@ import {
  Trophy, Building2, KeyRound, CheckCircle2, List, Mail, Palette, Tag,
  FileText, ArrowRightSquare, MinusSquare, XSquare, Plus, PlusCircle, LogOut,
  FolderOpen, UserMinus, UserCheck, Play, Square, Bell, Search, Sun, Moon,
- Monitor, ClipboardList, ShoppingCart, Database, AlertOctagon, GitPullRequest,
+ Monitor, ClipboardList, ShoppingCart, ShoppingBag, Database, AlertOctagon, GitPullRequest,
  Users as UsersIcon, Eye, EyeOff, PhoneCall, BrainCircuit
 } from"lucide-react";
 import { TabContentMapper } from"./TabContentMapper";
@@ -120,10 +120,13 @@ function getTabTitleFromPath(path: string): string {
  if (path.includes("filter=resolved")) return"Resolved Incidents";
  return"Incidents List";
  }
- if (cleanPath.startsWith("/tickets/")) {
- const ticketId = cleanPath.split("/")[2];
- return `Ticket #${ticketId}`;
- }
+  if (cleanPath.startsWith("/tickets/")) {
+  const ticketId = cleanPath.split("/")[2];
+  if (path.includes("filter=service_request") || path.includes("type=service_request") || path.includes("purpose=service")) {
+    return `Service Request #${ticketId}`;
+  }
+  return `Ticket #${ticketId}`;
+  }
  if (cleanPath ==="/history") return"System Activity Log";
  if (cleanPath ==="/sla") return"SLA Policies";
  if (cleanPath ==="/sla-management") return"SLA Management";
@@ -178,7 +181,12 @@ function getTabIconFromPath(path: string) {
  
  if (cleanPath ==="/my-dashboard" || cleanPath ==="/") return LayoutDashboard;
  if (cleanPath ==="/dashboard") return BarChart3;
- if (cleanPath.startsWith("/tickets")) return Ticket;
+  if (cleanPath.startsWith("/tickets")) {
+    if (path.includes("filter=service_request") || path.includes("type=service_request") || path.includes("purpose=service")) {
+      return ShoppingBag;
+    }
+    return Ticket;
+  }
  if (cleanPath ==="/sla") return Clock;
  if (cleanPath ==="/sla-management") return Clock;
  if (cleanPath ==="/approvals") return CheckCircle2;

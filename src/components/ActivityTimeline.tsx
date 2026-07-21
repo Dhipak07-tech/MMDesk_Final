@@ -9,6 +9,7 @@ import { SafeAny } from "@/types";
 
 export interface ActivityTimelineProps {
  ticketId: string;
+ ticket?: SafeAny;
  createdAt?: SafeAny;
  refreshTrigger?: number;
  userRole?: string; // to determine visibility permissions
@@ -27,7 +28,7 @@ const FILTER_TABS: { key: FilterType; label: string; icon: React.ReactNode; colo
 
 const POLL_INTERVAL = 30000; // 30s real-time polling
 
-export function ActivityTimeline({ ticketId, createdAt, refreshTrigger = 0, userRole }: ActivityTimelineProps) {
+export function ActivityTimeline({ ticketId, ticket, createdAt, refreshTrigger = 0, userRole }: ActivityTimelineProps) {
  const [activities, setActivities] = useState<any[]>([]);
  const [loading, setLoading] = useState(true);
  const [filter, setFilter] = useState<FilterType>("all");
@@ -296,9 +297,9 @@ export function ActivityTimeline({ ticketId, createdAt, refreshTrigger = 0, user
  if (activity.activity_type?.startsWith("email")) {
  return <div key={activity.id}><EmailActivityCard activity={activity} formatDate={formatDate} /></div>;
  }
- if (activity.activity_type ==="work_note" || activity.activity_type ==="comment") {
- return <div key={activity.id}><ActivityCard activity={activity} formatDate={formatDate} /></div>;
- }
+    if (activity.activity_type === "work_note" || activity.activity_type === "comment") {
+      return <div key={activity.id}><ActivityCard activity={activity} formatDate={formatDate} parentTicket={ticket} /></div>;
+    }
  return <div key={activity.id}><SystemActivityCard activity={activity} formatDate={formatDate} /></div>;
  })}
 

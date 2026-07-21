@@ -1158,7 +1158,9 @@ export function TicketDetail() {
  <ChevronLeft className="w-4 h-4" />
  </Button>
  <div className="flex flex-col">
- <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider leading-none mb-1">Incident</span>
+ <span className={cn("text-[10px] font-bold uppercase tracking-wider leading-none mb-1", (ticket.purpose === 'Service' || ticket.type === 'Service Request' || ticket.category === 'Service Request' || ticket.incidentCategory === 'Service Request') ?"text-blue-600 dark:text-blue-400" :"text-muted-foreground")}>
+ {(ticket.purpose === 'Service' || ticket.type === 'Service Request' || ticket.category === 'Service Request' || ticket.incidentCategory === 'Service Request') ?"Service Request" :"Incident"}
+ </span>
  <span className="text-sm font-bold leading-none">{ticket.number}</span>
  </div>
  {ticket.points > 0 && (
@@ -2206,6 +2208,7 @@ export function TicketDetail() {
  {/* Activity Timeline (API-backed) */}
  <ActivityTimeline
  ticketId={id || ''}
+ ticket={ticket}
  createdAt={ticket.createdAt}
  refreshTrigger={timelineRefresh}
  userRole={profile?.role}

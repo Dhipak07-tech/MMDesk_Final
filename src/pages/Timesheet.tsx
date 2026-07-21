@@ -419,23 +419,17 @@ export function Timesheet() {
  setLoading(true);
  try {
  // Get or create timesheet via MySQL API
- const tsRes = await api("/api/timesheets/get-or-create", {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({
+ const tsRes = await api.post("/api/timesheets/get-or-create", {
  user_id: user.uid,
  week_start: weekStart,
  week_end: weekEnd
- })
  });
- if (!tsRes.ok) throw new Error(`Timesheet fetch failed: ${tsRes.status}`);
- const ts = await tsRes.json();
+ const ts = tsRes.data;
  setTimesheet(ts);
 
  // Fetch time cards via MySQL API
- const tcRes = await api(`/api/time-cards?timesheet_id=${ts.id}`);
- if (!tcRes.ok) throw new Error(`Time cards fetch failed: ${tcRes.status}`);
- const cards = await tcRes.json();
+ const tcRes = await api.get(`/api/time-cards?timesheet_id=${ts.id}`);
+ const cards = tcRes.data;
  setTimeCards(Array.isArray(cards) ? cards : []);
  } catch (e: SafeAny) {
  console.error("[Timesheet] Error loading data:", e);

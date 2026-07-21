@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   List,
   Map,
+  ShoppingBag,
   Settings2,
   ChevronLeft,
   Menu,
@@ -204,6 +205,7 @@ export function Sidebar() {
         { icon: FolderOpen, label: "Open Incidents", path: "/tickets?filter=open", badge: openTicketsCount, moduleKey: "tickets" },
         { icon: UserMinus, label: "Open - Unassigned", path: "/tickets?filter=unassigned", moduleKey: "tickets" },
         { icon: CheckCircle2, label: "Resolved Incidents", path: "/tickets?filter=resolved", moduleKey: "tickets" },
+        { icon: ShoppingBag, label: "Service Request", path: "/tickets?filter=service_request", moduleKey: "tickets" },
         { icon: List, label: "All Incidents", path: "/tickets", moduleKey: "tickets" },
         { icon: Map, label: "Critical Incidents Map", path: "/reports", moduleKey: "reports" },
       ]

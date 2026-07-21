@@ -31,6 +31,10 @@ public class UserService {
         return userRepository.findByUid(uid);
     }
 
+    public Optional<User> findByEmail(String email) {
+        return userRepository.findByEmailIgnoreCaseAndIsActiveTrue(email);
+    }
+
     /**
      * Authenticate by email + password using BCrypt.
      * Supports a migration path: if stored hash looks like a legacy SimpleHash

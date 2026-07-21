@@ -65,7 +65,7 @@ export function TimesheetReports() {
       const fetchTickets = async () => {
         try {
           const res = await api.get("/api/tickets/all");
-          setAllTickets(res.data || []);
+          setAllTickets(Array.isArray(res.data) ? res.data : []);
         } catch (e) {
           console.error("Failed to load tickets:", e);
         }
@@ -89,22 +89,22 @@ export function TimesheetReports() {
     setLoading(true);
     try {
       // Fetch timesheets
-      const tsRes = await api(`/api/timesheets?user_id=${user.uid}`);
-      const tsList = await tsRes.json();
-      tsList.sort((a: SafeAny, b: SafeAny) => (b.week_start ||"").localeCompare(a.week_start ||""));
+      const tsRes = await api.get(`/api/timesheets?user_id=${user.uid}`);
+      const tsList = Array.isArray(tsRes.data) ? tsRes.data : [];
+      tsList.sort((a: SafeAny, b: SafeAny) => (b.week_start || "").localeCompare(a.week_start || ""));
       setTimesheets(tsList);
 
       if (tsList.length > 0) {
         // Fetch all cards for the user
-        const tcRes = await api(`/api/time-cards?user_id=${user.uid}`);
-        const cards = await tcRes.json();
+        const tcRes = await api.get(`/api/time-cards?user_id=${user.uid}`);
+        const cards = Array.isArray(tcRes.data) ? tcRes.data : [];
         setAllCards(cards);
       }
 
       // Fetch AI activity sessions
       try {
-        const sessRes = await api(`/api/activity-sessions?user_id=${user.uid}&limit=20`);
-        if (sessRes.ok) setActivitySessions(await sessRes.json());
+        const sessRes = await api.get(`/api/activity-sessions?user_id=${user.uid}&limit=20`);
+        setActivitySessions(Array.isArray(sessRes.data) ? sessRes.data : []);
       } catch { /* silent */ }
 
       // Fetch delay reports
@@ -123,10 +123,8 @@ export function TimesheetReports() {
       const url = isSuper 
         ? "/api/delay-reports" 
         : `/api/delay-reports?user_uid=${user.uid}`;
-      const res = await api(url);
-      if (res.ok) {
-        setDelayReports(await res.json());
-      }
+      const res = await api.get(url);
+      setDelayReports(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error("Failed to load delay reports", e);
     }
@@ -136,43 +134,39 @@ export function TimesheetReports() {
     if (!user) return;
     try {
       // Fetch users list first (requires only standard authenticated role)
-      const usersRes = await api("/api/users");
-      if (usersRes.ok) {
-        const users = await usersRes.json();
-        const admins = users.filter((u: any) => u.role === "admin" || u.role === "super_admin" || u.role === "ultra_super_admin");
-        setManagersList(admins);
+      const usersRes = await api.get("/api/users");
+      const users = Array.isArray(usersRes.data) ? usersRes.data : [];
+      const admins = users.filter((u: any) => u.role === "admin" || u.role === "super_admin" || u.role === "ultra_super_admin");
+      setManagersList(admins);
 
-        let groupManagerFound = false;
-        // Optionally fetch group settings (might fail with 403 if role is standard user)
-        try {
-          const [groupsRes, membersRes] = await Promise.all([
-            api("/api/settings_groups"),
-            api("/api/settings_group_members")
-          ]);
-          if (groupsRes.ok && membersRes.ok) {
-            const groups = await groupsRes.json();
-            const members = await membersRes.json();
-            const memberRecord = members.find((m: any) => m.user_id === user.uid);
-            if (memberRecord) {
-              const groupRecord = groups.find((g: any) => g.id === memberRecord.id || g.name === memberRecord.id);
-              if (groupRecord && groupRecord.manager_uid) {
-                setManager({ uid: groupRecord.manager_uid, name: groupRecord.manager_name || "Manager" });
-                groupManagerFound = true;
-              }
-            }
+      let groupManagerFound = false;
+      // Optionally fetch group settings (might fail with 403 if role is standard user)
+      try {
+        const [groupsRes, membersRes] = await Promise.all([
+          api.get("/api/settings_groups"),
+          api.get("/api/settings_group_members")
+        ]);
+        const groups = Array.isArray(groupsRes.data) ? groupsRes.data : [];
+        const members = Array.isArray(membersRes.data) ? membersRes.data : [];
+        const memberRecord = members.find((m: any) => m.user_id === user.uid);
+        if (memberRecord) {
+          const groupRecord = groups.find((g: any) => g.id === memberRecord.id || g.name === memberRecord.id);
+          if (groupRecord && groupRecord.manager_uid) {
+            setManager({ uid: groupRecord.manager_uid, name: groupRecord.manager_name || "Manager" });
+            groupManagerFound = true;
           }
-        } catch (e) {
-          console.warn("Group settings endpoints are restricted or failed: ", e);
         }
+      } catch (e) {
+        console.warn("Group settings endpoints are restricted or failed: ", e);
+      }
 
-        // Fallback to first available admin if group manager wasn't found/resolved
-        if (!groupManagerFound) {
-          const adminUser = admins.length > 0 ? admins[0] : null;
-          if (adminUser) {
-            setManager({ uid: adminUser.uid, name: adminUser.name || adminUser.email });
-          } else {
-            setManager({ uid: "admin_uid", name: "System Administrator" });
-          }
+      // Fallback to first available admin if group manager wasn't found/resolved
+      if (!groupManagerFound) {
+        const adminUser = admins.length > 0 ? admins[0] : null;
+        if (adminUser) {
+          setManager({ uid: adminUser.uid, name: adminUser.name || adminUser.email });
+        } else {
+          setManager({ uid: "admin_uid", name: "System Administrator" });
         }
       }
     } catch (e) {
@@ -432,7 +426,7 @@ export function TimesheetReports() {
     Rejected:"bg-red-100 text-red-700 border-red-200",
   };
 
-  const filteredTickets = allTickets.filter(t => {
+  const filteredTickets = (Array.isArray(allTickets) ? allTickets : []).filter(t => {
     const isBreached = t.responseSlaStatus === "Breached" || 
                        t.response_sla_status === "Breached" || 
                        t.resolutionSlaStatus === "Breached" || 
