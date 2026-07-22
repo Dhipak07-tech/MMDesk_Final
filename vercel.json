@@ -3,7 +3,7 @@
   "framework": "vite",
   "build": {
     "env": {
-      "VITE_API_BASE_URL": "https://a202bc85e7f0d394-106-192-70-93.serveousercontent.com"
+      "VITE_API_BASE_URL": "https://iso-pioneer-indicated-promise.trycloudflare.com"
     }
   }
 }
