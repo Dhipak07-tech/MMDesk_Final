@@ -1,0 +1,4 @@
+{
+  "outputDirectory": "microservices/core-service-springboot/src/main/resources/static",
+  "framework": "vite"
+}
