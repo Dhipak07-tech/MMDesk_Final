@@ -3,6 +3,7 @@ import api from '@/lib/api';
 import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard,
+  Activity,
   Ticket,
   Users,
   Settings,
@@ -21,6 +22,7 @@ import {
   CheckCircle2,
   List,
   Map,
+  ShoppingBag,
   Settings2,
   ChevronLeft,
   Menu,
@@ -42,6 +44,7 @@ import {
   Palette,
   Tag,
   Lock,
+  Megaphone,
   Eye,
   EyeOff,
   X,
@@ -157,11 +160,13 @@ export function Sidebar() {
             { icon: KeyRound, label: "Reset Password", onClick: () => setShowResetModal(true) },
           ]
         : [
-            { icon: LayoutDashboard, label: "Personal Dashboard", path: "/" },
+            { icon: LayoutDashboard, label: "Personal Dashboard", path: "/my-dashboard" },
             { icon: Trophy, label: "Leaderboard", path: "/leaderboard" },
             { icon: CalendarDays, label: "Calendar", path: "/calendar" },
             { icon: Ticket, label: "My Tickets", path: "/timesheet", moduleKey: "timesheet" },
             { icon: BarChart2, label: "Timesheet Reports", path: "/timesheet/reports", moduleKey: "timesheet_reports" },
+            { icon: ClipboardList, label: "Ticket Approvals", path: "/timesheet-approvals", moduleKey: "timesheet_approvals" },
+            { icon: Activity, label: "System Diagnostics", path: "/diagnostics" },
             { icon: Monitor, label: "AI Activity Tracker", path: "/activity-tracker" },
             { icon: KeyRound, label: "Reset Password", onClick: () => setShowResetModal(true) },
           ]
@@ -200,6 +205,7 @@ export function Sidebar() {
         { icon: FolderOpen, label: "Open Incidents", path: "/tickets?filter=open", badge: openTicketsCount, moduleKey: "tickets" },
         { icon: UserMinus, label: "Open - Unassigned", path: "/tickets?filter=unassigned", moduleKey: "tickets" },
         { icon: CheckCircle2, label: "Resolved Incidents", path: "/tickets?filter=resolved", moduleKey: "tickets" },
+        { icon: ShoppingBag, label: "Service Request", path: "/tickets?filter=service_request", moduleKey: "tickets" },
         { icon: List, label: "All Incidents", path: "/tickets", moduleKey: "tickets" },
         { icon: Map, label: "Critical Incidents Map", path: "/reports", moduleKey: "reports" },
         { icon: CalendarDays, label: "Daily Incident", path: "/daily-incidents", moduleKey: "tickets" },
@@ -225,6 +231,12 @@ export function Sidebar() {
       items: [
         { icon: PhoneCall, label: "Call Logs", path: "/calls" },
         { icon: PlusCircle, label: "Log New Call", path: "/calls/new" },
+      ]
+    },
+    {
+      label: "Marketing",
+      items: [
+        { icon: Megaphone, label: "Marketing Showcase", path: "/marketing" },
       ]
     },
     {
@@ -280,6 +292,7 @@ export function Sidebar() {
         { icon: CheckCircle2, label: "Pending Approvals", path: "/approvals" },
         { icon: CheckCircle2, label: "Approved Tickets", path: "/approved-tickets" },
         { icon: ClipboardList, label: "Ticket Approvals", path: "/timesheet-approvals", moduleKey: "timesheet_approvals" },
+        { icon: Activity, label: "System Diagnostics", path: "/diagnostics" },
         { icon: CheckCircle2, label: "Approved Timesheets", path: "/timesheet/reports?status=Approved", moduleKey: "approved_timesheet" },
         { icon: Palette, label: "Branding", path: "/branding", superAdminOnly: true, moduleKey: "settings" },
         { icon: Tag, label: "Incident Category Management", path: "/incident-categories", moduleKey: "settings" },
@@ -323,11 +336,14 @@ export function Sidebar() {
   const filteredMenu = getFilteredMenu(menuStructure);
 
   return (
-    <aside className={cn(
-      "bg-sn-sidebar text-white flex flex-col sticky top-4 left-4 transition-all duration-300 border border-white/10 rounded-2xl m-4 mr-0 shadow-2xl z-20 overflow-hidden",
-      isCollapsed ? "w-16" : "w-64",
-      "h-[calc(100vh-2rem)]"
+    <div className={cn(
+      "shrink-0 transition-all duration-300 m-4 mr-0",
+      isCollapsed ? "w-16" : "w-64"
     )}>
+      <aside className={cn(
+        "bg-sn-sidebar text-white flex flex-col sticky top-4 w-full border border-white/10 rounded-2xl shadow-2xl z-20 overflow-hidden",
+        "h-[calc(100vh-2rem)]"
+      )}>
       {/* Sidebar Header */}
       <div className="p-4 flex items-center justify-between border-b border-white/10 h-16 shrink-0">
         {!isCollapsed && (
@@ -436,9 +452,10 @@ export function Sidebar() {
                       key={item.label}
                       to={item.path || "#"}
                       onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey || e.shiftKey) {
-                          e.preventDefault();
-                          openTab(item.path || "#", { forceNew: true });
+                        e.preventDefault();
+                        if (item.path) {
+                          const isCtrlClick = e.ctrlKey || e.metaKey || e.shiftKey;
+                          openTab(item.path, isCtrlClick ? { forceNew: true } : undefined);
                         }
                       }}
                       onAuxClick={(e) => {
@@ -532,6 +549,7 @@ export function Sidebar() {
         </div>
       )}
     </aside>
+  </div>
   );
 }
 

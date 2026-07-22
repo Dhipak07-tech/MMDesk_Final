@@ -1192,7 +1192,7 @@ export function MeetingManagement() {
  };
 
  return (
- <div className="space-y-6 max-w-7xl mx-auto text-foreground">
+ <div className="space-y-6 max-w-7xl mx-auto px-6 py-6 text-foreground">
  {/* Header Panel */}
  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
  <div>

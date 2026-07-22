@@ -57,9 +57,12 @@ public class InboundEmailService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Run every 60 seconds
+    // Run every 60 seconds (Disabled: emails are only used for outbound sending)
     @Scheduled(fixedDelay = 60000)
     public void pollEmails() {
+        // Disabled: do not poll/create tickets from inbound emails
+        if (true) return;
+
         List<CompanyEmailConfig> configs = configRepo.findByIsActiveTrueOrderByIsDefaultDescCompanyNameAsc();
         if (configs.isEmpty()) {
             return;

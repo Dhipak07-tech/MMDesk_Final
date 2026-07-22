@@ -38,10 +38,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const fetchProfile = async () => {
+      // Differentiate between frontend-only mock user sessions and real DB seeded users
+      const isFrontendMock = user.uid.startsWith("demo_") && user.uid.split("_").length > 2 && !isNaN(Number(user.uid.split("_")[2]));
+      if (isFrontendMock) {
+        return;
+      }
       try {
         const res = await api.get(`/api/users/${user.uid}`);
-        const data = res.data;
-        if (data) {
+        if (res && res.data) {
+          const data = res.data;
           const merged = {
             uid: user.uid,
             name: data.name || user.displayName || user.email?.split("@")[0] || "User",
@@ -56,13 +61,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error("Error fetching user profile:", error);
-        setProfile((prev: SafeAny) => prev || {
-          uid: user.uid,
-          name: user.displayName || user.email?.split("@")[0] || "User",
-          email: user.email,
-          role: "user",
-          restrictedModules: [],
-        });
       }
     };
 
@@ -71,57 +69,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [user?.uid]);
 
- // Sync auth state to localStorage so standalone pages (timesheet) can read it
- useEffect(() => {
- if (user && profile) {
- localStorage.setItem(
-"timesheet_user",
- JSON.stringify({
- uid: user.uid,
- name: profile.name || user.displayName || user.email?.split("@")[0] ||"User",
- email: user.email,
- role: profile.role ||"user",
- })
- );
- } else if (!user) {
- localStorage.removeItem("timesheet_user");
- }
- }, [user, profile]);
+  // Sync auth state to localStorage so standalone pages (timesheet) can read it
+  useEffect(() => {
+    if (user && profile) {
+      localStorage.setItem(
+        "timesheet_user",
+        JSON.stringify({
+          uid: user.uid,
+          name: profile.name || user.displayName || user.email?.split("@")[0] || "User",
+          email: user.email,
+          role: profile.role || "user",
+        })
+      );
+    }
+  }, [user, profile]);
 
- useEffect(() => {
- let settled = false;
+  useEffect(() => {
+    let settled = false;
 
- const resolveLoading = () => {
- if (!settled) {
- settled = true;
- setLoading(false);
- clearTimeout(safetyTimeout);
- }
- };
+    const resolveLoading = () => {
+      if (!settled) {
+        settled = true;
+        setLoading(false);
+        clearTimeout(safetyTimeout);
+      }
+    };
 
- // Safety timeout — prevent blank screen if something goes wrong
- const safetyTimeout = setTimeout(() => {
- console.warn("[AuthContext] Safety timeout — forcing loading=false");
- resolveLoading();
- }, 5000);
+    // Safety timeout — prevent blank screen if something goes wrong
+    const safetyTimeout = setTimeout(() => {
+      console.warn("[AuthContext] Safety timeout — forcing loading=false");
+      resolveLoading();
+    }, 5000);
 
- // Check existing localStorage session
- const sessionStr = localStorage.getItem("demo_user");
- if (sessionStr) {
- try {
- const sessionUser = JSON.parse(sessionStr);
- setUser({
- uid: sessionUser.uid,
- email: sessionUser.email,
- displayName: sessionUser.name,
- });
- setProfile(sessionUser);
- resolveLoading();
+    // Check existing localStorage session
+    const sessionStr = localStorage.getItem("demo_user");
+    if (sessionStr) {
+      try {
+        const sessionUser = JSON.parse(sessionStr);
+        setUser({
+          uid: sessionUser.uid,
+          email: sessionUser.email,
+          displayName: sessionUser.name,
+        });
+        setProfile(sessionUser);
+        resolveLoading();
 
-          // Optionally refresh user profile from the API in background
-          if (sessionUser.uid) {
-            api.get(`/api/users/${sessionUser.uid}`)
-              .then((res) => {
+        // Optionally refresh user profile from the API in background
+        const isFrontendMock = sessionUser.uid?.startsWith("demo_") && sessionUser.uid?.split("_").length > 2 && !isNaN(Number(sessionUser.uid?.split("_")[2]));
+        if (sessionUser.uid && !isFrontendMock) {
+          api.get(`/api/users/${sessionUser.uid}`)
+            .then((res) => {
+              if (res && res.data) {
                 const freshData = res.data;
                 if (freshData && freshData.uid) {
                   const merged = {
@@ -134,43 +132,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   setProfile(merged);
                   localStorage.setItem("demo_user", JSON.stringify(merged));
                 }
-              })
-              .catch(() => {});
-          }
+              }
+            })
+            .catch(() => {});
+        }
 
- return () => {
- clearTimeout(safetyTimeout);
- };
- } catch {
- localStorage.removeItem("demo_user");
- }
- }
+        return () => {
+          clearTimeout(safetyTimeout);
+        };
+      } catch {
+        localStorage.removeItem("demo_user");
+      }
+    }
 
- // No session — resolve immediately and let router redirect to /login
- resolveLoading();
- return () => {
- clearTimeout(safetyTimeout);
- };
- }, []);
+    // No session — resolve immediately and let router redirect to /login
+    resolveLoading();
+    return () => {
+      clearTimeout(safetyTimeout);
+    };
+  }, []);
 
   const demoLogin = async (role: Role) => {
     try {
       const res = await api.post("/api/auth/demo-login", { role });
-      const userData = res.data;
-      if (userData && userData.token) {
-        localStorage.setItem("token", userData.token);
+      if (res.status === 200 || res.status === 201) {
+        const userData = res.data;
+        if (userData && userData.token) {
+          localStorage.setItem("token", userData.token);
+        }
+        const sessionUser = {
+          uid: userData.uid,
+          name: userData.name,
+          email: userData.email,
+          role: userData.role || role,
+          phone: userData.phone || "",
+        };
+        localStorage.setItem("demo_user", JSON.stringify(sessionUser));
+        setUser({ uid: sessionUser.uid, email: sessionUser.email, displayName: sessionUser.name });
+        setProfile(sessionUser);
+        return;
       }
-      const sessionUser = {
-        uid: userData.uid,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role || role,
-        phone: userData.phone || "",
-      };
-      localStorage.setItem("demo_user", JSON.stringify(sessionUser));
-      setUser({ uid: sessionUser.uid, email: sessionUser.email, displayName: sessionUser.name });
-      setProfile(sessionUser);
-      return;
     } catch (err) {
       console.warn("[AuthContext] demoLogin API failed:", err);
     }
@@ -197,13 +198,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
   };
 
- return (
- <AuthContext.Provider value={{ user, profile, loading, demoLogin, signOut }}>
- {children}
- </AuthContext.Provider>
- );
+  return (
+    <AuthContext.Provider value={{ user, profile, loading, demoLogin, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => useContext(AuthContext);
-
-

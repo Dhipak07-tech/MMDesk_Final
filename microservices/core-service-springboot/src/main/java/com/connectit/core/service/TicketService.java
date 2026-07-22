@@ -25,6 +25,7 @@ public class TicketService {
     private final CategoryRepository categoryRepo;
     private final AssignmentGroupRepository groupRepo;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final WorkflowEscalationHelper workflowEscalationHelper;
 
     private static final Map<String,Integer> RESPONSE_HOURS = Map.of(
         "1 - Critical",2, "2 - High",4, "3 - Moderate",8, "4 - Low",24
@@ -210,8 +211,10 @@ public class TicketService {
             emailService.notifyStatusChanged(t, prevStatus, newStatusLocal, updatedByName);
             if ("Resolved".equalsIgnoreCase(newStatusLocal)) {
                 emailService.notifyResolved(t, updatedByName);
+                workflowEscalationHelper.handleTicketCompletion(t);
             } else if ("Closed".equalsIgnoreCase(newStatusLocal)) {
                 emailService.notifyClosed(t, updatedByName);
+                workflowEscalationHelper.handleTicketCompletion(t);
             } else if (List.of("Resolved", "Closed").contains(prevStatus) && !List.of("Resolved", "Closed").contains(newStatusLocal)) {
                 emailService.notifyReopened(t, updatedByName);
             }
@@ -561,8 +564,16 @@ public class TicketService {
         }
 
         if (t.getAssignedTo() != null && !t.getAssignedTo().isBlank()) {
-            t.setAssignedToUser(userRepo.findByUid(t.getAssignedTo())
-                .orElseGet(() -> userRepo.findByEmail(t.getAssignedTo()).orElse(null)));
+            User agent = null;
+            try {
+                Long userId = Long.parseLong(t.getAssignedTo());
+                agent = userRepo.findById(userId).orElse(null);
+            } catch (NumberFormatException ignored) {}
+            if (agent == null) {
+                agent = userRepo.findByUid(t.getAssignedTo())
+                    .orElseGet(() -> userRepo.findByEmail(t.getAssignedTo()).orElse(null));
+            }
+            t.setAssignedToUser(agent);
         } else {
             t.setAssignedToUser(null);
         }

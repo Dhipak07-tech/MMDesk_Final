@@ -238,6 +238,19 @@ public class SettingsController {
         m.put("updatedAt", row.get("updated_at"));
         m.put("company_id", row.get("company_id"));
         m.put("companyId", row.get("company_id"));
+
+        try {
+            List<String> memberIds = jdbcTemplate.queryForList(
+                "SELECT DISTINCT user_id FROM settings_group_members WHERE group_id = ? AND status = 'active'",
+                String.class, id
+            );
+            m.put("memberIds", memberIds);
+            m.put("member_ids", memberIds);
+        } catch (Exception ignored) {
+            m.put("memberIds", List.of());
+            m.put("member_ids", List.of());
+        }
+
         return m;
     }
 

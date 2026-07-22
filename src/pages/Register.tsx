@@ -87,44 +87,38 @@ export function Register() {
  console.warn("[Register] Could not check existing users:", e);
  }
 
- // Create user via backend API
- const res = await api("/api/users", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({
- uid,
- name: name.trim(),
- email: email.toLowerCase().trim(),
- role,
- phone: phone.trim(),
- password: password,
- password_hash: simpleHash(password),
- is_active: true,
- is_demo: false,
- }),
- });
-
- if (!res.ok) {
- const errData = await res.json().catch(() => ({}));
- throw new Error(errData.error ||"Failed to create account via API.");
- }
-
- // Auto-login: authenticate to get token
- try {
-  const loginRes = await api("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: email.toLowerCase().trim(), password })
+  // Create user via backend API
+  const res = await api.post("/api/users", {
+    uid,
+    name: name.trim(),
+    email: email.toLowerCase().trim(),
+    role,
+    phone: phone.trim(),
+    password: password,
+    password_hash: simpleHash(password),
+    is_active: true,
+    is_demo: false,
   });
-  if (loginRes.ok) {
-    const loginData = await loginRes.json();
-    if (loginData.token) {
-      localStorage.setItem("token", loginData.token);
-    }
+
+  if (res.status !== 201 && res.status !== 200) {
+    throw new Error(res.data?.error || "Failed to create account via API.");
   }
- } catch (loginErr) {
-  console.warn("Auto-login failed:", loginErr);
- }
+
+  // Auto-login: authenticate to get token
+  try {
+    const loginRes = await api.post("/api/auth/login", {
+      email: email.toLowerCase().trim(),
+      password
+    });
+    if (loginRes.status === 200) {
+      const loginData = loginRes.data;
+      if (loginData.token) {
+        localStorage.setItem("token", loginData.token);
+      }
+    }
+  } catch (loginErr) {
+    console.warn("Auto-login failed:", loginErr);
+  }
 
  // Auto-login: save to localStorage
  localStorage.setItem("demo_user", JSON.stringify({

@@ -12,12 +12,19 @@ import QuickActions from"../components/QuickActions";
 import { db } from"../lib/firebase-stubs";
 import { validateTicket, computeSla, dedupeTickets, auditLog, toDate, isBleachedTicket } from"../lib/dashboardUtils";
 import { CustomizableDashboard } from"../components/CustomizableDashboard";
+import { LayoutGrid, Clock } from "lucide-react";
 
 export function MyDashboard() {
  const { user, profile } = useAuth();
  const [data, setData] = useState<any>(null);
  const [breaches, setBreaches] = useState<any[]>([]);
  const [customizedMode, setCustomizedMode] = useState(true);
+ const [currentTime, setCurrentTime] = useState(new Date());
+
+ useEffect(() => {
+   const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+   return () => clearInterval(timer);
+ }, []);
 
  useEffect(() => {
  if (!user?.uid) return;
@@ -256,28 +263,58 @@ export function MyDashboard() {
  );
  }
 
- return (
- <div className="standard-page-layout">
- {/* Page Header */}
- <div className="standard-page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40">
- <div>
- <h1 className="page-title">
- Personal Dashboard
- </h1>
- <p className="page-description">Real-time performance metrics and active tasks</p>
- </div>
- <div className="flex items-center gap-3 self-start sm:self-auto">
- <button
- onClick={() => setCustomizedMode(!customizedMode)}
- className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-border/40 hover:bg-muted/30"
- >
- Switch to {customizedMode ?"Classic Layout" :"Customizable Layout"}
- </button>
- <span className="text-[10px] text-muted-foreground bg-muted/30 dark:bg-white/5 px-3 py-1.5 rounded-xl border border-border/40 font-bold">
- Operator: <strong className="text-foreground">{user?.email ||"User"}</strong>
- </span>
- </div>
- </div>
+  const getGreeting = () => {
+    const hrs = new Date().getHours();
+    if (hrs < 12) return "Good Morning";
+    if (hrs < 17) return "Good Afternoon";
+    return "Good Evening";
+  };
+
+  const formatFriendlyDate = (date: Date) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  };
+
+  const formatFriendlyTime = (date: Date) => {
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${minutesStr} ${ampm}`;
+  };
+
+  return (
+  <div className="standard-page-layout">
+  {/* Page Header - Greeting Area */}
+  <div className="bg-white dark:bg-[#111827] rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 transition-all duration-300">
+    <div className="text-left">
+      <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
+        {getGreeting()}, {profile?.name || "User"}! 👋
+      </h1>
+      <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1.5 font-medium">
+        Here is a platform-wide operational overview of the Desk Management System.
+      </p>
+    </div>
+    <div className="flex flex-wrap items-center gap-4 self-start md:self-auto">
+      <button
+        onClick={() => setCustomizedMode(!customizedMode)}
+        className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors shadow-sm cursor-pointer"
+      >
+        <LayoutGrid className="w-4 h-4 text-slate-500" />
+        {customizedMode ? "Classic Layout" : "Customize Layout"}
+      </button>
+      <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400 text-xs font-semibold border-l border-slate-200 dark:border-slate-800 pl-4">
+        <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
+        <div className="text-left leading-tight">
+          <div>{formatFriendlyDate(currentTime)}</div>
+          <div className="text-[10px] text-slate-400 font-medium">{formatFriendlyTime(currentTime)}</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
  {customizedMode ? (
  <CustomizableDashboard

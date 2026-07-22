@@ -36,6 +36,9 @@ public class EmailService {
     @Value("${app.mail.from-name:Manage My Desk}")
     private String defaultFromName;
 
+    @Value("${app.url:http://localhost:3000}")
+    private String appUrl;
+
     @Value("${spring.mail.host:smtp.office365.com}")
     private String smtpHost;
 
@@ -140,6 +143,7 @@ public class EmailService {
                     job.getTicketNumber(), job.getTicketId(), "sent", null, job.getEventType(), sentMessageId, inReplyTo, references);
                 log.info("[EmailQueue] ✓ Sent to {}", job.getRecipient());
             } catch (Exception e) {
+                log.error("[EmailQueue] ✗ Failed to process email job id={} to {}. Error: {}", job.getId(), job.getRecipient(), e.getMessage(), e);
                 int retries = (job.getRetryCount() == null ? 0 : job.getRetryCount()) + 1;
                 int delaySeconds = RETRY_DELAYS_SECONDS[Math.min(retries - 1, RETRY_DELAYS_SECONDS.length - 1)];
                 job.setRetryCount(retries);
@@ -239,6 +243,20 @@ public class EmailService {
                 if (isEmail(trimmed)) {
                     emails.add(trimmed);
                 }
+            }
+        }
+
+        // 6. Affected User
+        String affectedUser = t.getAffectedUser();
+        if (isEmail(affectedUser)) {
+            emails.add(affectedUser.trim().toLowerCase());
+        }
+        if (t.getAffectedUserId() != null) {
+            String affectedEmail = userRepo.findByUid(t.getAffectedUserId())
+                .map(com.connectit.core.model.User::getEmail)
+                .orElse(null);
+            if (isEmail(affectedEmail)) {
+                emails.add(affectedEmail.trim().toLowerCase());
             }
         }
 
@@ -640,6 +658,11 @@ public class EmailService {
     }
 
     private JavaMailSender getActiveMailSender(CompanyEmailConfig cfg) {
+        if (cfg == null) {
+            cfg = configRepo.findFirstByIsActiveTrueAndIsDefaultTrue()
+                .or(() -> configRepo.findFirstByIsActiveTrue())
+                .orElse(null);
+        }
         String host = cfg != null ? cfg.getSmtpHost() : smtpHost;
         int port = cfg != null ? (cfg.getSmtpPort() != null ? cfg.getSmtpPort() : 587) : (smtpPort != null ? smtpPort : 587);
         String username = cfg != null ? cfg.getSmtpUser() : smtpUser;
@@ -912,11 +935,22 @@ public class EmailService {
     }
 
     private String resolveAgentEmail(Ticket t) {
-        if (t.getAssignedTo() == null) return "";
-        // Look up the user's actual email from the database using their UID
+        if (t.getAssignedToUser() != null && isEmail(t.getAssignedToUser().getEmail())) {
+            return t.getAssignedToUser().getEmail();
+        }
+        if (t.getAssignedTo() == null || t.getAssignedTo().isBlank()) return "";
+        
+        try {
+            Long userId = Long.parseLong(t.getAssignedTo());
+            Optional<com.connectit.core.model.User> uOpt = userRepo.findById(userId);
+            if (uOpt.isPresent() && isEmail(uOpt.get().getEmail())) {
+                return uOpt.get().getEmail();
+            }
+        } catch (NumberFormatException ignored) {}
+
         return userRepo.findByUid(t.getAssignedTo())
             .map(com.connectit.core.model.User::getEmail)
-            .orElse(t.getAssignedTo()); // Fall back to assignedTo if user not found (might already be an email)
+            .orElse(t.getAssignedTo());
     }
 
     private String ticketTable(Ticket t) {
@@ -941,7 +975,7 @@ public class EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;font-family:Segoe UI,Arial,sans-serif;background:#f4f6f9'>" +
             "<div style='max-width:640px;margin:20px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)'>" +
             "<div style='background:linear-gradient(135deg,#1e3a8a,#172554);padding:28px 32px;color:#fff'>" +
-            "<img src='http://localhost:3000/manage_my_desk_logo.jpg' alt='Manage My Desk Logo' style='height:40px;margin-bottom:12px;display:block;' />" +
+            "<img src='" + appUrl + "/manage_my_desk_logo.jpg' alt='Manage My Desk Logo' style='height:40px;margin-bottom:12px;display:block;' />" +
             "<h1 style='margin:0;font-size:20px'>🎫 " + title + "</h1>" +
             "<div style='color:#94a3b8;font-size:13px;margin-top:4px'>Manage My Desk</div></div>" +
             "<div style='padding:32px;color:#334155;line-height:1.6;font-size:14px;'>" + body + "</div>" +

@@ -6,7 +6,7 @@ import { mapDbTicketToFrontend, db, updateDoc, doc, serverTimestamp } from "../l
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
 import { Button } from"@/components/ui/button";
-import { ChevronLeft, Send, History, MessageSquare, Save, Trash2, CheckCircle2, Clock, Plus, Star, Play, Square, Eye, AlertCircle, Lock, Globe, Users, Search, Zap, ShieldAlert } from"lucide-react";
+import { ChevronLeft, Send, History, MessageSquare, Save, Trash2, CheckCircle2, Clock, Plus, Star, Play, Square, Eye, AlertCircle, Lock, Globe, Users, Search, Zap, ShieldAlert, Paperclip, Image, FileText } from "lucide-react";
 import { cn } from"@/lib/utils";
 import { SLATimer } from"../components/SLATimer";
 import { useServiceCatalog } from"../lib/serviceCatalog";
@@ -39,15 +39,38 @@ export function TicketDetail() {
  setTabTitle(currentTab.tabId, `${num}: ${desc}`);
  }
  }, [ticket, currentTab?.tabId, setTabTitle]);
- const [editedTicket, setEditedTicket] = useState<any>(null);
- const customFieldsRef = useRef<any>(null);
- const canEdit = profile?.role ? (ROLE_HIERARCHY[profile.role as Role] >= ROLE_HIERARCHY["agent"]) : false;
+  const [editedTicket, setEditedTicket] = useState<any>(null);
+  const customFieldsRef = useRef<any>(null);
+  const [ticketScreenshots, setTicketScreenshots] = useState<any[]>([]);
+
+  const isAssignee = ticket && user && (ticket.assignedTo === user.uid || ticket.assignedTo === user.email || ticket.assignedToName === profile?.name);
+  const isCreator = ticket && user && (ticket.createdBy === user.uid || ticket.createdBy === user.email || ticket.created_by === user.uid || ticket.created_by === user.email);
+  const isAdminOrLead = profile?.role && ["admin", "super_admin", "ultra_super_admin"].includes(profile.role);
+  
+  const canEdit = profile?.role ? (
+    isAdminOrLead ||
+    isAssignee ||
+    isCreator ||
+    !ticket?.assignedTo
+  ) : false;
 
  const [comments, setComments] = useState<any[]>([]);
  const [newComment, setNewComment] = useState("");
  const [workNote, setWorkNote] = useState("");
- const [emailWorkNote, setEmailWorkNote] = useState(false);
- const [emailComment, setEmailComment] = useState(false);
+  const [emailWorkNote, setEmailWorkNote] = useState(false);
+  const [emailComment, setEmailComment] = useState(false);
+
+  // Note Attachment States & Refs
+  const [workNoteAttachments, setWorkNoteAttachments] = useState<{name: string, url: string}[]>([]);
+  const [commentAttachments, setCommentAttachments] = useState<{name: string, url: string}[]>([]);
+  const [isUploadingWorkNoteFile, setIsUploadingWorkNoteFile] = useState(false);
+  const [isUploadingCommentFile, setIsUploadingCommentFile] = useState(false);
+  const [workNoteAttachMenuOpen, setWorkNoteAttachMenuOpen] = useState(false);
+  const [commentAttachMenuOpen, setCommentAttachMenuOpen] = useState(false);
+  const workNoteMediaInputRef = useRef<HTMLInputElement>(null);
+  const workNoteDocInputRef = useRef<HTMLInputElement>(null);
+  const commentMediaInputRef = useRef<HTMLInputElement>(null);
+  const commentDocInputRef = useRef<HTMLInputElement>(null);
  const [isUpdating, setIsUpdating] = useState(false);
  const [agents, setAgents] = useState<any[]>([]);
  const [incidentCategories, setIncidentCategories] = useState<string[]>([]);
@@ -188,6 +211,15 @@ export function TicketDetail() {
         const res = await api.get(`/api/tickets/${id}`);
         const data = mapDbTicketToFrontend(res.data);
         if (data) {
+          const isAssignee = data.assignedTo === user?.uid || data.assignedTo === user?.email || data.assignedToName === profile?.name || data.assignedToName === user?.email;
+          const isCreator = data.createdBy === user?.uid || data.createdBy === user?.email || data.created_by === user?.uid || data.created_by === user?.email;
+          const isAdminOrLead = profile?.role && ["admin", "super_admin", "ultra_super_admin"].includes(profile.role);
+          
+          if (data.assignedTo && !isAssignee && !isCreator && !isAdminOrLead) {
+            navigate("/tickets");
+            return;
+          }
+
           setTicket(data);
           setEditedTicket((prev: SafeAny) => {
             const mergedFields = customFieldsRef.current || {};
@@ -221,6 +253,40 @@ export function TicketDetail() {
     const interval = setInterval(fetchTicket, 10000);
     return () => clearInterval(interval);
   }, [id, navigate]);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchWorkSessions = async () => {
+      try {
+        const res = await api.get(`/api/work-sessions?ticket_id=${id}`);
+        if (Array.isArray(res.data)) {
+          setPastSessions(res.data);
+        }
+      } catch (err) {
+        console.error("Error fetching work sessions:", err);
+      }
+    };
+    fetchWorkSessions();
+    const interval = setInterval(fetchWorkSessions, 10000);
+    return () => clearInterval(interval);
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchScreenshots = async () => {
+      try {
+        const res = await api.get(`/api/tickets/${id}/screenshots`);
+        if (Array.isArray(res.data)) {
+          setTicketScreenshots(res.data);
+        }
+      } catch (err) {
+        console.error("Error fetching ticket screenshots:", err);
+      }
+    };
+    fetchScreenshots();
+    const interval = setInterval(fetchScreenshots, 10000);
+    return () => clearInterval(interval);
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -492,23 +558,93 @@ export function TicketDetail() {
  }
  };
 
+  const handleUploadAttachment = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'work_note' | 'comment',
+    fileType: 'media' | 'doc'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    
+    if (fileType === 'media') {
+      const allowedImageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+      if (!allowedImageExtensions.includes(fileExtension)) {
+        alert("Unsupported file type. Please select a picture (PNG, JPG, etc.) for Media.");
+        return;
+      }
+    } else {
+      const allowedDocExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'];
+      if (!allowedDocExtensions.includes(fileExtension)) {
+        alert("Unsupported file type. Please select a document (PDF, DOCX, etc.) for Docx.");
+        return;
+      }
+    }
+
+    if (target === 'work_note') {
+      setIsUploadingWorkNoteFile(true);
+    } else {
+      setIsUploadingCommentFile(true);
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      // Use the authenticated api Axios client to pass Bearer tokens!
+      const response = await api.post("/api/tickets/upload", formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      const data = response.data;
+      if (data.success) {
+        const newAttachment = { name: data.file_name, url: data.file_path };
+        if (target === 'work_note') {
+          setWorkNoteAttachments(prev => [...prev, newAttachment]);
+        } else {
+          setCommentAttachments(prev => [...prev, newAttachment]);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to upload attachment.");
+    } finally {
+      if (target === 'work_note') {
+        setIsUploadingWorkNoteFile(false);
+      } else {
+        setIsUploadingCommentFile(false);
+      }
+      // Reset input element value to allow uploading same file again
+      e.target.value = "";
+    }
+  };
+
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !id || !user) return;
     setIsPosting(true);
     try {
       // Post to API-backed activity timeline (customer-visible comment)
-      await api.post(`/api/tickets/${id}/activities`, {
+      const payload: SafeAny = {
         activity_type: 'comment',
         visibility_type: 'public',
         created_by: user.uid,
         created_by_name: profile?.name || user.email,
         message: newComment.trim(),
         email_note: emailComment
-      });
+      };
+      if (commentAttachments.length > 0) {
+        payload.metadata_json = JSON.stringify({ attachments: commentAttachments });
+      }
+
+      await api.post(`/api/tickets/${id}/activities`, payload);
 
       setNewComment("");
       setEmailComment(false);
+      setCommentAttachments([]);
       setTimelineRefresh(prev => prev + 1);
       setPostMessage({ text: 'Comment posted successfully', type: 'success' });
       setTimeout(() => setPostMessage(null), 3000);
@@ -527,17 +663,23 @@ export function TicketDetail() {
     setIsPosting(true);
     try {
       // Post to API-backed activity timeline (internal/private work note)
-      await api.post(`/api/tickets/${id}/activities`, {
+      const payload: SafeAny = {
         activity_type: 'work_note',
         visibility_type: 'internal',
         created_by: user.uid,
         created_by_name: profile?.name || user.email,
         message: workNote.trim(),
         email_note: emailWorkNote
-      });
+      };
+      if (workNoteAttachments.length > 0) {
+        payload.metadata_json = JSON.stringify({ attachments: workNoteAttachments });
+      }
+
+      await api.post(`/api/tickets/${id}/activities`, payload);
 
       setWorkNote("");
       setEmailWorkNote(false);
+      setWorkNoteAttachments([]);
       setTimelineRefresh(prev => prev + 1);
       setPostMessage({ text: 'Work note added successfully', type: 'success' });
       setTimeout(() => setPostMessage(null), 3000);
@@ -640,19 +782,61 @@ export function TicketDetail() {
   };
 
  const handleSaveSession = async () => {
- if (!user) return;
- if (!sessionForm.shortDescription.trim()) {
- alert("Short Description is required.");
- return;
- }
+    if (!user) return;
+    if (!sessionForm.shortDescription.trim()) {
+      alert("Short Description is required.");
+      return;
+    }
 
- setSavingSession(true);
- try {
- const userId = user.uid;
- const finalTask = sessionForm.task ==="Other..." ? sessionForm.customTask : sessionForm.task;
- const finalShortDesc = ticket?.number 
- ? `[${ticket.number}] ${sessionForm.shortDescription}`
- : sessionForm.shortDescription;
+    setSavingSession(true);
+    try {
+      const userId = user.uid;
+      const finalTask = sessionForm.task ==="Other..." ? sessionForm.customTask : sessionForm.task;
+      const finalShortDesc = ticket?.number 
+        ? `[${ticket.number}] ${sessionForm.shortDescription}`
+        : sessionForm.shortDescription;
+
+      // 1. Save actual session data (with screenshots!) to /api/work-sessions
+      const sessionData = {
+        user_id: userId,
+        user_name: profile?.name || user.email || "Agent",
+        ticket_id: id,
+        ticket_number: ticket?.number || "",
+        start_time: new Date(Date.now() - trackerElapsed * 1000).toISOString(),
+        stop_time: new Date().toISOString(),
+        duration: trackerElapsed,
+        summary: sessionForm.description || trackerSummary || "",
+        session_data: trackerEntries // Pass actual captured logs and screenshots
+      };
+      
+      try {
+        await api("/api/work-sessions", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sessionData)
+        });
+      } catch (ex) {
+        console.error("Failed to save work session:", ex);
+      }
+
+      // 2. Save each captured screenshot to the ticket screenshots gallery
+      for (const entry of trackerEntries) {
+        if (entry.screenshotDataUrl) {
+          try {
+            await api(`/api/tickets/${id}/screenshots`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ticket_number: ticket?.number || "",
+                screenshot_data: entry.screenshotDataUrl,
+                description: `${entry.appName}: ${entry.description}`
+              })
+            });
+          } catch (ex) {
+            console.error("Failed to save entry screenshot:", ex);
+          }
+        }
+      }
 
  const entryD = new Date(sessionForm.entryDate +"T12:00:00");
  const day = entryD.getDay();
@@ -974,7 +1158,9 @@ export function TicketDetail() {
  <ChevronLeft className="w-4 h-4" />
  </Button>
  <div className="flex flex-col">
- <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider leading-none mb-1">Incident</span>
+ <span className={cn("text-[10px] font-bold uppercase tracking-wider leading-none mb-1", (ticket.purpose === 'Service' || ticket.type === 'Service Request' || ticket.category === 'Service Request' || ticket.incidentCategory === 'Service Request') ?"text-blue-600 dark:text-blue-400" :"text-muted-foreground")}>
+ {(ticket.purpose === 'Service' || ticket.type === 'Service Request' || ticket.category === 'Service Request' || ticket.incidentCategory === 'Service Request') ?"Service Request" :"Incident"}
+ </span>
  <span className="text-sm font-bold leading-none">{ticket.number}</span>
  </div>
  {ticket.points > 0 && (
@@ -1620,87 +1806,148 @@ export function TicketDetail() {
 
  {/* Tab Content */}
  <div className="p-6">
- {activeTab ==="Work Sessions" ? (
- <div className="space-y-6">
- <div className="flex items-center justify-between mb-4">
- <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Ticket Work Sessions</h3>
- {isActiveSession && (
- <span className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
- <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Active Session
- </span>
- )}
- </div>
+  {activeTab ==="Work Sessions" ? (
+  <div className="space-y-6">
+  <div className="flex items-center justify-between mb-4">
+  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Ticket Work Sessions</h3>
+  {isActiveSession && (
+  <span className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Active Session
+  </span>
+  )}
+  </div>
 
- {isActiveSession && trackerEntries.length > 0 && (
- <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 mb-6">
- <h4 className="text-xs font-bold text-blue-800 mb-3 uppercase tracking-wider">Current Session Activity</h4>
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
- {trackerEntries.map((entry, idx) => (
- <div key={idx} className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
- <div className="flex items-center gap-2 mb-2">
- <span className="text-xl">{entry.appIcon}</span>
- <span className="text-xs font-bold text-slate-700 truncate">{entry.appName}</span>
- <span className="text-[10px] text-slate-400 ml-auto">{new Date(entry.timestamp).toLocaleTimeString()}</span>
- </div>
- {entry.screenshotDataUrl && (
- <img src={entry.screenshotDataUrl} alt="Screenshot" className="w-full h-24 object-cover rounded mb-2 border border-slate-100" />
- )}
- <p className="text-[10px] text-slate-600 leading-tight line-clamp-3">{entry.description}</p>
- </div>
- ))}
- </div>
- </div>
- )}
+  {ticketScreenshots.length > 0 && (
+    <div className="mb-6 text-left">
+      <h4 className="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider">AI Activity Tracker Screenshots</h4>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {ticketScreenshots.map((ss, ssIdx) => (
+          <div key={ssIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 shadow-sm">
+            {ss.screenshotData ? (
+              <img src={ss.screenshotData} alt="Captured Activity Screenshot" className="w-full h-32 object-cover rounded border border-slate-100 mb-2 cursor-zoom-in" onClick={() => window.open(ss.screenshotData, '_blank')} />
+            ) : ss.screenshotUrl ? (
+              <img src={ss.screenshotUrl} alt="Captured Activity Screenshot" className="w-full h-32 object-cover rounded border border-slate-100 mb-2 cursor-zoom-in" onClick={() => window.open(ss.screenshotUrl, '_blank')} />
+            ) : null}
+            <p className="text-[10px] text-slate-500 font-medium">Captured: {new Date(ss.capturedAt || ss.captured_at).toLocaleString()}</p>
+            {ss.description && <p className="text-[10px] text-slate-600 mt-1 line-clamp-2">{ss.description}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
 
- {pastSessions.length === 0 ? (
- <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
- <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
- <p className="text-sm font-medium text-slate-500">No work sessions recorded for this ticket.</p>
- <p className="text-xs text-slate-400 mt-1">Start a work session to track your time and capture AI context.</p>
- </div>
- ) : (
- <div className="space-y-4">
- {pastSessions.map((session, idx) => (
- <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
- <div className="flex items-center justify-between mb-3">
- <div className="flex items-center gap-3">
- <div className="bg-slate-100 text-slate-600 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">
- #{pastSessions.length - idx}
- </div>
- <div>
- <p className="text-sm font-bold text-slate-800">{new Date(session.start_time).toLocaleString()}</p>
- <p className="text-xs text-slate-500">
- Logged by {session.user_name ||"Agent"} • 
- <span className="ml-1 text-blue-600 font-semibold">
- {Math.floor(session.duration / 3600).toString().padStart(2, '0')}:
- {Math.floor((session.duration % 3600) / 60).toString().padStart(2, '0')}:
- {(session.duration % 60).toString().padStart(2, '0')}
- </span>
- </p>
- </div>
- </div>
- <span className={cn(
-"text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider",
- session.status === 'completed' ?"bg-slate-100 text-slate-600" :"bg-green-100 text-green-700"
- )}>
- {session.status}
- </span>
- </div>
- 
- {session.status === 'completed' && (
- <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mt-2">
- <p className="text-xs text-slate-600 font-medium mb-1 uppercase tracking-wider">AI Summary</p>
- <p className="text-sm text-slate-800 leading-relaxed italic">
- Activity captured successfully. Full AI summary details and screenshots are accessible in the Timesheet module.
- </p>
- </div>
- )}
- </div>
- ))}
- </div>
- )}
- </div>
- ) : activeTab ==="Notes" ? (
+  {isActiveSession && trackerEntries.length > 0 && (
+  <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 mb-6">
+  <h4 className="text-xs font-bold text-blue-800 mb-3 uppercase tracking-wider">Current Session Activity</h4>
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {trackerEntries.map((entry, idx) => (
+  <div key={idx} className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+  <div className="flex items-center gap-2 mb-2">
+  <span className="text-xl">{entry.appIcon}</span>
+  <span className="text-xs font-bold text-slate-700 truncate">{entry.appName}</span>
+  <span className="text-[10px] text-slate-400 ml-auto">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+  </div>
+  {entry.screenshotDataUrl && (
+  <img src={entry.screenshotDataUrl} alt="Screenshot" className="w-full h-24 object-cover rounded mb-2 border border-slate-100" />
+  )}
+  <p className="text-[10px] text-slate-600 leading-tight line-clamp-3">{entry.description}</p>
+  </div>
+  ))}
+  </div>
+  </div>
+  )}
+
+  {pastSessions.length === 0 ? (
+  <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+  <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+  <p className="text-sm font-medium text-slate-500">No work sessions recorded for this ticket.</p>
+  <p className="text-xs text-slate-400 mt-1">Start a work session to track your time and capture AI context.</p>
+  </div>
+  ) : (
+  <div className="space-y-4">
+  {pastSessions.map((session, idx) => {
+    let summary = "";
+    let activities = [];
+    if (session.notes) {
+      try {
+        const parsed = JSON.parse(session.notes);
+        summary = parsed.summary || parsed.description || parsed.notes || "";
+        if (Array.isArray(parsed.session_data)) {
+          activities = parsed.session_data;
+        } else if (Array.isArray(parsed.activity_entries)) {
+          activities = parsed.activity_entries;
+        }
+      } catch (e) {
+        summary = session.notes;
+      }
+    }
+    const isCompleted = session.end_time || session.duration > 0;
+    
+    return (
+      <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-left">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="bg-slate-100 text-slate-600 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">
+              #{pastSessions.length - idx}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800">{new Date(session.start_time).toLocaleString()}</p>
+              <p className="text-xs text-slate-500">
+                Logged by {session.user_name || "Agent"} • 
+                <span className="ml-1 text-blue-600 font-semibold">
+                  {Math.floor(session.duration / 3600).toString().padStart(2, '0')}:
+                  {Math.floor((session.duration % 3600) / 60).toString().padStart(2, '0')}:
+                  {(session.duration % 60).toString().padStart(2, '0')}
+                </span>
+              </p>
+            </div>
+          </div>
+          <span className={cn(
+            "text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider",
+            isCompleted ? "bg-slate-100 text-slate-600" : "bg-green-100 text-green-700"
+          )}>
+            {isCompleted ? "completed" : "active"}
+          </span>
+        </div>
+        
+        {summary && (
+          <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mt-2">
+            <p className="text-xs text-slate-600 font-medium mb-1 uppercase tracking-wider">AI Summary</p>
+            <p className="text-sm text-slate-800 leading-relaxed italic">
+              {summary}
+            </p>
+          </div>
+        )}
+
+        {activities.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Tracked Activity Logs</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {activities.map((act, actIdx) => (
+                <div key={actIdx} className="bg-slate-50/50 p-2.5 rounded-lg border border-slate-100 text-[10px] leading-tight">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-lg">{act.appIcon || "🖥️"}</span>
+                    <span className="font-bold text-slate-700 truncate max-w-[120px]">{act.appName || act.app_name}</span>
+                    <span className="text-[9px] text-slate-400 ml-auto">
+                      {act.timestamp ? new Date(act.timestamp).toLocaleTimeString() : ""}
+                    </span>
+                  </div>
+                  {act.screenshotDataUrl && (
+                    <img src={act.screenshotDataUrl} alt="Activity screenshot" className="w-full h-16 object-cover rounded mb-1 border border-slate-200" />
+                  )}
+                  <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight">{act.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  })}
+  </div>
+  )}
+  </div>
+  ) : activeTab ==="Notes" ? (
  <div className="space-y-6">
  {/* Toast Notification */}
  {postMessage && (
@@ -1725,40 +1972,116 @@ export function TicketDetail() {
  </div>
  </div>
  <div className="p-4">
- <textarea
- value={workNote}
- onChange={(e) => setWorkNote(e.target.value)}
- placeholder="Type internal work notes here... (visible only to agents)"
- className="w-full p-3 border border-amber-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-amber-300 min-h-[120px] resize-none bg-white/80 placeholder:text-amber-400"
- />
- <div className="flex items-center justify-between mt-3">
- <div className="flex items-center gap-4">
- <span className="text-[9px] text-amber-600 font-medium flex items-center gap-1">
- <Lock className="w-3 h-3" /> Not visible to customer
- </span>
- <label className="flex items-center gap-1.5 text-[10px] text-amber-700 font-semibold cursor-pointer select-none">
- <input
- type="checkbox"
- checked={emailWorkNote}
- onChange={(e) => setEmailWorkNote(e.target.checked)}
- className="w-3.5 h-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 accent-amber-500"
- />
- Email Note
- </label>
- </div>
- <Button
- type="button"
- size="sm"
- disabled={!workNote.trim() || isPosting}
- onClick={(e) => handleAddWorkNote(e)}
- className="bg-amber-500 hover:bg-amber-600 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
- >
- {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
- Post Work Note
- </Button>
- </div>
- </div>
- </div>
+  <textarea
+  value={workNote}
+  onChange={(e) => setWorkNote(e.target.value)}
+  placeholder="Type internal work notes here... (visible only to agents)"
+  className="w-full p-3 border border-amber-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-amber-300 min-h-[120px] resize-none bg-white/80 placeholder:text-amber-400"
+  />
+  
+  {/* Selected Attachments list */}
+  {workNoteAttachments.length > 0 && (
+    <div className="flex flex-wrap gap-2 mb-3 mt-1.5">
+      {workNoteAttachments.map((file, idx) => (
+        <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-100/50 border border-amber-200 text-[10px] font-bold text-amber-800">
+          <Paperclip className="w-3 h-3 text-amber-600" />
+          <span>{file.name}</span>
+          <button type="button" onClick={() => setWorkNoteAttachments(prev => prev.filter((_, i) => i !== idx))} className="ml-1.5 text-amber-500 hover:text-amber-700 text-xs font-bold font-mono">×</button>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <input
+    type="file"
+    ref={workNoteMediaInputRef}
+    className="hidden"
+    accept="image/*"
+    onChange={(e) => handleUploadAttachment(e, 'work_note', 'media')}
+  />
+
+  <input
+    type="file"
+    ref={workNoteDocInputRef}
+    className="hidden"
+    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+    onChange={(e) => handleUploadAttachment(e, 'work_note', 'doc')}
+  />
+
+  <div className="flex items-center justify-between mt-3">
+  <div className="flex items-center gap-4">
+  <span className="text-[9px] text-amber-600 font-medium flex items-center gap-1">
+  <Lock className="w-3 h-3" /> Not visible to customer
+  </span>
+  <label className="flex items-center gap-1.5 text-[10px] text-amber-700 font-semibold cursor-pointer select-none">
+  <input
+  type="checkbox"
+  checked={emailWorkNote}
+  onChange={(e) => setEmailWorkNote(e.target.checked)}
+  className="w-3.5 h-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 accent-amber-500"
+  />
+  Email Note
+  </label>
+  </div>
+  <div className="flex items-center gap-2">
+     <div className="relative">
+       <Button
+         type="button"
+         size="sm"
+         variant="outline"
+         disabled={isUploadingWorkNoteFile}
+         onClick={() => setWorkNoteAttachMenuOpen(prev => !prev)}
+         className="border-amber-300 text-amber-700 hover:bg-amber-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
+       >
+         {isUploadingWorkNoteFile ? (
+           <div className="w-3 h-3 border-2 border-amber-600/30 border-t-amber-700 rounded-full animate-spin" />
+         ) : (
+           <Paperclip className="w-3.5 h-3.5" />
+         )}
+         <span>Attach</span>
+       </Button>
+       
+       {workNoteAttachMenuOpen && (
+         <div className="absolute bottom-10 left-0 z-10 w-36 rounded-md border border-amber-200 bg-white p-1 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 text-left">
+           <button
+             type="button"
+             onClick={() => {
+               setWorkNoteAttachMenuOpen(false);
+               workNoteMediaInputRef.current?.click();
+             }}
+             className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs font-bold text-amber-900 hover:bg-amber-50 transition-colors"
+           >
+             <Image className="w-3.5 h-3.5 text-amber-600" />
+             <span>Media</span>
+           </button>
+           <button
+             type="button"
+             onClick={() => {
+               setWorkNoteAttachMenuOpen(false);
+               workNoteDocInputRef.current?.click();
+             }}
+             className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs font-bold text-amber-900 hover:bg-amber-50 transition-colors"
+           >
+             <FileText className="w-3.5 h-3.5 text-amber-600" />
+             <span>Docx</span>
+           </button>
+         </div>
+       )}
+     </div>
+     <Button
+     type="button"
+     size="sm"
+     disabled={(!workNote.trim() && workNoteAttachments.length === 0) || isPosting}
+     onClick={(e) => handleAddWorkNote(e)}
+     className="bg-amber-500 hover:bg-amber-600 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
+     >
+     {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
+     Post Work Note
+     </Button>
+   </div>
+  </div>
+  </div>
+  </div>
 
  {/* Additional Comments (External/Customer Visible) */}
  <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-br from-blue-50/80 to-slate-50/30 overflow-hidden">
@@ -1776,6 +2099,36 @@ export function TicketDetail() {
  placeholder="Type comments visible to the customer here..."
  className="w-full p-3 border border-blue-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-blue-300 min-h-[120px] resize-none bg-white/80 placeholder:text-blue-400"
  />
+ 
+ {/* Selected Attachments list */}
+ {commentAttachments.length > 0 && (
+   <div className="flex flex-wrap gap-2 mb-3 mt-1.5">
+     {commentAttachments.map((file, idx) => (
+       <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-100/50 border border-blue-200 text-[10px] font-bold text-blue-800">
+         <Paperclip className="w-3 h-3 text-blue-600" />
+         <span>{file.name}</span>
+         <button type="button" onClick={() => setCommentAttachments(prev => prev.filter((_, i) => i !== idx))} className="ml-1.5 text-blue-500 hover:text-amber-700 text-xs font-bold font-mono">×</button>
+       </div>
+     ))}
+   </div>
+ )}
+
+ <input
+   type="file"
+   ref={commentMediaInputRef}
+   className="hidden"
+   accept="image/*"
+   onChange={(e) => handleUploadAttachment(e, 'comment', 'media')}
+ />
+
+ <input
+   type="file"
+   ref={commentDocInputRef}
+   className="hidden"
+   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+   onChange={(e) => handleUploadAttachment(e, 'comment', 'doc')}
+ />
+
  <div className="flex items-center justify-between mt-3">
  <div className="flex items-center gap-4">
  <span className="text-[9px] text-blue-600 font-medium flex items-center gap-1">
@@ -1791,16 +2144,62 @@ export function TicketDetail() {
  Email Note
  </label>
  </div>
- <Button
- type="button"
- size="sm"
- disabled={!newComment.trim() || isPosting}
- onClick={(e) => handleAddComment(e)}
- className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
- >
- {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
- Post Comment
- </Button>
+ <div className="flex items-center gap-2">
+   <div className="relative">
+     <Button
+       type="button"
+       size="sm"
+       variant="outline"
+       disabled={isUploadingCommentFile}
+       onClick={() => setCommentAttachMenuOpen(prev => !prev)}
+       className="border-blue-300 text-blue-700 hover:bg-blue-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
+     >
+       {isUploadingCommentFile ? (
+         <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-700 rounded-full animate-spin" />
+       ) : (
+         <Paperclip className="w-3.5 h-3.5" />
+       )}
+       <span>Attach</span>
+     </Button>
+     
+     {commentAttachMenuOpen && (
+       <div className="absolute bottom-10 left-0 z-10 w-36 rounded-md border border-blue-200 bg-white p-1 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 text-left">
+         <button
+           type="button"
+           onClick={() => {
+             setCommentAttachMenuOpen(false);
+             commentMediaInputRef.current?.click();
+           }}
+           className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs font-bold text-blue-900 hover:bg-blue-50 transition-colors"
+         >
+           <Image className="w-3.5 h-3.5 text-blue-600" />
+           <span>Media</span>
+         </button>
+         <button
+           type="button"
+           onClick={() => {
+             setCommentAttachMenuOpen(false);
+             commentDocInputRef.current?.click();
+           }}
+           className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs font-bold text-blue-900 hover:bg-blue-50 transition-colors"
+         >
+           <FileText className="w-3.5 h-3.5 text-blue-600" />
+           <span>Docx</span>
+         </button>
+       </div>
+     )}
+   </div>
+   <Button
+   type="button"
+   size="sm"
+   disabled={(!newComment.trim() && commentAttachments.length === 0) || isPosting}
+   onClick={(e) => handleAddComment(e)}
+   className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
+   >
+   {isPosting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
+   Post Comment
+   </Button>
+ </div>
  </div>
  </div>
  </div>
@@ -1809,9 +2208,11 @@ export function TicketDetail() {
  {/* Activity Timeline (API-backed) */}
  <ActivityTimeline
  ticketId={id || ''}
+ ticket={ticket}
  createdAt={ticket.createdAt}
  refreshTrigger={timelineRefresh}
  userRole={profile?.role}
+ allowInternal={canEdit}
  />
  </div>
  ) : activeTab ==="Related Records" ? (

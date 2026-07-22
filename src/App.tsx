@@ -49,6 +49,7 @@ const Leaderboard = lazy(() => import("./pages/Leaderboard").then(m => ({ defaul
 const ApprovedTickets = lazy(() => import("./pages/ApprovedTickets").then(m => ({ default: m.ApprovedTickets })));
 const Companies = lazy(() => import("./pages/Companies").then(m => ({ default: m.Companies })));
 const TimesheetApprovals = lazy(() => import("./pages/TimesheetApprovals").then(m => ({ default: m.TimesheetApprovals })));
+const Diagnostics = lazy(() => import("./pages/Diagnostics").then(m => ({ default: m.Diagnostics })));
 const Groups = lazy(() => import("./pages/Groups").then(m => ({ default: m.Groups })));
 const ClearUsers = lazy(() => import("./pages/ClearUsers").then(m => ({ default: m.ClearUsers })));
 const BrandingSettings = lazy(() => import("./pages/BrandingSettings").then(m => ({ default: m.BrandingSettings })));
@@ -66,7 +67,11 @@ const CreateCall = lazy(() => import("./pages/calls/CreateCall").then(m => ({ de
 const CallDetail = lazy(() => import("./pages/calls/CallDetail").then(m => ({ default: m.CallDetail })));
 const AIAssistant = lazy(() => import("./pages/ai/AIAssistant").then(m => ({ default: m.AIAssistant })));
 const DatabaseViewer = lazy(() => import("./pages/DatabaseViewer").then(m => ({ default: m.DatabaseViewer })));
+<<<<<<< HEAD
 const DailyIncidents = lazy(() => import("./pages/DailyIncidents").then(m => ({ default: m.DailyIncidents })));
+=======
+const MarketingShowcase = lazy(() => import("./pages/MarketingShowcase").then(m => ({ default: m.MarketingShowcase })));
+>>>>>>> 437105c7ec5b4b4f0214452ad046f40e01436288
 
 function LoadingScreen() {
  return (
@@ -174,11 +179,13 @@ function AppBody() {
  <Route path="/companies/:id" element={<Companies />} />
  <Route path="/companies/:id/edit" element={<Companies />} />
  <Route path="/timesheet-approvals" element={<TimesheetApprovals />} />
+ <Route path="/diagnostics" element={<Diagnostics />} />
  <Route path="/groups" element={<Groups />} />
  <Route path="/clear-users" element={<ClearUsers />} />
  <Route path="/email-integrations" element={<EmailIntegrations />} />
  <Route path="/branding" element={<BrandingSettings />} />
  <Route path="/settings" element={<Settings />} />
+ <Route path="/marketing" element={<MarketingShowcase />} />
  <Route path="/activity-tracker" element={<ActivityTracker />} />
  <Route path="/data-analytics" element={<DataAnalytics />} />
  <Route path="/global-search" element={<GlobalSearch />} />

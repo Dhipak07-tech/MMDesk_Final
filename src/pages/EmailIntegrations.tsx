@@ -140,9 +140,33 @@ export function EmailIntegrations() {
   const [refreshing, setRefreshing] = useState(false);
   const [syncingQueue, setSyncingQueue] = useState(false);
 
+  const fetchSmtpConfig = async () => {
+    try {
+      const res = await api("/api/email/smtp-config");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setSmtpHost(data.host || "smtp-relay.brevo.com");
+          setSmtpPort(data.port || "587");
+          setSmtpUser(data.username || "");
+          setSmtpPass(data.password || "");
+          setSmtpApplied(data.verified);
+          if (data.verified) {
+            setSmtpResult({ success: true, message: "SMTP configuration loaded and active." });
+          } else {
+            setSmtpResult({ success: false, message: data.verificationError || "Saved credentials failed verification test." });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load SMTP config:", e);
+    }
+  };
+
   useEffect(() => {
     fetchConfigs();
     fetchDashboardData();
+    fetchSmtpConfig();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -270,7 +294,7 @@ export function EmailIntegrations() {
             </h2>
             <p className={`text-sm mt-1 ${smtpApplied ? 'text-green-700' : 'text-amber-700'}`}>
               {smtpApplied
-                ? 'Emails will now be sent from support@technosprint.net via the configured SMTP relay. This is active until the server restarts.'
+                ? 'Emails will now be sent from support@technosprint.net via the configured SMTP relay. This configuration is saved permanently in the database.'
                 : 'Microsoft 365 has disabled basic SMTP AUTH. Use Brevo free SMTP relay to fix email sending permanently. Emails will still display as "Manage My Desk <support@technosprint.net>".'}
             </p>
           </div>

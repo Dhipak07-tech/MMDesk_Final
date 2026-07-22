@@ -64,9 +64,8 @@ export function Leaderboard() {
  useEffect(() => {
  const fetchAllTicketsAndBreaches = async () => {
  try {
- const res = await api("/api/tickets/all");
- if (!res.ok) throw new Error("Failed to fetch tickets");
- const tickets = await res.json();
+      const res = await api.get("/api/tickets/all");
+      const tickets = res.data;
  
  // Group by user
  const userBreaches: Record<string, { id: string; name: string; count: number; details: SafeAny[] }> = {};

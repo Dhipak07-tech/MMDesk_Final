@@ -29,7 +29,7 @@ public class SlaController {
     private final JdbcTemplate     jdbcTemplate;
 
     @GetMapping("/sla/policies")
-    @PreAuthorize("hasAnyRole('ADMIN','SUB_ADMIN','SUPER_ADMIN','ULTRA_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('USER','AGENT','ADMIN','SUB_ADMIN','SUPER_ADMIN','ULTRA_SUPER_ADMIN')")
     public ResponseEntity<?> policies() {
         return ResponseEntity.ok(slaService.getAllPolicies());
     }
@@ -61,7 +61,7 @@ public class SlaController {
     }
 
     @GetMapping("/sla-breaches/user/{userId}")
-    @PreAuthorize("hasAnyRole('AGENT','SUB_ADMIN','ADMIN','SUPER_ADMIN','ULTRA_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('USER','AGENT','SUB_ADMIN','ADMIN','SUPER_ADMIN','ULTRA_SUPER_ADMIN')")
     public ResponseEntity<?> breachesByUser(
             @PathVariable String userId,
             @AuthenticationPrincipal UserDetails userDetails) {

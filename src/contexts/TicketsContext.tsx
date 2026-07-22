@@ -53,24 +53,23 @@ export function TicketsProvider({ children }: { children: React.ReactNode }) {
  setError(null);
 
  const fetchOpenTickets = async () => {
- try {
- const res = await api("/api/tickets/open");
- if (!res.ok) throw new Error(`HTTP ${res.status}`);
- const data = await res.json();
- const mapped: Ticket[] = data.map((t: SafeAny) => ({
- id: String(t.id || t.ticket_number ||""),
- number: t.ticket_number || t.number ||"",
- title: t.title ||"",
- status: t.status ||"New",
- priority: t.priority ||"4 - Low",
- assignedTo: t.assigned_to || t.assignedTo ||"",
- assignedToName: t.assigned_to_name || t.assignedToName ||"",
- createdBy: t.created_by || t.createdBy ||"",
- createdAt: t.created_at || t.createdAt || null,
- updatedAt: t.updated_at || t.updatedAt || null,
- }));
- setTickets(mapped);
- } catch (err: SafeAny) {
+    try {
+      const res = await api.get("/api/tickets/open");
+      const data = res.data;
+      const mapped: Ticket[] = (Array.isArray(data) ? data : []).map((t: SafeAny) => ({
+        id: String(t.id || t.ticket_number || ""),
+        number: t.ticket_number || t.number || "",
+        title: t.title || "",
+        status: t.status || "New",
+        priority: t.priority || "4 - Low",
+        assignedTo: t.assigned_to || t.assignedTo || "",
+        assignedToName: t.assigned_to_name || t.assignedToName || "",
+        createdBy: t.created_by || t.createdBy || "",
+        createdAt: t.created_at || t.createdAt || null,
+        updatedAt: t.updated_at || t.updatedAt || null,
+      }));
+      setTickets(mapped);
+    } catch (err: SafeAny) {
  console.warn("[TicketsContext] Fetch error (non-fatal):", err.message);
  setError(null);
  } finally {

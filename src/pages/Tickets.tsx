@@ -59,19 +59,68 @@ export function Tickets() {
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [previewNumber, setPreviewNumber] = useState("");
 
- const openModal = () => {
- speechControllerRef.current?.stop();
- setSpeechLiveText("");
- setPreviewNumber(`INC${Math.floor(1000000 + Math.random() * 9000000)}`);
- const companyId = searchParams.get("companyId");
- setNewTicket(prev => ({
- ...prev,
- caller: profile?.name || user?.email ||"",
- company: companyId ||""
- }));
- setCallerSearch(profile?.name || user?.email ||"");
- setIsModalOpen(true);
- };
+  const openModal = () => {
+    speechControllerRef.current?.stop();
+    setSpeechLiveText("");
+    setPreviewNumber(`INC${Math.floor(1000000 + Math.random() * 9000000)}`);
+    const companyId = searchParams.get("companyId");
+    const fromNote = searchParams.get("fromNote") === "true";
+    const noteContent = searchParams.get("noteContent");
+    const paramCaller = searchParams.get("caller");
+    const paramAffected = searchParams.get("affectedUser");
+    const paramLocation = searchParams.get("location");
+    const paramCompany = searchParams.get("company");
+    const paramAssignmentGroup = searchParams.get("assignmentGroup");
+    const paramAssignedTo = searchParams.get("assignedTo");
+    const paramBusinessPhone = searchParams.get("businessPhone");
+    const paramSubcategory = searchParams.get("subcategory");
+    const paramService = searchParams.get("service");
+    const paramTitle = searchParams.get("title");
+    const parentNumber = searchParams.get("parentNumber");
+    const parentId = searchParams.get("parentId");
+
+    const isServiceReqContext = filter === "service_request" || fromNote;
+
+    const callerVal = (paramCaller && paramCaller !== "null" && paramCaller !== "undefined") ? paramCaller : (profile?.name || user?.email || "");
+    const affectedVal = (paramAffected && paramAffected !== "null" && paramAffected !== "undefined") ? paramAffected : "";
+    const locationVal = (paramLocation && paramLocation !== "null" && paramLocation !== "undefined") ? paramLocation : "";
+    const companyVal = (paramCompany && paramCompany !== "null" && paramCompany !== "undefined") ? paramCompany : (companyId || "");
+    const groupVal = (paramAssignmentGroup && paramAssignmentGroup !== "null" && paramAssignmentGroup !== "undefined") ? paramAssignmentGroup : "";
+    const assignedVal = (paramAssignedTo && paramAssignedTo !== "null" && paramAssignedTo !== "undefined") ? paramAssignedTo : "";
+    const phoneVal = (paramBusinessPhone && paramBusinessPhone !== "null" && paramBusinessPhone !== "undefined") ? paramBusinessPhone : "";
+    const subcatVal = (paramSubcategory && paramSubcategory !== "null" && paramSubcategory !== "undefined") ? paramSubcategory : "";
+    const serviceVal = (paramService && paramService !== "null" && paramService !== "undefined") ? paramService : "";
+    const titleVal = (paramTitle && paramTitle !== "null" && paramTitle !== "undefined") ? paramTitle : "";
+    const descVal = (noteContent && noteContent !== "null" && noteContent !== "undefined") ? noteContent : "";
+    const addInfoVal = parentNumber ? `Created from Incident #${parentNumber}` : "";
+
+    setNewTicket({
+      ...CREATE_INCIDENT_FORM_DEFAULTS,
+      caller: callerVal,
+      callerEmail: callerVal,
+      affectedUser: affectedVal,
+      affectedUserEmail: affectedVal,
+      location: locationVal,
+      company: companyVal,
+      assignmentGroup: groupVal,
+      assignedTo: assignedVal,
+      businessPhone: phoneVal,
+      subcategory: subcatVal,
+      service: serviceVal,
+      title: titleVal,
+      description: descVal,
+      additionalInformation: addInfoVal,
+      parentTicketId: parentId || "",
+      parentIncidentNumber: parentNumber || "",
+      purpose: isServiceReqContext ? "Service" : "Incident",
+      category: isServiceReqContext ? "Service Request" : "",
+      incidentCategory: isServiceReqContext ? "Service Request" : "",
+      type: isServiceReqContext ? "Service Request" : "Incident"
+    });
+    setCallerSearch(callerVal);
+    setAffectedSearch(affectedVal);
+    setIsModalOpen(true);
+  };
  const closeModal = () => {
  speechControllerRef.current?.stop();
  setSpeechLiveText("");
@@ -85,11 +134,12 @@ export function Tickets() {
  const [speechSupported, setSpeechSupported] = useState(true);
  const speechControllerRef = useRef<ReturnType<typeof createSpeechController> | null>(null);
 
- useEffect(() => {
- if (action ==="new") {
- openModal();
- }
- }, [action]);
+  const fromNote = searchParams.get("fromNote") === "true";
+  useEffect(() => {
+    if (action === "new" || filter === "service_request" || fromNote) {
+      openModal();
+    }
+  }, [action, filter, fromNote]);
 
   // Fetch active incident categories and options dynamically
   useEffect(() => {
@@ -180,7 +230,8 @@ export function Tickets() {
   ? allUsers.filter(u => selectedGroupObj.memberIds?.includes(u.id) || selectedGroupObj.memberIds?.includes(u.uid))
   : agents;
 
- // Realistic Catalog initialization handled via state defaults
+  // Reactive purpose check for dynamic UI rendering and submission routing
+  const isServicePurpose = newTicket.purpose === "Service" || (filter === "service_request" && newTicket.purpose !== "Incident");
 
  // Removed auto-reset logic for subcategories/providers/groups to maintain independence
 
@@ -334,6 +385,7 @@ export function Tickets() {
  if (filter ==="pending" && t.status !=="Pending" && t.status !=="On Hold") return false;
  if (filter ==="open" && (t.status ==="Resolved" || t.status ==="Closed" || t.status ==="Canceled")) return false;
  if (filter ==="unassigned" && t.assignedTo) return false;
+ if (filter ==="service_request" && t.category !=="Service Request" && t.incidentCategory !=="Service Request" && t.category !=="10" && t.type !=="Service Request" && !t.title?.toLowerCase().includes("request")) return false;
  if (filter ==="resolved" && t.status !=="Resolved" && t.status !=="Closed") return false;
  if (filter ==="critical_open" && (t.status ==="Resolved" || t.status ==="Closed" || t.status ==="Canceled" || !t.priority?.includes("Critical"))) return false;
  if (filter ==="overdue" && (t.status ==="Resolved" || t.status ==="Closed" || t.status ==="Canceled" || !t.resolutionDeadline || new Date(t.resolutionDeadline).getTime() > now)) return false;
@@ -502,6 +554,7 @@ export function Tickets() {
  const coreRequiredFieldChecks = [
  { key:"field.caller", label:"Reporting User", value: newTicket.caller, alwaysRequired: true },
  { key:"field.title", label:"Short description", value: newTicket.title, alwaysRequired: true },
+ { key:"field.description", label:"Description", value: newTicket.description, alwaysRequired: true },
  { key:"field.category", label:"Category", value: newTicket.category, alwaysRequired: true },
  { key:"field.subcategory", label:"Subcategory", value: newTicket.subcategory, alwaysRequired: true },
  { key:"field.service", label:"Service", value: newTicket.service, alwaysRequired: true },
@@ -597,6 +650,7 @@ export function Tickets() {
  description: newTicket.description,
  caller: newTicket.caller || user?.email ||"",
  callerEmail: newTicket.callerEmail || user?.email ||"",
+ category: newTicket.category,
  incidentCategory: newTicket.incidentCategory,
  subcategory: newTicket.subcategory,
  service: newTicket.service,
@@ -618,6 +672,8 @@ export function Tickets() {
  reportingUserEmail: newTicket.callerEmail,
  customFields: newTicket.customFields,
  watchList: newTicket.watchList,
+ purpose: newTicket.purpose || (isServicePurpose ? "Service" : "Incident"),
+ type: isServicePurpose ? "Service Request" : "Incident",
  // SLA tracking fields
  responseDeadline: responseDeadline.toISOString(),
  resolutionDeadline: null,
@@ -635,10 +691,22 @@ export function Tickets() {
 
  console.log("Sending ticket creation payload to API:", apiPayload);
 
-    const res = await api.post("/api/tickets/create", apiPayload);
-    const createdData = res.data;
-    const ticketId = createdData.id;
+ const res = await api.post("/api/tickets/create", apiPayload);
+ if (!res.ok) {
+   throw new Error(res.data?.error || `Server returned status ${res.status}`);
+ }
+ const createdData = res.data;
+ const ticketId = createdData.id;
  console.log("Ticket created successfully with ID:", ticketId);
+
+ // Parent-Child Tracking: Log system activity on original Incident
+ if (newTicket.parentTicketId) {
+   api.post(`/api/tickets/${newTicket.parentTicketId}/activities`, {
+     activity_type: "system",
+     visibility_type: "internal",
+     message: `Service Request #${ticketNumber} created from this Incident`
+   }).catch(e => console.error("Error logging parent ticket activity link:", e));
+ }
 
  closeModal();
  alert(`Ticket ${ticketNumber} has been created successfully.`);
@@ -760,6 +828,7 @@ export function Tickets() {
  filter ==="pending" ?"Pending Incidents" :
  filter ==="overdue" ?"Overdue Incidents" :
  filter ==="critical_open" ?"Critical Open Incidents" :
+ filter ==="service_request" ?"Service Requests" :
 "All Incidents"}
  </h1>
  <p className="page-description">Real-time incident streams & service request orchestration.</p>
@@ -792,7 +861,7 @@ export function Tickets() {
  </div>
 
  <Button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] cursor-pointer">
- <Plus className="w-4 h-4 mr-2" /> Launch Incident
+ <Plus className="w-4 h-4 mr-2" /> {filter === "service_request" ? "Launch Request" : "Launch Incident"}
  </Button>
  </div>
  </div>
@@ -879,7 +948,7 @@ export function Tickets() {
 
  {/* Main Ticket Feed */}
  {viewMode === 'hybrid' ? (
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
  {filteredTickets.length === 0 ? (
  <div className="col-span-full py-16 text-center text-muted-foreground bg-white/20 dark:bg-black/10 backdrop-blur-md rounded-2xl border border-dashed border-border p-8">
  No incidents found matching current filters.
@@ -1026,7 +1095,7 @@ export function Tickets() {
  </div>
  ) : (
  /* Render modern ops table view mode */
- <div className="sn-card overflow-hidden p-0 border border-border/80 shadow-2xl rounded-2xl bg-card/60 backdrop-blur-md">
+ <div className="sn-card overflow-hidden p-0 border border-border/80 shadow-2xl rounded-2xl bg-card/60 backdrop-blur-md mt-6">
  <div className="p-4 border-b border-border/60 flex items-center justify-between bg-muted/20 backdrop-blur-md">
  <div className="text-sm font-bold">Operations Incident Log</div>
  <div className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Total Active: {filteredTickets.length}</div>
@@ -1167,7 +1236,7 @@ export function Tickets() {
  <div className="bg-white dark:bg-[#090a15]/90 backdrop-blur-xl border border-slate-200 dark:border-blue-500/20 text-foreground rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in duration-200 shadow-[0_15px_50px_rgba(0,0,0,0.5)]">
  <div className="p-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50 dark:bg-black/20">
  <div className="flex items-center gap-2">
- <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">New Incident Feed</span>
+ <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">{newTicket.purpose === "Service" ? "New Request Feed" : "New Incident Feed"}</span>
  </div>
  <div className="flex items-center gap-2">
  {isFeatureVisible("button.cancel") && (
@@ -1188,7 +1257,7 @@ export function Tickets() {
  onClick={(e: SafeAny) => handleCreateTicket(e)}
  disabled={isSubmitting || isFeatureDisabled("button.submit")}
  >
- {isSubmitting ?"Orchestrating..." :"Submit Incident"}
+ {isSubmitting ? "Orchestrating..." : (newTicket.purpose === "Service") ? "Submit Request" : "Submit Incident"}
  </Button>
  )}
  </div>
@@ -1208,6 +1277,29 @@ export function Tickets() {
  />
  </div>
  )}
+
+ {/* Purpose */}
+ <div className="grid grid-cols-3 items-center gap-4">
+ <label className="text-[11px] text-right font-semibold text-blue-600 dark:text-blue-400 uppercase leading-tight flex items-center justify-end gap-1">
+ <span className="text-red-500">*</span> Purpose
+ </label>
+ <select
+ value={newTicket.purpose || (isServicePurpose ? "Service" : "Incident")}
+ onChange={e => {
+ const val = e.target.value;
+ setNewTicket(prev => ({
+ ...prev,
+ purpose: val,
+ category: val === "Service" ? "Service Request" : (prev.category === "Service Request" ? "" : prev.category),
+ type: val === "Service" ? "Service Request" : "Incident"
+ }));
+ }}
+ className="col-span-2 p-1.5 border border-blue-300 dark:border-blue-700/60 rounded text-xs focus:ring-2 focus:ring-blue-500/30 outline-none h-8 font-bold bg-blue-50/50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 cursor-pointer transition-all"
+ >
+ <option value="Incident">Incident</option>
+ <option value="Service">Service</option>
+ </select>
+ </div>
 
  {/* Reporting User */}
  {isFeatureVisible("field.caller") && (
@@ -1842,7 +1934,9 @@ export function Tickets() {
  </div>
  {isFeatureVisible("field.description") && (
  <div className="grid grid-cols-6 items-start gap-4">
- <label className="text-[11px] text-right font-medium uppercase leading-tight mt-1">Description</label>
+ <label className="text-[11px] text-right font-medium uppercase leading-tight mt-1">
+   <span className="text-red-500">*</span> Description
+ </label>
  <div className="col-span-5 space-y-1.5">
  <textarea
  rows={4}

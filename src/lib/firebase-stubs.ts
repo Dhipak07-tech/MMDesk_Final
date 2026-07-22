@@ -360,7 +360,7 @@ export async function getDocs(queryObj: SafeAny): Promise<any> {
   const path = queryObj.type === "query" ? queryObj.collectionRef.path : queryObj.path;
   const dataList = await fetchFallbackData(path, queryObj);
 
-  let filteredData = dataList;
+  let filteredData = Array.isArray(dataList) ? dataList : [];
   if (queryObj && queryObj.clauses) {
     for (const clause of queryObj.clauses) {
       if (clause.type === "where") {

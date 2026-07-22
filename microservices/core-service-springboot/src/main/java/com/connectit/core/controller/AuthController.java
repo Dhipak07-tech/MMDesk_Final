@@ -33,10 +33,16 @@ public class AuthController {
         log.info("Login attempt for user: {}", email);
 
         try {
+            Optional<User> checkUser = userService.findByEmail(email.toLowerCase().trim());
+            if (checkUser.isEmpty()) {
+                log.warn("Authentication failed: user not found: {}", email);
+                return ResponseEntity.status(401).body(Map.of("error", "Invalid email or password"));
+            }
+
             Optional<User> userOpt = userService.authenticate(email.toLowerCase().trim(), password);
             if (userOpt.isEmpty()) {
-                log.warn("Authentication failed: invalid credentials for: {}", email);
-                return ResponseEntity.status(401).body(Map.of("error","Invalid email or password"));
+                log.warn("Authentication failed: invalid password for: {}", email);
+                return ResponseEntity.status(401).body(Map.of("error", "Invalid password"));
             }
 
             User user = userOpt.get();

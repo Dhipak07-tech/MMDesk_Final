@@ -208,6 +208,29 @@ public class EmailController {
 
             log.info("[SMTP-UPDATE] Live SMTP updated: host={}, port={}, user={}", host, port, username);
 
+            // Persist permanently in the database
+            CompanyEmailConfig cfg = configRepo.findFirstByIsActiveTrueAndIsDefaultTrue()
+                .or(() -> configRepo.findFirstByIsActiveTrue())
+                .orElse(null);
+
+            if (cfg == null) {
+                cfg = new CompanyEmailConfig();
+                cfg.setCompanyName("Manage My Desk");
+                cfg.setEmailAddress(username);
+                cfg.setImapHost("outlook.office365.com");
+                cfg.setImapPort(993);
+                cfg.setImapUser(username);
+                cfg.setImapPass(password);
+                cfg.setEncryption("TLS");
+                cfg.setIsActive(true);
+                cfg.setIsDefault(true);
+            }
+            cfg.setSmtpHost(host);
+            cfg.setSmtpPort(port);
+            cfg.setSmtpUser(username);
+            cfg.setSmtpPass(password);
+            configRepo.save(cfg);
+
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "SMTP credentials updated and verified! Emails will now be sent from " + defaultFrom + " (" + defaultFromName + ") via " + host
@@ -219,6 +242,53 @@ public class EmailController {
                 "error", "SMTP test failed: " + e.getMessage()
             ));
         }
+    }
+
+    @GetMapping("/email/smtp-config")
+    public ResponseEntity<?> getSmtpConfig() {
+        CompanyEmailConfig cfg = configRepo.findFirstByIsActiveTrueAndIsDefaultTrue()
+            .or(() -> configRepo.findFirstByIsActiveTrue())
+            .orElse(null);
+        if (cfg != null) {
+            boolean verified = false;
+            String errorMsg = null;
+            try {
+                var props = new java.util.Properties();
+                props.put("mail.smtp.auth", "true");
+                props.put("mail.smtp.starttls.enable", "true");
+                props.put("mail.smtp.ssl.trust", "*");
+                props.put("mail.smtp.connectiontimeout", "3000");
+                props.put("mail.smtp.timeout", "3000");
+
+                final String u = cfg.getSmtpUser();
+                final String p = cfg.getSmtpPass();
+                var session = jakarta.mail.Session.getInstance(props, new jakarta.mail.Authenticator() {
+                    protected jakarta.mail.PasswordAuthentication getPasswordAuthentication() {
+                        return new jakarta.mail.PasswordAuthentication(u, p);
+                    }
+                });
+                var transport = session.getTransport("smtp");
+                transport.connect(cfg.getSmtpHost(), cfg.getSmtpPort(), cfg.getSmtpUser(), cfg.getSmtpPass());
+                transport.close();
+                verified = true;
+            } catch (Exception e) {
+                errorMsg = e.getMessage();
+            }
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "host", cfg.getSmtpHost(),
+                "port", cfg.getSmtpPort().toString(),
+                "username", cfg.getSmtpUser(),
+                "password", cfg.getSmtpPass(),
+                "verified", verified,
+                "verificationError", errorMsg != null ? errorMsg : ""
+            ));
+        }
+        return ResponseEntity.ok(Map.of(
+            "success", false,
+            "message", "No SMTP configuration saved in database"
+        ));
     }
 
     // ── Email Configs ──────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ import React, { useState } from"react";
 import { Link, useNavigate } from"react-router-dom";
 import { type Role } from"../lib/roles";
 import { useAuth } from "../contexts/AuthContext";
-import { Loader2 } from"lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { cn } from"@/lib/utils";
 
 // Local Button component
@@ -34,6 +34,7 @@ export function Login() {
   const { demoLogin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -52,45 +53,42 @@ export function Login() {
   };
 
   const handleLogin = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!email.trim() || !password.trim()) {
- setError("Please enter email and password.");
- return;
- }
- setError("");
- setIsLoading(true);
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) {
+      setError("Please enter email and password.");
+      return;
+    }
+    setError("");
+    setIsLoading(true);
 
- try {
- const response = await api("/api/auth/login", {
- method:"POST",
- headers: {"Content-Type":"application/json" },
- body: JSON.stringify({ email, password })
- });
+    try {
+      const response = await api.post("/api/auth/login", {
+        email: email.toLowerCase().trim(),
+        password
+      });
 
- if (response.ok) {
- const userData = await response.json();
- if (userData.token) {
-   localStorage.setItem("token", userData.token);
- }
- localStorage.setItem("demo_user", JSON.stringify({
- uid: userData.uid,
- name: userData.name,
- email: userData.email,
- role: userData.role ||"user",
- phone: userData.phone ||""
- }));
- window.location.href ="/";
- return;
- }
-
- const errorData = await response.json().catch(() => ({}));
- setError(errorData.error ||"Invalid email or password.");
- } catch (err: SafeAny) {
- setError("Login failed: Check your connection and try again.");
- } finally {
- setIsLoading(false);
- }
- };
+      if (response.status === 200) {
+        const userData = response.data;
+        if (userData.token) {
+          localStorage.setItem("token", userData.token);
+        }
+        localStorage.setItem("demo_user", JSON.stringify({
+          uid: userData.uid,
+          name: userData.name,
+          email: userData.email,
+          role: userData.role || "user",
+          phone: userData.phone || ""
+        }));
+        window.location.href = "/";
+        return;
+      }
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Invalid email or password.";
+      setError(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
  return (
  <div className="min-h-screen flex items-center justify-center bg-sn-dark p-4 animate-fade-in">
@@ -131,17 +129,26 @@ export function Login() {
  />
  </div>
 
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Password</label>
- <input
- type="password"
- required
- value={password}
- onChange={e => setPassword(e.target.value)}
- className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-sn-green focus:border-sn-green outline-none transition-all"
- placeholder="••••••••"
- />
- </div>
+  <div className="space-y-1.5">
+  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Password</label>
+  <div className="relative">
+    <input
+      type={showPassword ? "text" : "password"}
+      required
+      value={password}
+      onChange={e => setPassword(e.target.value)}
+      className="w-full p-3 pr-10 border border-border rounded-lg focus:ring-2 focus:ring-sn-green focus:border-sn-green outline-none transition-all"
+      placeholder="••••••••"
+    />
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer flex items-center justify-center"
+    >
+      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+    </button>
+  </div>
+  </div>
 
  <Button
  type="submit"

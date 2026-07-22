@@ -14,6 +14,9 @@ import jakarta.validation.Valid;
 import com.connectit.core.dto.request.TicketCreateRequest;
 import com.connectit.core.dto.request.TicketUpdateRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.File;
+import java.util.UUID;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -38,36 +41,113 @@ public class TicketController {
     }
 
     // ── Tickets ───────────────────────────────────────────────────────────────
+    @GetMapping("/tickets")
+    public ResponseEntity<?> index() {
+        return all();
+    }
+
     @GetMapping("/tickets/all")
     public ResponseEntity<?> all() {
-        return ok(ticketRepo.findAllByOrderByCreatedAtDesc());
+        if (checkAdminAccess()) {
+            return ok(ticketRepo.findAllByOrderByCreatedAtDesc());
+        } else {
+            String uid = SecurityContextHolder.getContext().getAuthentication().getName();
+            List<String> groups = getGroupsForUser(uid);
+            if (groups.isEmpty()) {
+                return ok(ticketRepo.findByAssignedTo(uid));
+            } else {
+                return ok(ticketRepo.findByAssignedToOrAssignmentGroupIn(uid, groups));
+            }
+        }
     }
 
     @GetMapping("/tickets/open")
     public ResponseEntity<?> open() {
-        return ok(ticketRepo.findAllOpen());
+        if (checkAdminAccess()) {
+            return ok(ticketRepo.findAllOpen());
+        } else {
+            String uid = SecurityContextHolder.getContext().getAuthentication().getName();
+            List<String> groups = getGroupsForUser(uid);
+            if (groups.isEmpty()) {
+                return ok(ticketRepo.findOpenByAssignedTo(uid));
+            } else {
+                return ok(ticketRepo.findOpenByAssignedToOrAssignmentGroupIn(uid, groups));
+            }
+        }
     }
 
     @GetMapping("/tickets/resolved")
     public ResponseEntity<?> resolved() {
-        return ok(ticketRepo.findResolved());
+        if (checkAdminAccess()) {
+            return ok(ticketRepo.findResolved());
+        } else {
+            String uid = SecurityContextHolder.getContext().getAuthentication().getName();
+            List<String> groups = getGroupsForUser(uid);
+            if (groups.isEmpty()) {
+                return ok(ticketRepo.findResolvedByAssignedTo(uid));
+            } else {
+                return ok(ticketRepo.findResolvedByAssignedToOrAssignmentGroupIn(uid, groups));
+            }
+        }
     }
 
     @GetMapping("/tickets/unassigned")
     public ResponseEntity<?> unassigned() {
-        return ok(ticketRepo.findUnassigned());
+        if (checkAdminAccess()) {
+            return ok(ticketRepo.findUnassigned());
+        }
+        return ok(Collections.emptyList());
     }
 
     @GetMapping("/tickets/assigned/{userId}")
     public ResponseEntity<?> assigned(@PathVariable String userId) {
+        String uid = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (!checkAdminAccess() && !uid.equals(userId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied: Cannot query tickets assigned to another user."));
+        }
         return ok(ticketRepo.findByAssignedTo(userId));
     }
 
     @GetMapping("/tickets/{id}")
     public ResponseEntity<?> get(@PathVariable Long id) {
         return ticketRepo.findById(id)
-            .map(t -> ResponseEntity.ok((Object) serialize(t)))
+            .map(t -> {
+                String uid = SecurityContextHolder.getContext().getAuthentication().getName();
+                if (!checkAdminAccess()) {
+                    boolean isAssignedToMe = t.getAssignedTo() != null && t.getAssignedTo().equals(uid);
+                    boolean isMyGroup = false;
+                    if (t.getAssignmentGroup() != null && !t.getAssignmentGroup().isBlank()) {
+                        isMyGroup = checkUserInGroup(uid, t.getAssignmentGroup());
+                    }
+                    if (!isAssignedToMe && !isMyGroup) {
+                        return ResponseEntity.status(403).body((Object) Map.of("error", "Access denied: You are not assigned to this ticket or its group."));
+                    }
+                }
+                return ResponseEntity.ok((Object) serialize(t));
+            })
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    private List<String> getGroupsForUser(String uid) {
+        return jdbcTemplate.queryForList(
+            "SELECT g.name FROM settings_groups g " +
+            "JOIN settings_group_members m ON m.group_id = g.id " +
+            "WHERE m.user_id = ? AND m.status = 'active'",
+            String.class,
+            uid
+        );
+    }
+
+    private boolean checkUserInGroup(String uid, String groupName) {
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM settings_groups g " +
+            "JOIN settings_group_members m ON m.group_id = g.id " +
+            "WHERE m.user_id = ? AND g.name = ? AND m.status = 'active'",
+            Integer.class,
+            uid,
+            groupName
+        );
+        return count != null && count > 0;
     }
 
     @PostMapping("/tickets/create")
@@ -91,6 +171,18 @@ public class TicketController {
             String uid = SecurityContextHolder.getContext().getAuthentication().getName();
             String name = userRepo.findByUid(uid).map(User::getName).orElse(uid);
             boolean adminAccess = checkAdminAccess();
+
+            Optional<Ticket> opt = ticketRepo.findById(id);
+            if (opt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            Ticket existing = opt.get();
+            if (!adminAccess) {
+                if (existing.getAssignedTo() == null || !existing.getAssignedTo().equals(uid)) {
+                    return ResponseEntity.status(403).body(Map.of("error", "Access denied: You are not the assigned agent for this ticket."));
+                }
+            }
+
             @SuppressWarnings("unchecked")
             Map<String, Object> body = objectMapper.convertValue(request, Map.class);
             Ticket updated = ticketService.updateTicket(id, body, uid, name, adminAccess);
@@ -191,6 +283,33 @@ public class TicketController {
         body.put("activity_type", Boolean.TRUE.equals(body.get("is_internal")) ? "work_note" : "comment");
         body.put("visibility_type", Boolean.TRUE.equals(body.get("is_internal")) ? "internal" : "public");
         return addActivity(id, body);
+    }
+
+    @PostMapping("/tickets/upload")
+    public ResponseEntity<?> uploadAttachment(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "File is empty"));
+            }
+            String originalFilename = file.getOriginalFilename();
+            String extension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String filename = "attach_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8) + extension;
+            File uploadDir = new File("./public/uploads").getAbsoluteFile();
+            if (!uploadDir.exists()) uploadDir.mkdirs();
+            File destination = new File(uploadDir, filename);
+            file.transferTo(destination);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "file_path", "/uploads/" + filename,
+                "file_name", originalFilename
+            ));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
     }
 
 

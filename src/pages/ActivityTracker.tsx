@@ -264,7 +264,7 @@ export function ActivityTracker() {
 
  // ── Incident filtering: show all open and unassigned tickets ──
  const EXCLUDED_STATUSES = ['Closed', 'Resolved', 'Cancelled', 'Canceled', 'Completed'];
- const myIncidents = allTickets.filter(t => {
+ const myIncidents = (Array.isArray(allTickets) ? allTickets : []).filter(t => {
  const isExcluded = EXCLUDED_STATUSES.some(s => (t.status || '').toLowerCase() === s.toLowerCase());
  return !isExcluded;
  });
