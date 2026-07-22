@@ -564,8 +564,16 @@ public class TicketService {
         }
 
         if (t.getAssignedTo() != null && !t.getAssignedTo().isBlank()) {
-            t.setAssignedToUser(userRepo.findByUid(t.getAssignedTo())
-                .orElseGet(() -> userRepo.findByEmail(t.getAssignedTo()).orElse(null)));
+            User agent = null;
+            try {
+                Long userId = Long.parseLong(t.getAssignedTo());
+                agent = userRepo.findById(userId).orElse(null);
+            } catch (NumberFormatException ignored) {}
+            if (agent == null) {
+                agent = userRepo.findByUid(t.getAssignedTo())
+                    .orElseGet(() -> userRepo.findByEmail(t.getAssignedTo()).orElse(null));
+            }
+            t.setAssignedToUser(agent);
         } else {
             t.setAssignedToUser(null);
         }
