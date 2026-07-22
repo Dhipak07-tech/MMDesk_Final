@@ -167,6 +167,7 @@ function getTabTitleFromPath(path: string): string {
  return `Call #${callId}`;
  }
  if (cleanPath ==="/ai-assistant") return"AI Assistant";
+ if (cleanPath ==="/daily-incidents") return"Daily Incident";
  
  return"New Tab";
 }
@@ -209,6 +210,7 @@ function getTabIconFromPath(path: string) {
  if (cleanPath.startsWith("/ts-meeting")) return CalendarDays;
  if (cleanPath.startsWith("/calls")) return PhoneCall;
  if (cleanPath ==="/ai-assistant") return BrainCircuit;
+ if (cleanPath ==="/daily-incidents") return CalendarDays;
  
  return FileText;
 }

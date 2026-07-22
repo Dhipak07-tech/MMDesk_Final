@@ -66,6 +66,7 @@ const CreateCall = lazy(() => import("./pages/calls/CreateCall").then(m => ({ de
 const CallDetail = lazy(() => import("./pages/calls/CallDetail").then(m => ({ default: m.CallDetail })));
 const AIAssistant = lazy(() => import("./pages/ai/AIAssistant").then(m => ({ default: m.AIAssistant })));
 const DatabaseViewer = lazy(() => import("./pages/DatabaseViewer").then(m => ({ default: m.DatabaseViewer })));
+const DailyIncidents = lazy(() => import("./pages/DailyIncidents").then(m => ({ default: m.DailyIncidents })));
 
 function LoadingScreen() {
  return (
@@ -150,6 +151,7 @@ function AppBody() {
  <Route path="/approvals" element={<Approvals />} />
  <Route path="/users" element={<Users />} />
  <Route path="/incident-categories" element={<IncidentCategoryManagement />} />
+ <Route path="/daily-incidents" element={<DailyIncidents />} />
  <Route path="/timesheet" element={<Timesheet />} />
  <Route path="/timesheet/:weekStart" element={<Timesheet />} />
  <Route path="/timesheet/weekly" element={<TimesheetWeekly />} />

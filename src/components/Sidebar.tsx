@@ -202,6 +202,7 @@ export function Sidebar() {
         { icon: CheckCircle2, label: "Resolved Incidents", path: "/tickets?filter=resolved", moduleKey: "tickets" },
         { icon: List, label: "All Incidents", path: "/tickets", moduleKey: "tickets" },
         { icon: Map, label: "Critical Incidents Map", path: "/reports", moduleKey: "reports" },
+        { icon: CalendarDays, label: "Daily Incident", path: "/daily-incidents", moduleKey: "tickets" },
       ]
     },
     {
