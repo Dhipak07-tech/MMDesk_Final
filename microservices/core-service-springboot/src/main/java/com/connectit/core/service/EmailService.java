@@ -36,6 +36,9 @@ public class EmailService {
     @Value("${app.mail.from-name:Manage My Desk}")
     private String defaultFromName;
 
+    @Value("${app.url:http://localhost:3000}")
+    private String appUrl;
+
     @Value("${spring.mail.host:smtp.office365.com}")
     private String smtpHost;
 
@@ -972,7 +975,7 @@ public class EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;font-family:Segoe UI,Arial,sans-serif;background:#f4f6f9'>" +
             "<div style='max-width:640px;margin:20px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)'>" +
             "<div style='background:linear-gradient(135deg,#1e3a8a,#172554);padding:28px 32px;color:#fff'>" +
-            "<img src='http://localhost:3000/manage_my_desk_logo.jpg' alt='Manage My Desk Logo' style='height:40px;margin-bottom:12px;display:block;' />" +
+            "<img src='" + appUrl + "/manage_my_desk_logo.jpg' alt='Manage My Desk Logo' style='height:40px;margin-bottom:12px;display:block;' />" +
             "<h1 style='margin:0;font-size:20px'>🎫 " + title + "</h1>" +
             "<div style='color:#94a3b8;font-size:13px;margin-top:4px'>Manage My Desk</div></div>" +
             "<div style='padding:32px;color:#334155;line-height:1.6;font-size:14px;'>" + body + "</div>" +
