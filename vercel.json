@@ -1,4 +1,9 @@
 {
   "outputDirectory": "microservices/core-service-springboot/src/main/resources/static",
-  "framework": "vite"
+  "framework": "vite",
+  "build": {
+    "env": {
+      "VITE_API_BASE_URL": "https://floppy-words-give.loca.lt"
+    }
+  }
 }
