@@ -44,6 +44,27 @@ public class UserController {
     @PostMapping("/users")
     public ResponseEntity<?> create(@RequestBody Map<String,Object> body) {
         try {
+            String emailRaw = (String) body.get("email");
+            if (emailRaw == null || emailRaw.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Email is required."));
+            }
+            String email = emailRaw.toLowerCase().trim();
+
+            // Pre-check if email is already registered to avoid UNIQUE index violation in DB
+            Optional<User> existingOpt = userRepository.findByEmailIgnoreCase(email);
+            if (existingOpt.isPresent()) {
+                User existing = existingOpt.get();
+                if (Boolean.TRUE.equals(body.get("update_if_exists"))) {
+                    if (body.get("name") != null) existing.setName((String) body.get("name"));
+                    if (body.get("password") != null) existing.setPasswordHash(userService.hashPassword((String) body.get("password")));
+                    if (body.get("role") != null) existing.setRole((String) body.get("role"));
+                    existing.setIsActive(true);
+                    User updated = userRepository.save(existing);
+                    return ResponseEntity.ok(serialize(updated));
+                }
+                return ResponseEntity.status(400).body(Map.of("error", "A user with email '" + email + "' is already registered. Please log in or use a different email."));
+            }
+
             String restrictedModulesStr = "";
             if (body.get("restrictedModules") != null) {
                 Object val = body.get("restrictedModules");
@@ -69,9 +90,9 @@ public class UserController {
             }
 
             User user = User.builder()
-                .uid((String) body.get("uid"))
+                .uid(body.get("uid") != null ? (String) body.get("uid") : "user_" + System.currentTimeMillis())
                 .name((String) body.get("name"))
-                .email(((String) body.get("email")).toLowerCase().trim())
+                .email(email)
                 .role(requestedRole)
                 .phone((String) body.get("phone"))
                 .department((String) body.get("department"))

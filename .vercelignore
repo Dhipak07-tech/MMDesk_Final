@@ -1,0 +1,8 @@
+node_modules
+microservices/core-service-springboot/target
+microservices/core-service-springboot/src
+.git
+.idea
+.vscode
+public/uploads
+*.sql

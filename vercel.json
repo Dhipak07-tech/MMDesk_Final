@@ -1,0 +1,9 @@
+{
+  "outputDirectory": "microservices/core-service-springboot/src/main/resources/static",
+  "framework": "vite",
+  "build": {
+    "env": {
+      "VITE_API_BASE_URL": "https://iso-pioneer-indicated-promise.trycloudflare.com"
+    }
+  }
+}

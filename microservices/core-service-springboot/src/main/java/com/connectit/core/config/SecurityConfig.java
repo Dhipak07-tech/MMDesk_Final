@@ -71,20 +71,14 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Parse comma-separated origins from property
-        List<String> origins = Arrays.asList(allowedOriginsRaw.split(","));
-        config.setAllowedOrigins(origins);  // setAllowedOrigins (not Patterns) — no glob support
-
+        // Use setAllowedOriginPatterns with wildcard to reflect origin dynamically (supports credentials + Vercel/Cloudflare)
+        config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-
-        // Explicitly restrict headers — no wildcard "*"
-        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
-
+        config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // Scope CORS to /api/** only, not the entire application
-        source.registerCorsConfiguration("/api/**", config);
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 
