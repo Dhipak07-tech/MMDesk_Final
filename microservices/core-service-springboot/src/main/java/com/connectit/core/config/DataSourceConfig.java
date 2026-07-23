@@ -49,8 +49,22 @@ public class DataSourceConfig {
                 return new HikariDataSource(config);
             }
         } catch (Exception e) {
-            log.error("[DataSourceConfig] Database connection check failed: {}", e.getMessage());
-            throw new RuntimeException("Database connection check failed", e);
+            log.warn("[DataSourceConfig] Database connection failed ({}), falling back to H2 in-memory database.", e.getMessage());
+            try {
+                String h2Url = "jdbc:h2:mem:connectit_db;DB_CLOSE_DELAY=-1;MODE=MySQL";
+                String h2Driver = "org.h2.Driver";
+                Class.forName(h2Driver);
+                HikariConfig config = new HikariConfig();
+                config.setJdbcUrl(h2Url);
+                config.setUsername("sa");
+                config.setPassword("");
+                config.setDriverClassName(h2Driver);
+                config.setMaximumPoolSize(20);
+                return new HikariDataSource(config);
+            } catch (Exception h2Ex) {
+                log.error("[DataSourceConfig] H2 fallback failed: {}", h2Ex.getMessage());
+                throw new RuntimeException("Database connection failed", h2Ex);
+            }
         }
     }
 }
