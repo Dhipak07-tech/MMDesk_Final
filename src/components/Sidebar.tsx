@@ -208,6 +208,7 @@ export function Sidebar() {
         { icon: ShoppingBag, label: "Service Request", path: "/tickets?filter=service_request", moduleKey: "tickets" },
         { icon: List, label: "All Incidents", path: "/tickets", moduleKey: "tickets" },
         { icon: Map, label: "Critical Incidents Map", path: "/reports", moduleKey: "reports" },
+        { icon: CalendarDays, label: "Daily Incident", path: "/daily-incidents", moduleKey: "tickets" },
       ]
     },
     {

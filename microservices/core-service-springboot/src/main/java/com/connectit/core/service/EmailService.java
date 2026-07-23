@@ -30,7 +30,7 @@ public class EmailService {
     private final com.connectit.core.repository.UserRepository userRepo;
     private final JdbcTemplate                 jdbcTemplate;
 
-    @Value("${app.mail.from:support@technosprint.net}")
+    @Value("${app.mail.from:aakash42633@gmail.com}")
     private String defaultFrom;
 
     @Value("${app.mail.from-name:Manage My Desk}")
@@ -39,19 +39,19 @@ public class EmailService {
     @Value("${app.url:http://localhost:3000}")
     private String appUrl;
 
-    @Value("${spring.mail.host:smtp.office365.com}")
+    @Value("${spring.mail.host:smtp.gmail.com}")
     private String smtpHost;
 
     @Value("${spring.mail.port:587}")
     private Integer smtpPort;
 
-    @Value("${app.imap.host:outlook.office365.com}")
+    @Value("${app.imap.host:imap.gmail.com}")
     private String imapHost;
 
     @Value("${app.imap.port:993}")
     private Integer imapPort;
 
-    @Value("${spring.mail.username:support@technosprint.net}")
+    @Value("${spring.mail.username:aakash42633@gmail.com}")
     private String smtpUser;
 
     @Value("${spring.mail.password:}")
@@ -265,46 +265,69 @@ public class EmailService {
 
     // ── Ticket event templates ─────────────────────────────────────────────────
     public void notifyTicketCreated(Ticket t) {
-        Set<String> recipients = resolveRecipients(t, 
-            List.of("admin", "super_admin", "ultra_super_admin", "sub_admin"), 
-            true, // includeAgent
-            true, // includeCreator
-            true  // includeGroupMembers
-        );
+        Set<String> recipients = new HashSet<>();
+        // Target notification recipient
+        recipients.add("aakash42633@gmail.com");
 
-        // Include everyone in the system per request
+        // Include other real user emails if present
         for (User u : userRepo.findAll()) {
-            if (isEmail(u.getEmail())) {
+            if (isEmail(u.getEmail()) && isRealEmail(u.getEmail())) {
                 recipients.add(u.getEmail().trim().toLowerCase());
             }
         }
 
         String ticketNum = formatTicketNumber(t.getTicketNumber());
-        String subject = "[Ticket Created] " + ticketNum + " - " + t.getTitle();
+        String subject = "[New Incident] " + ticketNum + " - " + t.getTitle();
         
         String createdDate = t.getCreatedAt() != null ? 
             t.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : 
             LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        
-        String bodyText = 
-            "<p>Hello,</p>" +
-            "<p>A new ticket has been created.</p>" +
-            "<p><strong>Ticket Number:</strong> " + ticketNum + "</p>" +
-            "<p><strong>Short Description:</strong><br/>" + t.getTitle() + "</p>" +
-            "<p><strong>Created By:</strong> " + (t.getCreatedByName() != null ? t.getCreatedByName() : t.getCreatedBy()) + "</p>" +
-            "<p><strong>Assigned To:</strong> " + (t.getAssignedToName() != null ? t.getAssignedToName() : "Unassigned") + "</p>" +
-            "<p><strong>Priority:</strong> " + t.getPriority() + "</p>" +
-            "<p><strong>Category:</strong> " + (t.getCategory() != null ? t.getCategory() : "—") + "</p>" +
-            "<p><strong>Status:</strong> " + t.getStatus() + "</p>" +
-            "<p><strong>Created Date:</strong> " + createdDate + "</p>" +
-            "<p>Please log in to the system for complete details.</p>" +
-            "<p>Regards,<br/>Manage My Desk Ticketing System</p>";
 
-        String htmlContent = buildTemplate("Ticket Created", ticketNum, bodyText, t.getTicketNumber());
+        String assignedTime = t.getCreatedAt() != null ? 
+            t.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : 
+            createdDate;
+
+        String dueTime = t.getResolutionDeadline() != null ?
+            t.getResolutionDeadline().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) :
+            "SLA Window Target";
+        
+        String assignedMembers = t.getAssignedToName() != null && !t.getAssignedToName().isBlank() ? 
+            t.getAssignedToName() : "Unassigned";
+
+        String descriptionText = t.getDescription() != null && !t.getDescription().isBlank() ?
+            t.getDescription() : "No detailed description provided.";
+
+        String bodyText = 
+            "<div style='font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 650px; margin: 0 auto; padding: 15px; border: 1px solid #e2e8f0; rounded: 12px;'>" +
+            "<h2 style='color: #2563eb; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0;'>New Incident Notification</h2>" +
+            "<p>A new incident ticket has been submitted via <strong>Manage My Desk</strong>.</p>" +
+            "<table style='width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; text-align: left;'>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; width: 140px; border: 1px solid #cbd5e1;'>Ticket ID</th><td style='padding: 10px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #2563eb;'>" + ticketNum + "</td></tr>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1;'>Ticket Name</th><td style='padding: 10px; border: 1px solid #cbd5e1; font-weight: bold;'>" + t.getTitle() + "</td></tr>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1;'>Description</th><td style='padding: 10px; border: 1px solid #cbd5e1; white-space: pre-wrap;'>" + descriptionText + "</td></tr>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1;'>Priority</th><td style='padding: 10px; border: 1px solid #cbd5e1; font-weight: bold; color: #dc2626;'>" + t.getPriority() + "</td></tr>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1;'>Status</th><td style='padding: 10px; border: 1px solid #cbd5e1; font-weight: bold;'>" + t.getStatus() + "</td></tr>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1;'>Assigned Members</th><td style='padding: 10px; border: 1px solid #cbd5e1;'>" + assignedMembers + "</td></tr>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1;'>Assigned Time</th><td style='padding: 10px; border: 1px solid #cbd5e1; font-family: monospace;'>" + assignedTime + "</td></tr>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1;'>Due Time</th><td style='padding: 10px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #dc2626;'>" + dueTime + "</td></tr>" +
+            "<tr><th style='padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1;'>Created Date</th><td style='padding: 10px; border: 1px solid #cbd5e1; font-family: monospace;'>" + createdDate + "</td></tr>" +
+            "</table>" +
+            "<br/><p style='font-size: 12px; color: #64748b; margin-bottom: 0;'>Regards,<br/><strong>Manage My Desk Helpdesk System</strong></p>" +
+            "</div>";
+
+        String htmlContent = buildTemplate("New Incident Created", ticketNum, bodyText, t.getTicketNumber());
 
         for (String recipient : recipients) {
             enqueue("ticket_created", t.getId(), t.getTicketNumber(), recipient, subject, htmlContent);
         }
+
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                processQueue();
+            } catch (Exception ex) {
+                log.error("[EmailService] Async queue process error: {}", ex.getMessage());
+            }
+        });
     }
 
     public void notifyAssigned(Ticket t, String assignedBy) {
@@ -757,7 +780,7 @@ public class EmailService {
         // and NEVER use employee/company-specific SMTP configs for outbound mail.
         // Company configs are used for INBOUND polling only.
         // ═══════════════════════════════════════════════════════════════════════
-        final String cleanDomain = "technosprint.net";
+        final String cleanDomain = "gmail.com";
         final String messageId = "<" + UUID.randomUUID().toString() + "@" + cleanDomain + ">";
 
         JavaMailSender activeSender = getActiveMailSender(null); // Force default sender

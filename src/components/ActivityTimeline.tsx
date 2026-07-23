@@ -28,7 +28,7 @@ const FILTER_TABS: { key: FilterType; label: string; icon: React.ReactNode; colo
 
 const POLL_INTERVAL = 30000; // 30s real-time polling
 
-export function ActivityTimeline({ ticketId, ticket, createdAt, refreshTrigger = 0, userRole }: ActivityTimelineProps) {
+export function ActivityTimeline({ ticketId, ticket, createdAt, refreshTrigger = 0, userRole, allowInternal }: ActivityTimelineProps) {
  const [activities, setActivities] = useState<any[]>([]);
  const [loading, setLoading] = useState(true);
  const [filter, setFilter] = useState<FilterType>("all");

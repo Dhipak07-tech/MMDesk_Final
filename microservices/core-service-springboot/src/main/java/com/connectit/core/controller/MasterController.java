@@ -40,7 +40,7 @@ public class MasterController {
 
     // ── Helper to check Admin Access ──────────────────────────────────────────
     private boolean checkAdminAccess(String uid, String email) {
-        List<String> fallbackEmails = List.of("arun.g@technosprint.net", "swedhasris@gmail.com", "ulter@technosprint.net", "admin@technosprint.net");
+        List<String> fallbackEmails = List.of("aakash42633@gmail.com", "swedhasris@gmail.com", "ulter@technosprint.net", "admin@technosprint.net");
         if (email != null && fallbackEmails.contains(email.toLowerCase().trim())) {
             return true;
         }

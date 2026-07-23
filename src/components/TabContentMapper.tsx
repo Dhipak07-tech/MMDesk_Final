@@ -49,7 +49,9 @@ const CallLogs = lazy(() => import("../pages/calls/CallLogs").then(m => ({ defau
 const CreateCall = lazy(() => import("../pages/calls/CreateCall").then(m => ({ default: m.CreateCall })));
 const CallDetail = lazy(() => import("../pages/calls/CallDetail").then(m => ({ default: m.CallDetail })));
 const AIAssistant = lazy(() => import("../pages/ai/AIAssistant").then(m => ({ default: m.AIAssistant })));
+const DailyIncidents = lazy(() => import("../pages/DailyIncidents").then(m => ({ default: m.DailyIncidents })));
 const Diagnostics = lazy(() => import("../pages/Diagnostics").then(m => ({ default: m.Diagnostics })));
+const MarketingShowcase = lazy(() => import("../pages/MarketingShowcase").then(m => ({ default: m.MarketingShowcase })));
 
 /**
  * Maps a path string to a React component without using a nested Router.
@@ -79,6 +81,8 @@ function resolveComponent(path: string): React.ReactNode {
  return <Users />;
  case"/incident-categories":
  return <IncidentCategoryManagement />;
+ case"/daily-incidents":
+ return <DailyIncidents />;
  case"/timesheet":
  return <Timesheet />;
  case"/timesheet/weekly":
@@ -120,6 +124,8 @@ function resolveComponent(path: string): React.ReactNode {
  return <Groups />;
  case"/clear-users":
  return <ClearUsers />;
+ case"/marketing":
+ return <MarketingShowcase />;
  case"/diagnostics":
  return <Diagnostics />;
  case"/email-integrations":

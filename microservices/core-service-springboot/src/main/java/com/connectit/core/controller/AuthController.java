@@ -105,7 +105,7 @@ public class AuthController {
             "agent", "agent@technosprint.net",
             "admin", "admin@technosprint.net",
             "super_admin", "ulter@technosprint.net",
-            "ultra_super_admin", "arun.g@technosprint.net",
+            "ultra_super_admin", "aakash42633@gmail.com",
             "sub_admin", "admin@technosprint.net"
         );
 

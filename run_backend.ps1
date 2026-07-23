@@ -25,5 +25,6 @@ if (Test-Path .env) {
 
 # Run Maven Spring Boot target
 Write-Host "Starting Spring Boot backend..."
+$env:JAVA_HOME = "C:\Users\aakas\.vscode\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64"
 cd microservices/core-service-springboot
-& "C:\Users\Dhipak\.m2\wrapper\dists\apache-maven-3.9.16\0daed3be3ebd1c706f0e69e8b07c6b73f5cc4ea3dfce72a8d0ec2e849ca2ddb0\bin\mvn.cmd" spring-boot:run
+& "C:\Users\aakas\.m2\wrapper\dists\apache-maven-3.9.6\0f95e7798d182e3371f3fee6d8202d3a56e6d71dfd3a2402139882ef2fbe7476\bin\mvn.cmd" spring-boot:run

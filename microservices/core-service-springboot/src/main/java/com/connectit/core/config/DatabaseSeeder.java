@@ -26,34 +26,34 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final CompanyEmailConfigRepository companyEmailConfigRepository;
     private final JdbcTemplate jdbcTemplate;
 
-    @Value("${spring.mail.host:smtp.office365.com}")
+    @Value("${spring.mail.host:smtp.gmail.com}")
     private String smtpHost;
 
     @Value("${spring.mail.port:587}")
     private Integer smtpPort;
 
-    @Value("${spring.mail.username:support@technosprint.net}")
+    @Value("${spring.mail.username:aakash42633@gmail.com}")
     private String smtpUser;
 
-    @Value("${spring.mail.password:Poland@01}")
+    @Value("${spring.mail.password:zdiuxoqmngfriwmx}")
     private String smtpPass;
 
-    @Value("${app.mail.from:support@technosprint.net}")
+    @Value("${app.mail.from:aakash42633@gmail.com}")
     private String mailFrom;
 
-    @Value("${app.mail.from-name:TechnoSprint Support}")
+    @Value("${app.mail.from-name:Manage My Desk}")
     private String mailFromName;
 
-    @Value("${app.imap.host:outlook.office365.com}")
+    @Value("${app.imap.host:imap.gmail.com}")
     private String imapHost;
 
     @Value("${app.imap.port:993}")
     private Integer imapPort;
 
-    @Value("${app.imap.user:support@technosprint.net}")
+    @Value("${app.imap.user:aakash42633@gmail.com}")
     private String imapUser;
 
-    @Value("${app.imap.pass:Poland@01}")
+    @Value("${app.imap.pass:zdiuxoqmngfriwmx}")
     private String imapPass;
 
     @Override
@@ -541,8 +541,8 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     private void seedDefaultUsers() {
-        // arun.g@technosprint.net  password: Poland@01  → simpleHash = h_ps1kdz_9
-        seedUser("demo_t342dq", "arun.g@technosprint.net",  "Arun G (Ultra Super Admin)",  "ultra_super_admin", "h_ps1kdz_9");
+        // aakash42633@gmail.com  password: Poland@01  → simpleHash = h_ps1kdz_9
+        seedUser("demo_t342dq", "aakash42633@gmail.com",   "Aakash (Ultra Super Admin)",  "ultra_super_admin", "h_ps1kdz_9");
         // swedhasris@gmail.com     password: 123202      → simpleHash = h_nzmtky_6
         seedUser("demo_swedha", "swedhasris@gmail.com",     "Swedha (Ultra Super Admin)",   "ultra_super_admin", "h_nzmtky_6");
         // Password123! → h_c2sm7e_12
@@ -593,29 +593,29 @@ public class DatabaseSeeder implements CommandLineRunner {
 
     private void seedDefaultCompanyEmailConfig() {
         try {
-            CompanyEmailConfig cfg = null;
             List<CompanyEmailConfig> allConfigs = companyEmailConfigRepository.findAll();
-            if (!allConfigs.isEmpty()) {
-                cfg = allConfigs.get(0);
-            } else {
-                cfg = new CompanyEmailConfig();
+            if (allConfigs.size() > 1) {
+                for (int i = 1; i < allConfigs.size(); i++) {
+                    companyEmailConfigRepository.delete(allConfigs.get(i));
+                }
             }
-            cfg.setCompanyName(mailFromName);
-            cfg.setEmailAddress(mailFrom);
-            cfg.setSmtpHost(smtpHost);
-            cfg.setSmtpPort(smtpPort);
-            cfg.setSmtpUser(smtpUser);
-            cfg.setSmtpPass(smtpPass);
-            cfg.setImapHost(imapHost);
-            cfg.setImapPort(imapPort);
-            cfg.setImapUser(imapUser);
-            cfg.setImapPass(imapPass);
+            CompanyEmailConfig cfg = allConfigs.isEmpty() ? new CompanyEmailConfig() : allConfigs.get(0);
+            cfg.setCompanyName("Manage My Desk");
+            cfg.setEmailAddress("aakash42633@gmail.com");
+            cfg.setSmtpHost("smtp.gmail.com");
+            cfg.setSmtpPort(587);
+            cfg.setSmtpUser("aakash42633@gmail.com");
+            cfg.setSmtpPass(smtpPass != null && !smtpPass.isBlank() ? smtpPass : "zdiuxoqmngfriwmx");
+            cfg.setImapHost("imap.gmail.com");
+            cfg.setImapPort(993);
+            cfg.setImapUser("aakash42633@gmail.com");
+            cfg.setImapPass(imapPass != null && !imapPass.isBlank() ? imapPass : "zdiuxoqmngfriwmx");
             cfg.setEncryption("TLS");
             cfg.setIsActive(true);
             cfg.setIsDefault(true);
-            
+
             companyEmailConfigRepository.save(cfg);
-            log.info("[DatabaseSeeder] Seeded/updated default company email config (info@technosprint.net) successfully.");
+            log.info("[DatabaseSeeder] Seeded/updated single default company email config (aakash42633@gmail.com) successfully.");
         } catch (Exception e) {
             log.error("[DatabaseSeeder] Failed to seed/update default company email config: {}", e.getMessage());
         }

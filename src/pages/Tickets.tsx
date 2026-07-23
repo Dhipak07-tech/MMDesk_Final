@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { mapDbTicketToFrontend } from "../lib/firebase-stubs";
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
-import { Plus, Filter, MoreVertical, Search, Edit, Trash2, Users, Mic, ExternalLink } from"lucide-react";
+import { Plus, Filter, MoreVertical, Search, Edit, Trash2, Users, Mic, ExternalLink, CheckCircle2, AlertTriangle, X } from "lucide-react";
 import { Button } from"@/components/ui/button";
 import { cn, formatDate } from"@/lib/utils";
 import { useServiceCatalog } from"../lib/serviceCatalog";
@@ -35,6 +35,12 @@ export function Tickets() {
  const filter = searchParams.get("filter");
  const action = searchParams.get("action");
  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, ticketId: string, ticketNumber: string } | null>(null);
+ const [toast, setToast] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
+
+ const showToast = (type: 'success' | 'error' | 'warning', message: string) => {
+   setToast({ type, message });
+   setTimeout(() => setToast(null), 6000);
+ };
 
  const handleContextMenu = (e: React.MouseEvent, ticket: SafeAny) => {
  e.preventDefault();
@@ -214,12 +220,156 @@ export function Tickets() {
 
  const [assignedTo, setAssignedTo] = useState("");
  const [slaPolicies, setSlaPolicies] = useState<any[]>([]);
- // DYNAMIC DROPDOWNS from database (via useServiceCatalog hook)
- const activeCategories = categories.filter(c => c.status === 'active');
- const selectedCategoryObj = activeCategories.find(c => c.name === newTicket.category);
- const filteredSubcategories = subcategories.filter(s => s.status === 'active' && (!selectedCategoryObj || s.categoryId === selectedCategoryObj.id));
- const selectedSubcategoryObj = filteredSubcategories.find(s => s.name === newTicket.subcategory);
- const filteredServiceProviders = serviceProviders.filter(sp => sp.status === 'active' && (!selectedSubcategoryObj || sp.subcategoryId === selectedSubcategoryObj.id));
+  // DYNAMIC DROPDOWNS from database (via useServiceCatalog hook + API + defaults)
+  const activeCategories = categories.filter(c => c.status === 'active');
+  const allCategoryNames = Array.from(new Set([
+    ...activeCategories.map(c => c.name),
+    ...(Array.isArray(incidentCategories) ? incidentCategories : []),
+    "Hardware Issue", "Software Issue", "Network Issue", "System Access",
+    "Security Issue", "Login Problem", "Email Issue", "Performance Issue",
+    "Service Request", "Other"
+  ])).filter(Boolean);
+  const selectedCategoryObj = activeCategories.find(c => c.name === newTicket.category);
+  const catalogSubcatNames = subcategories
+    .filter(s => s.status === 'active' && (!selectedCategoryObj || s.categoryId === selectedCategoryObj.id))
+    .map(s => s.name);
+
+  const selectedCatName = (newTicket.category || "").trim();
+  const matchingDynamicField = Array.isArray(dynamicFields) ? dynamicFields.find((df: SafeAny) => 
+    df.name?.toLowerCase() === selectedCatName.toLowerCase()
+  ) : null;
+  const dynamicOptNames = matchingDynamicField && dynamicOptions[matchingDynamicField.id]
+    ? dynamicOptions[matchingDynamicField.id].map((opt: SafeAny) => opt.optionValue || opt.name || opt.label)
+    : [];
+
+  const DEFAULT_SUBCATEGORIES_MAP: Record<string, string[]> = {
+    "Hardware Issue": ["Laptop / PC Hardware", "Monitor / Display", "Keyboard / Mouse", "Printer / Scanner", "Hard Drive / Storage", "RAM / Memory", "Power Supply / Adapter", "Peripheral Device"],
+    "Software Issue": ["OS Crash / BSOD", "Application Error / Bug", "Software License / Activation", "Installation Failure", "Browser / Web App Issue", "Office Suite / Productivity", "Antivirus / Security Software", "Data Corruption / File Loss"],
+    "Network Issue": ["Wi-Fi Connectivity", "LAN / Wired Network", "VPN Access / Disconnection", "Slow Internet Speed", "DNS Resolution Error", "IP Address Conflict", "Firewall Block", "Router / Switch Failure"],
+    "System Access": ["Password Reset", "Account Locked", "Permission / Access Request", "MFA / 2FA Reset", "Active Directory / Domain Login", "Role Privilege Escalation", "New User Onboarding Access"],
+    "Security Issue": ["Phishing Email Report", "Malware / Virus Detection", "Unauthorized Access Attempt", "Data Leak / Breach Alert", "Suspicious Activity", "Security Patch Update"],
+    "Login Problem": ["SSO Login Failure", "Invalid Credentials Error", "Session Timeout", "Token Verification Failed", "Portal Access Error"],
+    "Email Issue": ["Cannot Send / Receive Email", "Outlook Sync Issue", "Spam / Junk Filter Issue", "Mailbox Full Alert", "Distribution List Request", "Shared Mailbox Access"],
+    "Performance Issue": ["System Slowdown / Lag", "High CPU / Memory Usage", "Database Query Latency", "Server Unresponsive", "Disk Space Low Warning"],
+    "Service Request": ["Hardware Request", "Software Installation Request", "Access Permission Request", "Equipment Relocation", "Asset Renewal Request"],
+    "Other": ["General Inquiry", "Feedback / Suggestion", "Miscellaneous Request", "Documentation Request"]
+  };
+
+  const mapSubcatKey = Object.keys(DEFAULT_SUBCATEGORIES_MAP).find(k => 
+    k.toLowerCase() === selectedCatName.toLowerCase()
+  );
+  const defaultSubcatNames = mapSubcatKey ? DEFAULT_SUBCATEGORIES_MAP[mapSubcatKey] : [];
+
+  const allSubcategoryNames = Array.from(new Set([
+    ...catalogSubcatNames,
+    ...dynamicOptNames,
+    ...defaultSubcatNames
+  ])).filter(Boolean);
+
+  const filteredSubcategories = subcategories.filter(s => s.status === 'active' && (!selectedCategoryObj || s.categoryId === selectedCategoryObj.id));
+  const selectedSubcategoryObj = filteredSubcategories.find(s => s.name === newTicket.subcategory);
+  const filteredServiceProviders = serviceProviders.filter(sp => sp.status === 'active' && (!selectedSubcategoryObj || sp.subcategoryId === selectedSubcategoryObj.id));
+
+  const DEFAULT_SERVICES_MAP: Record<string, string[]> = {
+    "Laptop / PC Hardware": ["Workstation Hardware Support", "Laptop Replacement Service", "Battery & Power Repair", "Hardware Diagnostic Service"],
+    "Monitor / Display": ["Display Calibration & Repair", "Dual Monitor Setup Service", "GPU & Video Cable Support"],
+    "Keyboard / Mouse": ["Peripherals Replacement Service", "Input Device Configuration"],
+    "Printer / Scanner": ["Network Printer Queue Service", "Scanner Driver & Software Support", "Toner & Maintenance Service"],
+    "Hard Drive / Storage": ["Disk Encryption / BitLocker Support", "Data Recovery & Backup Service", "SSD Upgrade & Migration"],
+    "RAM / Memory": ["Memory Diagnostic & Upgrade Service"],
+    "Power Supply / Adapter": ["Power Supply Replacement Service", "UPS & Surge Protection Support"],
+    "Peripheral Device": ["External Docking Station Service", "Webcam & Audio Device Support"],
+
+    "OS Crash / BSOD": ["Windows OS Recovery Service", "macOS System Repair", "Linux Kernel & OS Support"],
+    "Application Error / Bug": ["Enterprise App Patching & Bug Fix", "Desktop Software Troubleshooting", "Custom App Crash Support"],
+    "Software License / Activation": ["Software License Allocation", "Microsoft 365 License Activation", "CAD / Developer Tool Licensing"],
+    "Installation Failure": ["Standard Software Deployment", "Silent Installer & Scripting Support"],
+    "Browser / Web App Issue": ["Web Browser Configuration", "SSL / TLS Cert Bypass Support", "Cache & Cookie Clearing Service"],
+    "Office Suite / Productivity": ["Microsoft Outlook & Teams Service", "Excel Macro / Add-in Repair", "Google Workspace Support"],
+    "Antivirus / Security Software": ["Endpoint Protection (EDR) Service", "Antivirus Definition Update", "Firewall Client Configuration"],
+    "Data Corruption / File Loss": ["File System Recovery Service", "SharePoint / OneDrive File Restore"],
+
+    "Wi-Fi Connectivity": ["Enterprise Wi-Fi Access Support", "Guest Wireless Provisioning", "Wi-Fi Access Point Repair"],
+    "LAN / Wired Network": ["Ethernet Port Patching Service", "Network Switch Port Re-configuration"],
+    "VPN Access / Disconnection": ["GlobalProtect / Cisco VPN Client Support", "Split-Tunnel VPN Configuration"],
+    "Slow Internet Speed": ["Bandwidth Optimization & QoS Support", "ISP Line Diagnostic Service"],
+    "DNS Resolution Error": ["Internal DNS Record Registration", "Flushing DNS Cache Service"],
+    "IP Address Conflict": ["DHCP Reservation Service", "Static IP Assignment Support"],
+    "Firewall Block": ["Firewall Port Whitelisting", "UTM Web Filter Exclusion Service"],
+    "Router / Switch Failure": ["Core Router Infrastructure Support", "Managed Switch Replacement"],
+
+    "Password Reset": ["Self-Service Password Reset", "Active Directory Password Unlock", "MFA App Re-binding"],
+    "Account Locked": ["AD Domain Account Unlock", "Service Account Release Support"],
+    "Permission / Access Request": ["Shared Folder & NAS Access", "Role-Based Access Control (RBAC)", "Database Read/Write Permission"],
+    "MFA / 2FA Reset": ["Authenticator App Reset Service", "Hardware Security Key (FIDO2) Support"],
+    "Active Directory / Domain Login": ["Domain Controller Auth Service", "Group Policy (GPO) Sync"],
+    "Role Privilege Escalation": ["PIM / PAM Temporary Privilege Request"],
+    "New User Onboarding Access": ["User Account Provisioning Service", "Email & Workspace Setup"],
+
+    "Phishing Email Report": ["Email Threat Quarantine Service", "SOC Security Incident Response"],
+    "Malware / Virus Detection": ["Host Isolation & Malware Cleanse", "Threat Hunting & Forensics"],
+    "Unauthorized Access Attempt": ["Audit Log Analysis Service", "IP Blacklisting & Lockout"],
+    "Data Leak / Breach Alert": ["DLP Incident Investigation", "Security Escalation Service"],
+    "Suspicious Activity": ["Security Threat Assessment"],
+    "Security Patch Update": ["Patch Management Deployment"],
+
+    "SSO Login Failure": ["Okta / Azure AD SSO Integration", "SAML Assertion Debugging"],
+    "Invalid Credentials Error": ["Credential Synchronization Support"],
+    "Session Timeout": ["Session Timeout Policy Adjustment"],
+    "Token Verification Failed": ["JWT & OAuth Token Refresh Support"],
+    "Portal Access Error": ["Helpdesk Portal Access Service"],
+
+    "Cannot Send / Receive Email": ["Exchange Mail Flow Diagnostics", "SMTP Relay Authorization"],
+    "Outlook Sync Issue": ["OST / PST File Repair Service", "Outlook Profile Re-creation"],
+    "Spam / Junk Filter Issue": ["Safe Sender Whitelisting Service", "Spam Header Analysis"],
+    "Mailbox Full Alert": ["Mailbox Quota Increase Service", "Online Archiving Setup"],
+    "Distribution List Request": ["Distribution Group Management", "Security Group Email Alias"],
+    "Shared Mailbox Access": ["Shared Mailbox Delegation Support"],
+
+    "System Slowdown / Lag": ["System Performance Tuning Service", "Background Process Audit"],
+    "High CPU / Memory Usage": ["Server Process Optimization", "Memory Leak Investigation"],
+    "Database Query Latency": ["Database Index Optimization", "Slow Query Log Analysis"],
+    "Server Unresponsive": ["Virtual Machine Restart Service", "Hypervisor Health Check"],
+    "Disk Space Low Warning": ["Log Cleanup & Disk Purge Service", "Volume Expansion Request"],
+
+    "Hardware Request": ["New Laptop Procurement Service", "Standard Monitor Provisioning"],
+    "Software Installation Request": ["App Store License Request", "Developer Tool Provisioning"],
+    "Access Permission Request": ["Folder Access Grant Service"],
+    "Equipment Relocation": ["Desk Setup & IT Relocation"],
+    "Asset Renewal Request": ["IT Asset Lifecycle Renewal"],
+
+    "General Inquiry": ["IT Helpdesk General Support", "User Guidance & Training"],
+    "Feedback / Suggestion": ["IT Service Feedback Processing"],
+    "Miscellaneous Request": ["Custom IT Assistance Service"],
+    "Documentation Request": ["Knowledge Base & KB Request"]
+  };
+
+  const GENERIC_SERVICES_LIST = [
+    "IT Support Service",
+    "Infrastructure Systems Service",
+    "Network & Security Operations",
+    "Database Administration",
+    "User Access & Identity Management",
+    "Application Support & Maintenance",
+    "Hardware & Equipment Management",
+    "Cloud & Hosting Support",
+    "Communication & Collaboration Support",
+    "Helpdesk General Service"
+  ];
+
+  const selectedSubcatName = (newTicket.subcategory || "").trim();
+  const catalogServiceNames = filteredServiceProviders.map(sp => sp.name);
+
+  const subcatKey = Object.keys(DEFAULT_SERVICES_MAP).find(k => 
+    k.toLowerCase() === selectedSubcatName.toLowerCase()
+  );
+  const subcatDefaultServices = subcatKey ? DEFAULT_SERVICES_MAP[subcatKey] : [];
+
+  const allServiceNames = Array.from(new Set([
+    ...catalogServiceNames,
+    ...subcatDefaultServices,
+    ...GENERIC_SERVICES_LIST
+  ])).filter(Boolean);
 
  const visibleGroups = groups;
  const displayGroups = visibleGroups;
@@ -293,26 +443,26 @@ export function Tickets() {
     return () => clearInterval(interval);
   }, [newTicket.company]);
 
+  const fetchTicketsList = async () => {
+    try {
+      const res = await api.get("/api/tickets/all");
+      if (res.status === 200 && Array.isArray(res.data)) {
+        const mapped = res.data.map(mapDbTicketToFrontend);
+        setTickets(mapped);
+      } else {
+        setTickets([]);
+      }
+    } catch (error) {
+      console.error("Error fetching tickets list:", error);
+      setTickets([]);
+    }
+  };
+
   useEffect(() => {
     if (!user || !profile) return;
 
-    const fetchTickets = async () => {
-      try {
-        const res = await api.get("/api/tickets/all");
-        if (res.status === 200 && Array.isArray(res.data)) {
-          const mapped = res.data.map(mapDbTicketToFrontend);
-          setTickets(mapped);
-        } else {
-          setTickets([]);
-        }
-      } catch (error) {
-        console.error("Error fetching tickets list:", error);
-        setTickets([]);
-      }
-    };
-
-    fetchTickets();
-    const interval = setInterval(fetchTickets, 10000);
+    fetchTicketsList();
+    const interval = setInterval(fetchTicketsList, 10000);
     return () => clearInterval(interval);
   }, [user, profile]);
 
@@ -546,7 +696,7 @@ export function Tickets() {
  }
 
  const hasCategoryAccess = ["admin","super_admin","ultra_super_admin"].includes(profile?.role ||"") ||
- ["arun.g@technosprint.net","swedhasris@gmail.com","ulter@technosprint.net","admin@technosprint.net","admin@connectit.local","demo-admin@connectit.local","demo-super_admin@connectit.local","demo-ultra_super_admin@connectit.local"].includes(user?.email || profile?.email ||"");
+  ["aakash42633@gmail.com","swedhasris@gmail.com","ulter@technosprint.net","admin@technosprint.net","admin@connectit.local","demo-admin@connectit.local","demo-super_admin@connectit.local","demo-ultra_super_admin@connectit.local"].includes(user?.email || profile?.email || "");
 
  // Only validate truly required fields: caller and title are always required.
  // category, subcategory, service are required only when their feature is visible.
@@ -691,13 +841,12 @@ export function Tickets() {
 
  console.log("Sending ticket creation payload to API:", apiPayload);
 
- const res = await api.post("/api/tickets/create", apiPayload);
- if (!res.ok) {
-   throw new Error(res.data?.error || `Server returned status ${res.status}`);
- }
+ // Set 10 second timeout for request to ensure UI never remains stuck in loading state
+ const res = await api.post("/api/tickets/create", apiPayload, { timeout: 10000 });
  const createdData = res.data;
- const ticketId = createdData.id;
- console.log("Ticket created successfully with ID:", ticketId);
+ const createdTicketNum = createdData?.ticketNumber || createdData?.number || ticketNumber;
+ const createdTicketId = createdData?.id || createdTicketNum;
+ console.log("Ticket created successfully with response:", createdData);
 
  // Parent-Child Tracking: Log system activity on original Incident
  if (newTicket.parentTicketId) {
@@ -705,21 +854,36 @@ export function Tickets() {
      activity_type: "system",
      visibility_type: "internal",
      message: `Service Request #${ticketNumber} created from this Incident`
-   }).catch(e => console.error("Error logging parent ticket activity link:", e));
+   }, { timeout: 5000 }).catch(e => console.error("Error logging parent ticket activity link:", e));
  }
 
- closeModal();
- alert(`Ticket ${ticketNumber} has been created successfully.`);
+  closeModal();
+  showToast("success", "Incident created successfully.");
 
- setNewTicket({
- ...CREATE_INCIDENT_FORM_DEFAULTS,
- caller:"",
- incidentCategory:""
- });
- setSpeechLiveText("");
+  setNewTicket({
+    ...CREATE_INCIDENT_FORM_DEFAULTS,
+    caller: "",
+    incidentCategory: ""
+  });
+  setSpeechLiveText("");
+
+  fetchTicketsList();
+  if (createdData?.id) {
+    navigate(`/tickets/${createdData.id}`);
+  }
  } catch (error: SafeAny) {
  console.error("CRITICAL: Error creating ticket:", error);
- alert(`Failed to create ticket: ${error.message ||"Unknown error"}. Please check your connection and try again.`);
+ let errMsg = "Connection or server processing failure.";
+ if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+   errMsg = "Request timed out after 10 seconds. The server took too long to respond. Please try again.";
+ } else if (error.response?.data?.error) {
+   errMsg = error.response.data.error;
+ } else if (error.response?.data?.message) {
+   errMsg = error.response.data.message;
+ } else if (error.message) {
+   errMsg = error.message;
+ }
+ showToast("error", `Failed to create ticket: ${errMsg}`);
  } finally {
  setIsSubmitting(false);
  }
@@ -812,9 +976,29 @@ export function Tickets() {
     }
   };
 
- return (
- <div className="standard-page-layout">
- {/* Workspace Header */}
+  return (
+  <div className="standard-page-layout">
+  {/* Toast Notification Banner */}
+  {toast && (
+    <div className={cn(
+      "fixed top-5 right-5 z-[9999] p-4 rounded-xl shadow-2xl border flex items-center justify-between gap-3 max-w-md transition-all duration-300 animate-in fade-in slide-in-from-top-4",
+      toast.type === 'success' && "bg-slate-900 border-emerald-500/50 text-emerald-300 shadow-emerald-950/30",
+      toast.type === 'warning' && "bg-slate-900 border-amber-500/50 text-amber-300 shadow-amber-950/30",
+      toast.type === 'error' && "bg-slate-900 border-red-500/50 text-red-300 shadow-red-950/30"
+    )}>
+      <div className="flex items-center gap-3">
+        {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />}
+        {toast.type === 'warning' && <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400" />}
+        {toast.type === 'error' && <X className="w-5 h-5 shrink-0 text-red-400" />}
+        <span className="text-xs font-bold leading-relaxed">{toast.message}</span>
+      </div>
+      <button onClick={() => setToast(null)} className="p-1 hover:bg-white/10 rounded-lg text-muted-foreground transition-colors cursor-pointer">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  )}
+
+  {/* Workspace Header */}
  <div className="standard-page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40">
  <div>
  <h1 className="page-title">
@@ -1501,7 +1685,10 @@ export function Tickets() {
  <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">
  <span className="text-red-500 font-bold">*</span> Category
  </label>
- <select
+ <div className="col-span-2 relative">
+ <input
+ type="text"
+ list="category-options-list"
  required={getFieldRequired("field.category", true)}
  value={newTicket.category}
  onChange={e => {
@@ -1512,14 +1699,19 @@ export function Tickets() {
  service:""
  });
  }}
- className={getInputClassName("field.category","col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white")}
+ placeholder="Select or type category..."
+ className={getInputClassName("field.category","w-full p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-card text-foreground")}
  disabled={isFeatureDisabled("field.category")}
- >
- <option value="">-- Select Category --</option>
- {activeCategories.map((item) => (
- <option key={item.id} value={item.name}>{item.name}</option>
+ autoComplete="off"
+ />
+ <datalist id="category-options-list">
+ {allCategoryNames.map((catName, idx) => (
+ <option key={`${catName}-${idx}`} value={catName}>
+ {catName}
+ </option>
  ))}
- </select>
+ </datalist>
+ </div>
  </div>
  )}
 
@@ -1530,7 +1722,10 @@ export function Tickets() {
  <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">
  <span className="text-red-500 font-bold">*</span> Subcategory
  </label>
- <select
+ <div className="col-span-2 relative">
+ <input
+ type="text"
+ list="subcategory-options-list"
  required={getFieldRequired("field.subcategory", true)}
  value={newTicket.subcategory}
  onChange={e => {
@@ -1540,14 +1735,24 @@ export function Tickets() {
  service:""
  });
  }}
- className={getInputClassName("field.subcategory","col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white disabled:opacity-50 disabled:bg-muted")}
+ placeholder={!newTicket.category ? "Select a category first..." : "Select or type subcategory..."}
+ className={getInputClassName("field.subcategory","w-full p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-card text-foreground disabled:opacity-50 disabled:bg-muted")}
  disabled={!newTicket.category || isFeatureDisabled("field.subcategory")}
- >
- <option value="">-- Select Subcategory --</option>
- {filteredSubcategories.map(s => (
- <option key={s.id} value={s.name}>{s.name}</option>
+ autoComplete="off"
+ />
+ <datalist id="subcategory-options-list">
+ {allSubcategoryNames.map((subName, idx) => (
+ <option key={`${subName}-${idx}`} value={subName}>
+ {subName}
+ </option>
  ))}
- </select>
+ </datalist>
+ {newTicket.category && allSubcategoryNames.length === 0 && (
+ <span className="text-[10px] text-amber-500 font-semibold mt-0.5 block">
+ No preset subcategories found for this category — feel free to type manually.
+ </span>
+ )}
+ </div>
  </div>
  )}
 
@@ -1557,20 +1762,33 @@ export function Tickets() {
  <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">
  <span className="text-red-500 font-bold">*</span> Service
  </label>
- <select
+ <div className="col-span-2 relative">
+ <input
+ type="text"
+ list="service-options-list"
  required={getFieldRequired("field.service", true)}
  value={newTicket.service}
  onChange={e => {
  setNewTicket({ ...newTicket, service: e.target.value });
  }}
- className={getInputClassName("field.service","col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white disabled:opacity-50 disabled:bg-muted")}
- disabled={!newTicket.subcategory || isFeatureDisabled("field.service")}
- >
- <option value="">-- Select Service --</option>
- {filteredServiceProviders.map(sp => (
- <option key={sp.id} value={sp.name}>{sp.name}</option>
+ placeholder="Select or type service..."
+ className={getInputClassName("field.service","w-full p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-card text-foreground disabled:opacity-50 disabled:bg-muted")}
+ disabled={isFeatureDisabled("field.service")}
+ autoComplete="off"
+ />
+ <datalist id="service-options-list">
+ {allServiceNames.map((srvName, idx) => (
+ <option key={`${srvName}-${idx}`} value={srvName}>
+ {srvName}
+ </option>
  ))}
- </select>
+ </datalist>
+ {allServiceNames.length === 0 && (
+ <span className="text-[10px] text-amber-500 font-semibold mt-0.5 block">
+ No preset services found — feel free to type manually.
+ </span>
+ )}
+ </div>
  </div>
  )}
 
@@ -2000,7 +2218,7 @@ export function Tickets() {
  disabled={isSubmitting || isFeatureDisabled("button.submit")}
  className="bg-sn-green text-sn-dark hover:bg-sn-green/90 px-8 h-8 text-[11px] font-bold uppercase tracking-wider shadow-sm disabled:opacity-50"
  >
- {isSubmitting ?"Submitting..." :"Submit"}
+ {isSubmitting ? "Submitting..." : "Submit Incident"}
  </Button>
  )}
  </div>

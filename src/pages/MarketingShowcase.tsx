@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TelemarketingLeadCard } from '../components/TelemarketingLeadCard';
 import { CampaignAnalyticsWidget } from '../components/CampaignAnalyticsWidget';
-import { Palette, Layers, Award, Sparkles, Megaphone, PhoneCall, Check, ExternalLink } from 'lucide-react';
+import { Palette, Layers, Award, Sparkles, Megaphone, PhoneCall, Check, ExternalLink, AlertTriangle } from 'lucide-react';
 
 export function MarketingShowcase() {
   const [activeCallLead, setActiveCallLead] = useState<string | null>(null);
