@@ -27,6 +27,8 @@ public class TicketCreateRequest {
     private String category;
     private String incidentCategory;
     private String subcategory;
+    private String type;
+    private String purpose;
 
     private String priority;
     private String urgency;

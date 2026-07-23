@@ -205,20 +205,20 @@ export function Calendar() {
  return hourDecimal + tzOffset;
  }
 
- /* ── Fetch all users if admin/sub-admin ── */
- useEffect(() => {
-   if (!user) return;
-   const role = profile?.role || 'user';
-   const hasAdminAccess = role === 'admin' || role === 'sub_admin' || role === 'super_admin' || role === 'ultra_super_admin';
-   if (hasAdminAccess) {
-     api.get("/api/users")
-       .then(res => {
-         const list = res.data;
-         setUsers(Array.isArray(list) ? list : []);
-       })
-       .catch(e => console.error("Error loading users list:", e));
-   }
- }, [user, profile]);
+  /* ── Fetch all users if admin/sub-admin/agent ── */
+  useEffect(() => {
+    if (!user) return;
+    const role = profile?.role || 'user';
+    const hasAdminAccess = role === 'admin' || role === 'sub_admin' || role === 'super_admin' || role === 'ultra_super_admin' || role === 'agent';
+    if (hasAdminAccess) {
+      api.get("/api/users")
+        .then(res => {
+          const list = res.data;
+          setUsers(Array.isArray(list) ? list : []);
+        })
+        .catch(e => console.error("Error loading users list:", e));
+    }
+  }, [user, profile]);
 
  const selectedUserProfile = useMemo(() => {
    if (!selectedUserId) return profile;

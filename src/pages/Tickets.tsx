@@ -62,9 +62,11 @@ export function Tickets() {
   const openModal = () => {
     speechControllerRef.current?.stop();
     setSpeechLiveText("");
-    setPreviewNumber(`INC${Math.floor(1000000 + Math.random() * 9000000)}`);
-    const companyId = searchParams.get("companyId");
     const fromNote = searchParams.get("fromNote") === "true";
+    const isServiceReqContext = filter === "service_request" || fromNote;
+    const initialPrefix = isServiceReqContext ? "SRC" : "INC";
+    setPreviewNumber(`${initialPrefix}${Math.floor(1000000 + Math.random() * 9000000)}`);
+    const companyId = searchParams.get("companyId");
     const noteContent = searchParams.get("noteContent");
     const paramCaller = searchParams.get("caller");
     const paramAffected = searchParams.get("affectedUser");
@@ -78,8 +80,6 @@ export function Tickets() {
     const paramTitle = searchParams.get("title");
     const parentNumber = searchParams.get("parentNumber");
     const parentId = searchParams.get("parentId");
-
-    const isServiceReqContext = filter === "service_request" || fromNote;
 
     const callerVal = (paramCaller && paramCaller !== "null" && paramCaller !== "undefined") ? paramCaller : (profile?.name || user?.email || "");
     const affectedVal = (paramAffected && paramAffected !== "null" && paramAffected !== "undefined") ? paramAffected : "";
@@ -591,7 +591,8 @@ export function Tickets() {
  // Resolution deadline is null initially as it doesn't start until first response
  const resolutionDeadline = new Date(now.getTime() + ((matchingPolicy.responseTimeHours || 4) + (matchingPolicy.resolutionTimeHours || 24)) * 60 * 60 * 1000);
 
- const ticketNumber = `INC${Math.floor(1000000 + Math.random() * 9000000)}`;
+  const prefix = isServicePurpose ? "SRC" : "INC";
+  const ticketNumber = `${prefix}${Math.floor(1000000 + Math.random() * 9000000)}`;
 
  // Immediate Breach Check (SLA Engine simulation for creation)
  let responseSlaStatus ="In Progress";
@@ -699,17 +700,19 @@ export function Tickets() {
  const ticketId = createdData.id;
  console.log("Ticket created successfully with ID:", ticketId);
 
- // Parent-Child Tracking: Log system activity on original Incident
- if (newTicket.parentTicketId) {
-   api.post(`/api/tickets/${newTicket.parentTicketId}/activities`, {
-     activity_type: "system",
-     visibility_type: "internal",
-     message: `Service Request #${ticketNumber} created from this Incident`
-   }).catch(e => console.error("Error logging parent ticket activity link:", e));
- }
+  const actualTicketNumber = createdData.ticket_number || createdData.ticketNumber || ticketNumber;
 
- closeModal();
- alert(`Ticket ${ticketNumber} has been created successfully.`);
+  // Parent-Child Tracking: Log system activity on original Incident
+  if (newTicket.parentTicketId) {
+    api.post(`/api/tickets/${newTicket.parentTicketId}/activities`, {
+      activity_type: "system",
+      visibility_type: "internal",
+      message: `Service Request #${actualTicketNumber} created from this Incident`
+    }).catch(e => console.error("Error logging parent ticket activity link:", e));
+  }
+
+  closeModal();
+  alert(`Ticket ${actualTicketNumber} has been created successfully.`);
 
  setNewTicket({
  ...CREATE_INCIDENT_FORM_DEFAULTS,
@@ -1281,7 +1284,7 @@ export function Tickets() {
  {/* Purpose */}
  <div className="grid grid-cols-3 items-center gap-4">
  <label className="text-[11px] text-right font-semibold text-blue-600 dark:text-blue-400 uppercase leading-tight flex items-center justify-end gap-1">
- <span className="text-red-500">*</span> Purpose
+ <span className="text-red-500">*</span> Ticket Type
  </label>
  <select
  value={newTicket.purpose || (isServicePurpose ? "Service" : "Incident")}
@@ -1293,6 +1296,9 @@ export function Tickets() {
  category: val === "Service" ? "Service Request" : (prev.category === "Service Request" ? "" : prev.category),
  type: val === "Service" ? "Service Request" : "Incident"
  }));
+ const numPart = previewNumber.match(/\d+$/)?.[0] || Math.floor(1000000 + Math.random() * 9000000).toString();
+ const nextPrefix = val === "Service" ? "SRC" : "INC";
+ setPreviewNumber(`${nextPrefix}${numPart}`);
  }}
  className="col-span-2 p-1.5 border border-blue-300 dark:border-blue-700/60 rounded text-xs focus:ring-2 focus:ring-blue-500/30 outline-none h-8 font-bold bg-blue-50/50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 cursor-pointer transition-all"
  >
