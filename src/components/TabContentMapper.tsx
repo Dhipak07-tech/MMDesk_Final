@@ -49,11 +49,9 @@ const CallLogs = lazy(() => import("../pages/calls/CallLogs").then(m => ({ defau
 const CreateCall = lazy(() => import("../pages/calls/CreateCall").then(m => ({ default: m.CreateCall })));
 const CallDetail = lazy(() => import("../pages/calls/CallDetail").then(m => ({ default: m.CallDetail })));
 const AIAssistant = lazy(() => import("../pages/ai/AIAssistant").then(m => ({ default: m.AIAssistant })));
-<<<<<<< HEAD
 const DailyIncidents = lazy(() => import("../pages/DailyIncidents").then(m => ({ default: m.DailyIncidents })));
-=======
 const Diagnostics = lazy(() => import("../pages/Diagnostics").then(m => ({ default: m.Diagnostics })));
->>>>>>> 437105c7ec5b4b4f0214452ad046f40e01436288
+const MarketingShowcase = lazy(() => import("../pages/MarketingShowcase").then(m => ({ default: m.MarketingShowcase })));
 
 /**
  * Maps a path string to a React component without using a nested Router.
@@ -126,6 +124,8 @@ function resolveComponent(path: string): React.ReactNode {
  return <Groups />;
  case"/clear-users":
  return <ClearUsers />;
+ case"/marketing":
+ return <MarketingShowcase />;
  case"/diagnostics":
  return <Diagnostics />;
  case"/email-integrations":

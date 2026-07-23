@@ -114,8 +114,32 @@ public class TicketService {
         // In-app notifications
         sendCreateNotifications(t, data);
 
-        // Email notifications
-        emailService.notifyTicketCreated(t);
+        // Email notifications (asynchronous non-blocking dispatch AFTER transaction commit)
+        final Ticket createdTicket = t;
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        java.util.concurrent.CompletableFuture.runAsync(() -> {
+                            try {
+                                emailService.notifyTicketCreated(createdTicket);
+                            } catch (Exception e) {
+                                log.error("[TicketService] Background email dispatch error for ticket {}: {}", createdTicket.getTicketNumber(), e.getMessage());
+                            }
+                        });
+                    }
+                }
+            );
+        } else {
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    emailService.notifyTicketCreated(createdTicket);
+                } catch (Exception e) {
+                    log.error("[TicketService] Background email dispatch error for ticket {}: {}", createdTicket.getTicketNumber(), e.getMessage());
+                }
+            });
+        }
 
         return t;
     }

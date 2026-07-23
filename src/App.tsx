@@ -67,11 +67,8 @@ const CreateCall = lazy(() => import("./pages/calls/CreateCall").then(m => ({ de
 const CallDetail = lazy(() => import("./pages/calls/CallDetail").then(m => ({ default: m.CallDetail })));
 const AIAssistant = lazy(() => import("./pages/ai/AIAssistant").then(m => ({ default: m.AIAssistant })));
 const DatabaseViewer = lazy(() => import("./pages/DatabaseViewer").then(m => ({ default: m.DatabaseViewer })));
-<<<<<<< HEAD
 const DailyIncidents = lazy(() => import("./pages/DailyIncidents").then(m => ({ default: m.DailyIncidents })));
-=======
 const MarketingShowcase = lazy(() => import("./pages/MarketingShowcase").then(m => ({ default: m.MarketingShowcase })));
->>>>>>> 437105c7ec5b4b4f0214452ad046f40e01436288
 
 function LoadingScreen() {
  return (

@@ -150,7 +150,7 @@ public class TicketController {
         return count != null && count > 0;
     }
 
-    @PostMapping("/tickets/create")
+    @PostMapping({"/tickets", "/tickets/create"})
     public ResponseEntity<?> create(@Valid @RequestBody TicketCreateRequest request) {
         try {
             String uid = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -330,6 +330,7 @@ public class TicketController {
         Map<String,Object> m = new LinkedHashMap<>();
         m.put("id",                   String.valueOf(t.getId()));
         m.put("ticket_number",        t.getTicketNumber());
+        m.put("ticketNumber",         t.getTicketNumber());
         m.put("caller",               t.getCaller());
         m.put("caller_email",         t.getCallerEmail());
         m.put("caller_user_id",       t.getCallerUserId());
