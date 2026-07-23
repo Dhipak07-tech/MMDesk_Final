@@ -1044,11 +1044,18 @@ public class AiActivityController {
                 System.out.println("[TicketScreenshots] No screenshots found in DB. Returning mock screenshots for testing.");
                 List<com.connectit.core.model.TicketScreenshot> mockList = new ArrayList<>();
                 
+                String realTicketNum;
+                try {
+                    realTicketNum = jdbcTemplate.queryForObject("SELECT ticket_number FROM tickets WHERE id = ?", String.class, ticketId);
+                } catch (Exception e) {
+                    realTicketNum = "INC" + ticketId;
+                }
+
                 // Add a mock screenshot representing the spreadsheet view
                 com.connectit.core.model.TicketScreenshot mockSS1 = com.connectit.core.model.TicketScreenshot.builder()
                     .id(9999L)
                     .ticketId(ticketId)
-                    .ticketNumber("INC" + ticketId)
+                    .ticketNumber(realTicketNum)
                     .userId("demo_tarun")
                     .screenshotUrl("")
                     .screenshotData("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='100%' height='100%' fill='%232a3042'/><rect x='20' y='20' width='360' height='260' fill='white' rx='4'/><line x1='20' y1='60' x2='380' y2='60' stroke='%23e2e8f0' stroke-width='2'/><text x='40' y='45' font-family='sans-serif' font-weight='bold' font-size='14' fill='%23495057'>Google Sheets - spreed dheet</text><rect x='40' y='90' width='100' height='30' fill='%23d4edda' rx='3'/><text x='50' y='110' font-family='monospace' font-size='11' fill='%23155724'>colA: OK</text><rect x='160' y='90' width='100' height='30' fill='%23f8d7da' rx='3'/><text x='170' y='110' font-family='monospace' font-size='11' fill='%23721c24'>colB: ERROR</text></svg>")

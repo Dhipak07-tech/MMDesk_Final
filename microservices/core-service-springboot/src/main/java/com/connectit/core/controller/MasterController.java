@@ -510,17 +510,6 @@ public class MasterController {
                 return ResponseEntity.notFound().build();
             }
 
-            String categoryName = (String) categories.get(0).get("name");
-
-            // Integrity check
-            String checkSql = "SELECT COUNT(*) as count FROM tickets WHERE (incident_category = ? OR category = ?) AND status NOT IN ('Resolved', 'Closed', 'Canceled')";
-            Map<String, Object> checkResult = jdbcTemplate.queryForMap(checkSql, categoryName, categoryName);
-            long activeCount = ((Number) checkResult.get("count")).longValue();
-
-            if (activeCount > 0) {
-                return ResponseEntity.badRequest().body(Map.of("error", "This category is currently used by existing tickets"));
-            }
-
             jdbcTemplate.update("DELETE FROM incident_categories WHERE id = ?", id);
             return ResponseEntity.ok(Map.of("success", true, "message", "Incident category deleted successfully"));
         } catch (Exception e) {

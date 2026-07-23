@@ -6,7 +6,7 @@ import { mapDbTicketToFrontend, db, updateDoc, doc, serverTimestamp } from "../l
 import { useAuth } from"../contexts/AuthContext";
 import { ROLE_HIERARCHY, Role } from"../lib/roles";
 import { Button } from"@/components/ui/button";
-import { ChevronLeft, Send, History, MessageSquare, Save, Trash2, CheckCircle2, Clock, Plus, Star, Play, Square, Eye, AlertCircle, Lock, Globe, Users, Search, Zap, ShieldAlert, Paperclip, Image, FileText } from "lucide-react";
+import { ChevronLeft, Send, History, MessageSquare, Save, Trash2, CheckCircle2, Clock, Plus, Star, Play, Square, Eye, AlertCircle, Lock, Globe, Users, Search, Zap, ShieldAlert, Paperclip, Image, FileText, RotateCcw } from "lucide-react";
 import { cn } from"@/lib/utils";
 import { SLATimer } from"../components/SLATimer";
 import { useServiceCatalog } from"../lib/serviceCatalog";
@@ -47,11 +47,15 @@ export function TicketDetail() {
   const isCreator = ticket && user && (ticket.createdBy === user.uid || ticket.createdBy === user.email || ticket.created_by === user.uid || ticket.created_by === user.email);
   const isAdminOrLead = profile?.role && ["admin", "super_admin", "ultra_super_admin"].includes(profile.role);
   
+  const isTicketLocked = ticket?.status === "Resolved" || ticket?.status === "Closed";
+
   const canEdit = profile?.role ? (
-    isAdminOrLead ||
-    isAssignee ||
-    isCreator ||
-    !ticket?.assignedTo
+    !isTicketLocked && (
+      isAdminOrLead ||
+      isAssignee ||
+      isCreator ||
+      !ticket?.assignedTo
+    )
   ) : false;
 
  const [comments, setComments] = useState<any[]>([]);
@@ -781,7 +785,31 @@ export function TicketDetail() {
     }
   };
 
- const handleSaveSession = async () => {
+  const handleReopen = async () => {
+    if (!isAdminOrLead) return;
+    try {
+      const payload = {
+        ...editedTicket,
+        status: "In Progress"
+      };
+      const res = await api.put(`/api/tickets/${id}`, payload);
+      const data = res.data;
+      setTicket(data);
+      setEditedTicket(data);
+      // Log reopening system activity
+      await api.post(`/api/tickets/${id}/activities`, {
+        activity_type: "system",
+        visibility_type: "internal",
+        message: `Ticket status set back to In Progress by ${profile?.name || user?.email}`
+      });
+      setTimelineRefresh(prev => prev + 1);
+    } catch (error) {
+      console.error("Reopen failed", error);
+      alert("Failed to reopen the ticket.");
+    }
+  };
+
+  const handleSaveSession = async () => {
     if (!user) return;
     if (!sessionForm.shortDescription.trim()) {
       alert("Short Description is required.");
@@ -1149,9 +1177,29 @@ export function TicketDetail() {
 
  const breachRisk = getAiBreachRisk();
 
- return (
- <div className="space-y-6 max-w-7xl mx-auto">
- {/* Header */}
+  return (
+  <div className="space-y-6 max-w-7xl mx-auto">
+  {isTicketLocked && (
+    <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-lg p-3 flex items-center justify-between shadow-sm">
+      <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+        <ShieldAlert className="w-5 h-5 shrink-0" />
+        <span className="text-sm font-semibold">
+          This ticket is {ticket?.status} and locked for further updates.
+        </span>
+      </div>
+      {isAdminOrLead && (
+        <Button
+          onClick={handleReopen}
+          size="sm"
+          className="bg-red-600 hover:bg-red-700 text-white font-bold gap-1.5 h-8 px-3 transition-colors"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Reopen Ticket</span>
+        </Button>
+      )}
+    </div>
+  )}
+  {/* Header */}
  <div className="flex items-center justify-between bg-white p-3 border border-border rounded-lg shadow-sm">
  <div className="flex items-center gap-4">
  <Button variant="ghost" size="sm" onClick={() => navigate("/tickets")} className="gap-2 h-8 px-2">
@@ -1975,8 +2023,9 @@ export function TicketDetail() {
   <textarea
   value={workNote}
   onChange={(e) => setWorkNote(e.target.value)}
+  disabled={isTicketLocked}
   placeholder="Type internal work notes here... (visible only to agents)"
-  className="w-full p-3 border border-amber-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-amber-300 min-h-[120px] resize-none bg-white/80 placeholder:text-amber-400"
+  className="w-full p-3 border border-amber-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-amber-300 min-h-[120px] resize-none bg-white/80 placeholder:text-amber-400 disabled:opacity-60"
   />
   
   {/* Selected Attachments list */}
@@ -2018,7 +2067,8 @@ export function TicketDetail() {
   type="checkbox"
   checked={emailWorkNote}
   onChange={(e) => setEmailWorkNote(e.target.checked)}
-  className="w-3.5 h-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 accent-amber-500"
+  disabled={isTicketLocked}
+  className="w-3.5 h-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 accent-amber-500 disabled:opacity-50"
   />
   Email Note
   </label>
@@ -2029,9 +2079,9 @@ export function TicketDetail() {
          type="button"
          size="sm"
          variant="outline"
-         disabled={isUploadingWorkNoteFile}
+         disabled={isUploadingWorkNoteFile || isTicketLocked}
          onClick={() => setWorkNoteAttachMenuOpen(prev => !prev)}
-         className="border-amber-300 text-amber-700 hover:bg-amber-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
+         className="border-amber-300 text-amber-700 hover:bg-amber-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white disabled:opacity-50"
        >
          {isUploadingWorkNoteFile ? (
            <div className="w-3 h-3 border-2 border-amber-600/30 border-t-amber-700 rounded-full animate-spin" />
@@ -2071,7 +2121,7 @@ export function TicketDetail() {
      <Button
      type="button"
      size="sm"
-     disabled={(!workNote.trim() && workNoteAttachments.length === 0) || isPosting}
+     disabled={(!workNote.trim() && workNoteAttachments.length === 0) || isPosting || isTicketLocked}
      onClick={(e) => handleAddWorkNote(e)}
      className="bg-amber-500 hover:bg-amber-600 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
      >
@@ -2093,12 +2143,13 @@ export function TicketDetail() {
  </div>
  </div>
  <div className="p-4">
- <textarea
- value={newComment}
- onChange={(e) => setNewComment(e.target.value)}
- placeholder="Type comments visible to the customer here..."
- className="w-full p-3 border border-blue-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-blue-300 min-h-[120px] resize-none bg-white/80 placeholder:text-blue-400"
- />
+  <textarea
+  value={newComment}
+  onChange={(e) => setNewComment(e.target.value)}
+  disabled={isTicketLocked}
+  placeholder="Type comments visible to the customer here..."
+  className="w-full p-3 border border-blue-200 rounded-md text-xs outline-none focus:ring-2 focus:ring-blue-300 min-h-[120px] resize-none bg-white/80 placeholder:text-blue-400 disabled:opacity-60"
+  />
  
  {/* Selected Attachments list */}
  {commentAttachments.length > 0 && (
@@ -2135,24 +2186,25 @@ export function TicketDetail() {
  <Globe className="w-3 h-3" /> Visible to customer
  </span>
  <label className="flex items-center gap-1.5 text-[10px] text-blue-700 font-semibold cursor-pointer select-none">
- <input
- type="checkbox"
- checked={emailComment}
- onChange={(e) => setEmailComment(e.target.checked)}
- className="w-3.5 h-3.5 rounded border-blue-300 text-blue-600 focus:ring-blue-500 accent-blue-500"
- />
- Email Note
- </label>
+  <input
+  type="checkbox"
+  checked={emailComment}
+  onChange={(e) => setEmailComment(e.target.checked)}
+  disabled={isTicketLocked}
+  className="w-3.5 h-3.5 rounded border-blue-300 text-blue-600 focus:ring-blue-500 accent-blue-500 disabled:opacity-50"
+  />
+  Email Note
+  </label>
  </div>
  <div className="flex items-center gap-2">
    <div className="relative">
      <Button
-       type="button"
-       size="sm"
-       variant="outline"
-       disabled={isUploadingCommentFile}
-       onClick={() => setCommentAttachMenuOpen(prev => !prev)}
-       className="border-blue-300 text-blue-700 hover:bg-blue-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white"
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={isUploadingCommentFile || isTicketLocked}
+        onClick={() => setCommentAttachMenuOpen(prev => !prev)}
+        className="border-blue-300 text-blue-700 hover:bg-blue-100 font-bold gap-1.5 h-8 px-3 shadow-sm transition-all bg-white disabled:opacity-50"
      >
        {isUploadingCommentFile ? (
          <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-700 rounded-full animate-spin" />
@@ -2192,7 +2244,7 @@ export function TicketDetail() {
    <Button
    type="button"
    size="sm"
-   disabled={(!newComment.trim() && commentAttachments.length === 0) || isPosting}
+   disabled={(!newComment.trim() && commentAttachments.length === 0) || isPosting || isTicketLocked}
    onClick={(e) => handleAddComment(e)}
    className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-4 shadow-sm disabled:opacity-50 transition-all"
    >

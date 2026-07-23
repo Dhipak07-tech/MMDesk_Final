@@ -177,6 +177,15 @@ public class TicketController {
                 return ResponseEntity.notFound().build();
             }
             Ticket existing = opt.get();
+            if ("Resolved".equalsIgnoreCase(existing.getStatus()) || "Closed".equalsIgnoreCase(existing.getStatus())) {
+                boolean isReopening = request != null && request.getStatus() != null 
+                    && !"Resolved".equalsIgnoreCase(request.getStatus()) 
+                    && !"Closed".equalsIgnoreCase(request.getStatus());
+                if (!adminAccess || !isReopening) {
+                    return ResponseEntity.status(400).body(Map.of("error", "This ticket is closed and cannot be modified."));
+                }
+            }
+
             if (!adminAccess) {
                 if (existing.getAssignedTo() == null || !existing.getAssignedTo().equals(uid)) {
                     return ResponseEntity.status(403).body(Map.of("error", "Access denied: You are not the assigned agent for this ticket."));
@@ -269,6 +278,16 @@ public class TicketController {
     public ResponseEntity<?> addActivity(@PathVariable Long id, @RequestBody Map<String,Object> body) {
         if (body.get("message") == null || body.get("message").toString().isBlank())
             return ResponseEntity.badRequest().body(Map.of("error","Message is required"));
+        
+        Optional<Ticket> opt = ticketRepo.findById(id);
+        if (opt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Ticket ticket = opt.get();
+        if ("Resolved".equalsIgnoreCase(ticket.getStatus()) || "Closed".equalsIgnoreCase(ticket.getStatus())) {
+            return ResponseEntity.status(400).body(Map.of("error", "This ticket is closed and cannot be modified."));
+        }
+
         try {
             TicketActivity a = ticketService.addActivity(id, body);
             return ResponseEntity.status(201).body(serializeActivity(a));

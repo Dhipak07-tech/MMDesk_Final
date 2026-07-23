@@ -47,6 +47,23 @@ public class TicketService {
     public String generateTicketNumber() {
         return "INC" + (1_000_000 + new Random().nextInt(9_000_000));
     }
+
+    public String generateTicketNumber(Map<String, Object> data) {
+        String category = data != null ? (String) data.get("category") : null;
+        String incidentCategory = data != null ? (String) data.get("incidentCategory") : null;
+        String type = data != null ? (String) data.get("type") : null;
+        String purpose = data != null ? (String) data.get("purpose") : null;
+
+        boolean isServiceRequest = "Service Request".equalsIgnoreCase(category)
+            || "Service Request".equalsIgnoreCase(incidentCategory)
+            || "Service Request".equalsIgnoreCase(type)
+            || "Service".equalsIgnoreCase(purpose);
+
+        String prefix = isServiceRequest ? "SRC" : "INC";
+        System.out.println("[TicketPrefixDebug] Received data: category=" + category + ", incidentCategory=" + incidentCategory + ", type=" + type + ", purpose=" + purpose);
+        System.out.println("[TicketPrefixDebug] Is Service Request: " + isServiceRequest + " -> Prefix: " + prefix);
+        return prefix + (1_000_000 + new Random().nextInt(9_000_000));
+    }
     // ── Create ─────────────────────────────────────────────────────────────────
     @Transactional
     public Ticket createTicket(Map<String,Object> data, String createdBy, String createdByName, boolean hasAdminAccess) {
@@ -71,7 +88,7 @@ public class TicketService {
         }
 
         Ticket t = Ticket.builder()
-            .ticketNumber(generateTicketNumber())
+            .ticketNumber(generateTicketNumber(data))
             .caller((String) data.getOrDefault("caller", "System"))
             .callerEmail((String) data.get("callerEmail"))
             .callerUserId((String) data.get("callerUserId"))

@@ -31,7 +31,26 @@ public class UserController {
 
     @GetMapping("/users")
     public ResponseEntity<?> list() {
-        return ResponseEntity.ok(userService.findAll().stream().map(this::serialize).toList());
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        String loggedInUid = auth.getName();
+        String loggedInRole;
+        try {
+            loggedInRole = jdbcTemplate.queryForObject("SELECT role FROM users WHERE uid = ?", String.class, loggedInUid);
+        } catch (Exception e) {
+            loggedInRole = "user";
+        }
+
+        List<String> viewableRoles = com.connectit.core.util.RoleUtil.getViewableRoles(loggedInRole);
+
+        List<User> allUsers = userService.findAll();
+        List<User> filteredUsers = allUsers.stream()
+            .filter(u -> u.getUid().equals(loggedInUid) || (viewableRoles.contains(u.getRole() != null ? u.getRole().toLowerCase() : "")))
+            .toList();
+
+        return ResponseEntity.ok(filteredUsers.stream().map(this::serialize).toList());
     }
 
     @GetMapping("/users/{uid}")
