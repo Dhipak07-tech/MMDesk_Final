@@ -34,6 +34,26 @@ public class TimesheetController {
     @Value("${app.mail.from-name:Technosprint Support}")
     private String mailFromName;
 
+    private String getUserRole(String uid) {
+        try {
+            return jdbcTemplate.queryForObject("SELECT role FROM users WHERE uid = ?", String.class, uid);
+        } catch (Exception e) {
+            return "user";
+        }
+    }
+
+    private boolean isViewAllowed(String loggedInUid, String loggedInRole, String targetUid) {
+        if (targetUid == null) {
+            return true;
+        }
+        if (loggedInUid.equals(targetUid)) {
+            return true;
+        }
+        String targetRole = getUserRole(targetUid);
+        List<String> viewableRoles = com.connectit.core.util.RoleUtil.getViewableRoles(loggedInRole);
+        return viewableRoles.contains(targetRole != null ? targetRole.toLowerCase() : "");
+    }
+
     // ── Timesheets GET ────────────────────────────────────────────────────────
     @GetMapping("/timesheets")
     public ResponseEntity<?> getTimesheets(
@@ -41,18 +61,53 @@ public class TimesheetController {
             @RequestParam(required = false) String week_start,
             @RequestParam(required = false) String status) {
         
-        String sql = "SELECT * FROM timesheets WHERE 1=1";
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        String loggedInUid = auth.getName();
+        String loggedInRole;
+        try {
+            loggedInRole = jdbcTemplate.queryForObject("SELECT role FROM users WHERE uid = ?", String.class, loggedInUid);
+        } catch (Exception e) {
+            loggedInRole = "user";
+        }
+
+        if (user_id != null && !isViewAllowed(loggedInUid, loggedInRole, user_id)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied: Cannot view timesheets of same or higher rank."));
+        }
+
+        List<String> viewableRoles = com.connectit.core.util.RoleUtil.getViewableRoles(loggedInRole);
+
+        String sql = "SELECT t.* FROM timesheets t LEFT JOIN users u ON t.user_id = u.uid WHERE 1=1";
         List<Object> params = new ArrayList<>();
+
+        if (viewableRoles.isEmpty()) {
+            sql += " AND t.user_id = ?";
+            params.add(loggedInUid);
+        } else {
+            sql += " AND (t.user_id = ? OR u.role IN (";
+            params.add(loggedInUid);
+            for (int i = 0; i < viewableRoles.size(); i++) {
+                sql += "?";
+                if (i < viewableRoles.size() - 1) {
+                    sql += ",";
+                }
+                params.add(viewableRoles.get(i));
+            }
+            sql += "))";
+        }
+
         if (user_id != null) {
-            sql += " AND user_id = ?";
+            sql += " AND t.user_id = ?";
             params.add(user_id);
         }
         if (week_start != null) {
-            sql += " AND week_start = ?";
+            sql += " AND t.week_start = ?";
             params.add(week_start);
         }
         if (status != null) {
-            sql += " AND status = ?";
+            sql += " AND t.status = ?";
             params.add(status);
         }
 
@@ -62,8 +117,42 @@ public class TimesheetController {
 
     @GetMapping("/timesheets/all")
     public ResponseEntity<?> getAllTimesheets() {
-        String sql = "SELECT * FROM timesheets ORDER BY updated_at DESC";
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        String loggedInUid = auth.getName();
+        String loggedInRole;
+        try {
+            loggedInRole = jdbcTemplate.queryForObject("SELECT role FROM users WHERE uid = ?", String.class, loggedInUid);
+        } catch (Exception e) {
+            loggedInRole = "user";
+        }
+
+        List<String> viewableRoles = com.connectit.core.util.RoleUtil.getViewableRoles(loggedInRole);
+
+        String sql = "SELECT t.* FROM timesheets t LEFT JOIN users u ON t.user_id = u.uid WHERE 1=1";
+        List<Object> params = new ArrayList<>();
+
+        if (viewableRoles.isEmpty()) {
+            sql += " AND t.user_id = ?";
+            params.add(loggedInUid);
+        } else {
+            sql += " AND (t.user_id = ? OR u.role IN (";
+            params.add(loggedInUid);
+            for (int i = 0; i < viewableRoles.size(); i++) {
+                sql += "?";
+                if (i < viewableRoles.size() - 1) {
+                    sql += ",";
+                }
+                params.add(viewableRoles.get(i));
+            }
+            sql += "))";
+        }
+
+        sql += " ORDER BY t.updated_at DESC";
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, params.toArray());
         return ResponseEntity.ok(stringifyIds(rows));
     }
 
@@ -77,6 +166,22 @@ public class TimesheetController {
 
         if (userId == null || weekStart == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "user_id and week_start are required"));
+        }
+
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        String loggedInUid = auth.getName();
+        String loggedInRole;
+        try {
+            loggedInRole = jdbcTemplate.queryForObject("SELECT role FROM users WHERE uid = ?", String.class, loggedInUid);
+        } catch (Exception e) {
+            loggedInRole = "user";
+        }
+
+        if (!isViewAllowed(loggedInUid, loggedInRole, userId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied: Cannot access timesheet of same or higher rank."));
         }
 
         String selectSql = "SELECT * FROM timesheets WHERE user_id = ? AND week_start = ?";
@@ -217,18 +322,64 @@ public class TimesheetController {
             @RequestParam(required = false) String start_date,
             @RequestParam(required = false) String end_date) {
         
-        String sql = "SELECT * FROM time_cards WHERE 1=1";
-        List<Object> params = new ArrayList<>();
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        String loggedInUid = auth.getName();
+        String loggedInRole;
+        try {
+            loggedInRole = jdbcTemplate.queryForObject("SELECT role FROM users WHERE uid = ?", String.class, loggedInUid);
+        } catch (Exception e) {
+            loggedInRole = "user";
+        }
+
+        if (user_id != null && !isViewAllowed(loggedInUid, loggedInRole, user_id)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied: Cannot view time cards of same or higher rank."));
+        }
         if (timesheet_id != null) {
-            sql += " AND timesheet_id = ?";
+            String tsOwner;
+            try {
+                tsOwner = jdbcTemplate.queryForObject("SELECT user_id FROM timesheets WHERE id = ?", String.class, timesheet_id);
+            } catch (Exception e) {
+                tsOwner = null;
+            }
+            if (tsOwner != null && !isViewAllowed(loggedInUid, loggedInRole, tsOwner)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Access denied: Cannot view time cards of same or higher rank."));
+            }
+        }
+
+        List<String> viewableRoles = com.connectit.core.util.RoleUtil.getViewableRoles(loggedInRole);
+
+        String sql = "SELECT tc.* FROM time_cards tc LEFT JOIN users u ON tc.user_id = u.uid WHERE 1=1";
+        List<Object> params = new ArrayList<>();
+
+        if (viewableRoles.isEmpty()) {
+            sql += " AND tc.user_id = ?";
+            params.add(loggedInUid);
+        } else {
+            sql += " AND (tc.user_id = ? OR u.role IN (";
+            params.add(loggedInUid);
+            for (int i = 0; i < viewableRoles.size(); i++) {
+                sql += "?";
+                if (i < viewableRoles.size() - 1) {
+                    sql += ",";
+                }
+                params.add(viewableRoles.get(i));
+            }
+            sql += "))";
+        }
+
+        if (timesheet_id != null) {
+            sql += " AND tc.timesheet_id = ?";
             params.add(timesheet_id);
         }
         if (user_id != null) {
-            sql += " AND user_id = ?";
+            sql += " AND tc.user_id = ?";
             params.add(user_id);
         }
         if (start_date != null && end_date != null) {
-            sql += " AND entry_date BETWEEN ? AND ?";
+            sql += " AND tc.entry_date BETWEEN ? AND ?";
             params.add(start_date);
             params.add(end_date);
         }
